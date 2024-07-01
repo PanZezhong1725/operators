@@ -7,28 +7,19 @@
 
 struct RotaryEmbeddingBangDescriptor {
     Device device;
-    cnnlTensorDescriptor_t inDesc, posDesc, thetaDesc, freqDesc, freqConcatDesc, scalerDesc;
     cnnlOpTensorDescriptor_t outerDesc;
     cnnlRotaryEmbeddingDescriptor_t ropeDesc;
 
     RotaryEmbeddingBangDescriptor(Device device);
     void createCnnlDescriptors() {
-        cnnlCreateTensorDescriptor(&inDesc);
-        cnnlCreateTensorDescriptor(&posDesc);
-        cnnlCreateTensorDescriptor(&thetaDesc);
-        cnnlCreateTensorDescriptor(&freqDesc);
-        cnnlCreateTensorDescriptor(&freqConcatDesc);
-        cnnlCreateTensorDescriptor(&scalerDesc);
         cnnlCreateOpTensorDescriptor(&outerDesc);
         cnnlCreateRotaryEmbeddingDescriptor(&ropeDesc);
+        cnnlSetOpTensorDescriptor(outerDesc, CNNL_OP_TENSOR_MUL,
+                                  CNNL_DTYPE_FLOAT, CNNL_NOT_PROPAGATE_NAN);
+        cnnlSetRotaryEmbeddingDescriptor_v2(ropeDesc, false, true,
+                                            false, false, CNNL_SEQDATA_TNBC);
     }
     void destroyCnnlDescriptors() {
-        cnnlDestroyTensorDescriptor(inDesc);
-        cnnlDestroyTensorDescriptor(posDesc);
-        cnnlDestroyTensorDescriptor(thetaDesc);
-        cnnlDestroyTensorDescriptor(freqDesc);
-        cnnlDestroyTensorDescriptor(freqConcatDesc);
-        cnnlDestroyTensorDescriptor(scalerDesc);
         cnnlDestroyOpTensorDescriptor(outerDesc);
         cnnlDestroyRotaryEmbeddingDescriptor(ropeDesc);
     }

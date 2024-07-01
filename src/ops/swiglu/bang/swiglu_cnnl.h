@@ -7,20 +7,21 @@
 
 struct SwigluBangDescriptor {
     Device device;
-    cnnlTensorDescriptor_t gateDesc, inDesc;
     cnnlActivationDescriptor_t actDesc;
     cnnlBiasActivationGluDescriptor_t opDesc;
 
     SwigluBangDescriptor(Device device);
     void createCnnlDescriptors() {
-        cnnlCreateTensorDescriptor(&gateDesc);
-        cnnlCreateTensorDescriptor(&inDesc);
         cnnlCreateActivationDescriptor(&actDesc);
         cnnlCreateBiasActivationGluDescriptor(&opDesc);
+        cnnlSetActivationDescriptor_v6(actDesc, CNNL_ACTIVATION_SILU,
+                                       CNNL_ACTIVATION_HIGH_PRECISION,
+                                       CNNL_NOT_PROPAGATE_NAN,
+                                       0.0, 0, 0.0, 0.0, true, true);
+        cnnlSetBiasActivationGluDescriptor(opDesc, actDesc,
+                                           CNNL_BIAS_ACTIVATION_GLU_ALGO_V2);
     }
     void destroyCnnlDescriptors() {
-        cnnlDestroyTensorDescriptor(gateDesc);
-        cnnlDestroyTensorDescriptor(inDesc);
         cnnlDestroyActivationDescriptor(actDesc);
         cnnlDestroyBiasActivationGluDescriptor(opDesc);
     }

@@ -29,9 +29,7 @@ __C MatmulDescriptor *createMatmulDescriptor(Device device, void *config) {
 #endif
 #ifdef ENABLE_CAMBRICON_MLU
         case DevCambriconMlu: {
-            auto bangDescriptor = new MatmulBangDescriptor(device);
-            bangDescriptor->createCnnlDescriptors();
-            return (MatmulDescriptor *) (bangDescriptor);
+            return (MatmulDescriptor *) (new MatmulBangDescriptor(device));
         }
 #endif
         default:
@@ -54,9 +52,7 @@ __C void destroyMatmulDescriptor(MatmulDescriptor *descriptor) {
 #endif
 #ifdef ENABLE_CAMBRICON_MLU
         case DevCambriconMlu: {
-            auto bangDescriptor = (MatmulBangDescriptor *) (descriptor);
-            bangDescriptor->destroyCnnlDescriptors();
-            delete bangDescriptor;
+            delete (MatmulBangDescriptor *) (descriptor);
             break;
         }
 #endif
@@ -79,7 +75,7 @@ __C void matmul(MatmulDescriptor *descriptor, Tensor c, float beta, Tensor a, Te
 #endif
 #ifdef ENABLE_CAMBRICON_MLU
         case DevCambriconMlu:
-            matmul_cnnl_f16((MatmulBangDescriptor *) (descriptor), c, beta, a, b, alpha, stream);
+            matmul_cnnl_f16(c, beta, a, b, alpha, stream);
             break;
 #endif
         default:

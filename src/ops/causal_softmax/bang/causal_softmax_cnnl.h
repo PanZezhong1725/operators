@@ -7,17 +7,9 @@
 
 struct CausalSoftmaxBangDescriptor {
     Device device;
-    cnnlTensorDescriptor_t tDesc;
-
     CausalSoftmaxBangDescriptor(Device device);
-    void createCnnlDescriptors() {
-        cnnlCreateTensorDescriptor(&tDesc);
-    }
-    void destroyCnnlDescriptors() {
-        cnnlDestroyTensorDescriptor(tDesc);
-    }
 };
 
-void causal_softmax_cnnl_f16(CausalSoftmaxBangDescriptor *descriptor, Tensor t, void *stream);
+void causal_softmax_cnnl_f16(Tensor t, void *stream);
 
 #endif// __CNNL_CAUSAL_SOFTMAX_H__

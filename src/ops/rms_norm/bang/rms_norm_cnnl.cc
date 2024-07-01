@@ -9,7 +9,7 @@ RMSNormBangDescriptor::RMSNormBangDescriptor(Device device) {
     get_cnnl_pool();
 }
 
-void rms_norm_cnnl_f16(RMSNormBangDescriptor *descriptor, Tensor y, Tensor x, Tensor w, float epsilon, void *stream) {
+void rms_norm_cnnl_f16(Tensor y, Tensor x, Tensor w, float epsilon, void *stream) {
     ASSERT_EQ(y.layout->ndim, 2);
     ASSERT_EQ(x.layout->ndim, 2);
     ASSERT_EQ(w.layout->ndim, 1);
@@ -21,11 +21,17 @@ void rms_norm_cnnl_f16(RMSNormBangDescriptor *descriptor, Tensor y, Tensor x, Te
     ASSERT_EQ(x.layout->shape[1], d);
     ASSERT_EQ(w.layout->shape[0], d);
 
-    setCnnlTensor(descriptor->yDesc, y.layout);
-    setCnnlTensor(descriptor->xDesc, x.layout);
-    setCnnlTensor(descriptor->wDesc, w.layout);
+    cnnlTensorDescriptor_t yDesc, xDesc, wDesc;
+    cnnlCreateTensorDescriptor(&yDesc);
+    cnnlCreateTensorDescriptor(&xDesc);
+    cnnlCreateTensorDescriptor(&wDesc);
+    setCnnlTensor(yDesc, y.layout);
+    setCnnlTensor(xDesc, x.layout);
+    setCnnlTensor(wDesc, w.layout);
 
-    cnnlSetFuseNormDescriptor(descriptor->opDesc, epsilon, 1.0, true,
+    cnnlFuseNormDescriptor_t opDesc;
+    cnnlCreateFuseNormDescriptor(&opDesc);
+    cnnlSetFuseNormDescriptor(opDesc, epsilon, 1.0, true,
                               false, false, false, false,
                               CNNL_DTYPE_HALF, CNNL_TRANSFORMER_RMSNORM);
 
@@ -34,13 +40,17 @@ void rms_norm_cnnl_f16(RMSNormBangDescriptor *descriptor, Tensor y, Tensor x, Te
     use_cnnl((cnrtQueue_t) stream,
              [&](cnnlHandle_t handle) {
                  size_t wsSize;
-                 cnnlGetFuseNormWorkspaceSize(handle, descriptor->opDesc, descriptor->xDesc, &wsSize);
+                 cnnlGetFuseNormWorkspaceSize(handle, opDesc, xDesc, &wsSize);
                  cnrtMalloc(&workspace, wsSize);
-                 cnnlFuseNorm(handle, descriptor->opDesc, descriptor->xDesc, x.data,
-                              descriptor->wDesc, w.data, nullptr, nullptr,
+                 cnnlFuseNorm(handle, opDesc, xDesc, x.data,
+                              wDesc, w.data, nullptr, nullptr,
                               nullptr, nullptr, nullptr, nullptr,
-                              workspace, wsSize, descriptor->yDesc, y.data, nullptr, nullptr);
+                              workspace, wsSize, yDesc, y.data, nullptr, nullptr);
              });
 
     cnrtFree(workspace);
+    cnnlDestroyFuseNormDescriptor(opDesc);
+    cnnlDestroyTensorDescriptor(xDesc);
+    cnnlDestroyTensorDescriptor(yDesc);
+    cnnlDestroyTensorDescriptor(wDesc);
 }

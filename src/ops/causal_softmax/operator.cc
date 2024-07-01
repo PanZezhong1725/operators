@@ -30,9 +30,7 @@ __C CausalSoftmaxDescriptor *createCausalSoftmaxDescriptor(Device device, void *
 #endif
 #ifdef ENABLE_CAMBRICON_MLU
         case DevCambriconMlu: {
-            auto bangDescriptor = new CausalSoftmaxBangDescriptor(device);
-            bangDescriptor->createCnnlDescriptors();
-            return (CausalSoftmaxDescriptor *) (bangDescriptor);
+            return (CausalSoftmaxDescriptor *) (new CausalSoftmaxBangDescriptor(device));
         }
 #endif
         default:
@@ -55,9 +53,7 @@ __C void destroyCausalSoftmaxDescriptor(CausalSoftmaxDescriptor *descriptor) {
 #endif
 #ifdef ENABLE_CAMBRICON_MLU
         case DevCambriconMlu: {
-            auto bangDescriptor = (CausalSoftmaxBangDescriptor *) (descriptor);
-            bangDescriptor->destroyCnnlDescriptors();
-            delete bangDescriptor;
+            delete (CausalSoftmaxBangDescriptor *) (descriptor);
             break;
         }
 #endif
@@ -80,7 +76,7 @@ __C void causalSoftmax(CausalSoftmaxDescriptor *descriptor, Tensor y, void *stre
 #endif
 #ifdef ENABLE_CAMBRICON_MLU
         case DevCambriconMlu:
-            causal_softmax_cnnl_f16((CausalSoftmaxBangDescriptor *) (descriptor), y, stream);
+            causal_softmax_cnnl_f16(y, stream);
             break;
 #endif
         default:

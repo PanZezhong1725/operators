@@ -7,24 +7,9 @@
 
 struct RMSNormBangDescriptor {
     Device device;
-    cnnlTensorDescriptor_t yDesc, xDesc, wDesc;
-    cnnlFuseNormDescriptor_t opDesc;
-
     RMSNormBangDescriptor(Device device);
-    void createCnnlDescriptors() {
-        cnnlCreateTensorDescriptor(&yDesc);
-        cnnlCreateTensorDescriptor(&xDesc);
-        cnnlCreateTensorDescriptor(&wDesc);
-        cnnlCreateFuseNormDescriptor(&opDesc);
-    }
-    void destroyCnnlDescriptors() {
-        cnnlDestroyFuseNormDescriptor(opDesc);
-        cnnlDestroyTensorDescriptor(xDesc);
-        cnnlDestroyTensorDescriptor(yDesc);
-        cnnlDestroyTensorDescriptor(wDesc);
-    }
 };
 
-void rms_norm_cnnl_f16(RMSNormBangDescriptor *descriptor, Tensor y, Tensor x, Tensor w, float epsilon, void *stream);
+void rms_norm_cnnl_f16(Tensor y, Tensor x, Tensor w, float epsilon, void *stream);
 
 #endif// __CNNL_RMS_NORM_H__

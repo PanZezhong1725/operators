@@ -23,18 +23,20 @@ def rms_norm(x, w, eps):
 
 
 def test(lib, descriptor, torch_device):
-
-    y = torch.zeros((5, 16), dtype=torch.float16).to(torch_device)
-    x = torch.rand((5, 16), dtype=torch.float16).to(torch_device)
-    w = torch.ones((16,), dtype=torch.float16).to(torch_device)
+    y = torch.zeros((16, 13312), dtype=torch.float16).to(torch_device)
+    x = torch.rand((16, 2048), dtype=torch.float16).to(torch_device)
+    w = torch.ones((2048,), dtype=torch.float16).to(torch_device)
 
     eps = 1e-5
     ans = rms_norm(x, w, eps)
     lib.rmsNorm(
-        descriptor, to_tensor(y, lib), to_tensor(x, lib), to_tensor(w, lib), eps, None
+        descriptor, to_tensor(y, lib, [16, 2048], [26624, 2]), to_tensor(x, lib), to_tensor(w, lib), eps, None
     )
 
-    assert torch.allclose(y, ans, atol=0, rtol=1e-3)
+    print(ans)
+    print("=======================================================")
+    print(y[:, :2048])
+    assert torch.allclose(y[:, :2048], ans, atol=0, rtol=1e-3)
     print("Test passed!")
 
 

@@ -2,17 +2,18 @@
 #include "bang_device_functions.h"
 #include "cnrt.h"
 #include "rms_norm_bang.h"
-#include "../../../devices/bang/common_bang.h"
+//#include "../../../devices/bang/common_bang.h"
 
 const int NRAM_MAX_SIZE = 1024 * (512 + 128);//the maximum NRAM memory is 1024 * 768
 const int nramNum = NRAM_MAX_SIZE/sizeof(float);
-__nram__  float nram_buffer[nramNum];
+
 const int SRC_MAX_SIZE = 1024 * 128;//至少大于等于128字节
-const int maxNum = SRC_MAX_SIZE/sizeof(float); 
-const int wSize = 32;//后续为了针对axis=-1进行规约求和
+ 
+const int wSize = 64;
 template <typename T>
-__mlu_device__ void rmsNormKernel(T *source, T *destination, T *weight, int *strideSrc, int *strideDest, int *shape, int othersize, int dimsize, int dimS, float eps) {//axis=-1
-    int segNum = dimS / wSize;
+__mlu_device__ void rmsNormKernel(T *destination, T const *source, T const *weight, int *strideSrc, int *strideDest, int *shape, int othersize, int dimsize, int dimS, float eps, int ndim) {//axis=-1
+    __nram__  T nram_buffer[nramNum];
+    const int maxNum = SRC_MAX_SIZE/sizeof(T);
     if(dimsize >= maxNum){
         T *src = nram_buffer;//[maxNum]
         T *destSumFinal = src + maxNum;//[wSize]
@@ -27,7 +28,7 @@ __mlu_device__ void rmsNormKernel(T *source, T *destination, T *weight, int *str
             int inds = 0;
             int indd = 0;
             int indi = i + taskId;
-            for (int j = nDim - 2; j >= 0; --j) {
+            for (int j = ndim - 2; j >= 0; --j) {
                 inds += (indi % shape[j]) * strideSrc[j];
                 indd += (indi % shape[j]) * strideDest[j];
                 indi /= shape[j];
@@ -93,18 +94,21 @@ __mlu_device__ void rmsNormKernel(T *source, T *destination, T *weight, int *str
         }
     }
     else{//dimsize < maxNum
+        
         T *src = nram_buffer;
         T *wet = src + dimsize;   
         T *destSum = wet + dimsize;  
         T *destSumFinal = destSum + dimS;
         
         __bang_write_zero(destSum, dimS);
+        __bang_write_zero(destSumFinal, wSize);
         __memcpy(wet, weight, dimsize * sizeof(T), GDRAM2NRAM);
+        
         for(int i = 0; i < othersize; i += taskDim){
             int inds = 0;
             int indd = 0;
             int indi = i + taskId;
-            for (int j = nDim - 2; j >= 0; --j) {
+            for (int j = ndim - 2; j >= 0; --j) {
                 inds += (indi % shape[j]) * strideSrc[j];
                 indd += (indi % shape[j]) * strideDest[j];
                 indi /= shape[j];
@@ -120,8 +124,8 @@ __mlu_device__ void rmsNormKernel(T *source, T *destination, T *weight, int *str
             __bang_reduce_sum(destSumFinal, destSum, wSize);
             destSumFinal[0] += eps;
             destSumFinal[0] /= dimsize;
-            destSumFinal[0] = pow(destSum[0], 0.5);
-            T globalSumInv = 1.0 / destSum[0];
+            T globalSum = pow(destSumFinal[0], 0.5);
+            T globalSumInv = 1.0 / globalSum;
             __bang_mul(src, src, wet, dimsize);
             __bang_mul_scalar(src, src, globalSumInv, dimsize);
             __memcpy(destination + indd, src, dimsize * sizeof(T), NRAM2GDRAM);
@@ -130,13 +134,13 @@ __mlu_device__ void rmsNormKernel(T *source, T *destination, T *weight, int *str
 }
 
 template<typename T>
-__mlu_global__ void rmsNormUnion1(T *mlu_destination, T const *mlu_src, T const *mlu_weight, int *strideSrc, int *strideDest, int *shape, int othersize, int dimsize, int dimS, float eps) {
+__mlu_global__ void rmsNormUnion1(T *mlu_destination, T const *mlu_src, T const *mlu_weight, int *strideSrc, int *strideDest, int *shape, int othersize, int dimsize, int dimS, float eps, int ndim) {
 
-    rmsNormKernel<T>(mlu_src, mlu_destination, mlu_weight, strideSrc, strideDest, shape, othersize, dimsize, dimS, eps);
+    rmsNormKernel<T>(mlu_destination, mlu_src, mlu_weight, strideSrc, strideDest, shape, othersize, dimsize, dimS, eps, ndim);
 }
 
 template<typename T>
-void rmsNorm(cnrtQueue_t queue, void *y, void const *x, void const *w, int *strideSrc, int *strideDest, int *shape, int n, int d, float eps) {
+void rmsNorm(cnrtQueue_t queue, void *y, void const *x, void const *w, int *strideSrc, int *strideDest, int *shape, int n, int d, float eps, int ndim) {
     const int wSize = 128 / sizeof(T);
     auto y_ = reinterpret_cast<T *>(y);
     auto x_ = reinterpret_cast<T const *>(x);
@@ -161,12 +165,12 @@ void rmsNorm(cnrtQueue_t queue, void *y, void const *x, void const *w, int *stri
     k_dim.z = 1;
     k_type = CNRT_FUNC_TYPE_UNION1;
 
-    rmsNormUnion1<T><<<k_dim, k_type, queue>>>(y_, x_, w_, strideSrc, strideDest, shape, n, d, dimS, eps);
+    rmsNormUnion1<T><<<k_dim, k_type, queue>>>(y_, x_, w_, strideSrc, strideDest, shape, n, d, dimS, eps, ndim);
     cnrtQueueSync(queue);
 }
 
-void rmsNorm_fp16(cnrtQueue_t queue, void *y, void const *x, void const *w, int *strideSrc, int *strideDest, int *shape, int n, int d, float eps) {
-   rmsNorm<half>(queue, y, x, w, strideSrc, strideDest, shape, n, d, eps);
+void rmsNorm_fp16(cnrtQueue_t queue, void *y, void const *x, void const *w, int *strideSrc, int *strideDest, int *shape, int n, int d, float eps, int ndim) {
+   rmsNorm<half>(queue, y, x, w, strideSrc, strideDest, shape, n, d, eps, ndim);
 }
 
 void rms_norm_bang_f16(Tensor y, Tensor x, Tensor w, float epsilon, void *stream) {
@@ -184,11 +188,20 @@ void rms_norm_bang_f16(Tensor y, Tensor x, Tensor w, float epsilon, void *stream
     int ndim = y.layout->ndim;
     int x_stride[ndim], y_stride[ndim], shape[ndim];
     for (int i = 0; i < ndim; i++) {
-        x_stride[i] = static_cast<int>(x.layout->strides[i]);
-        y_stride[i] = static_cast<int>(y.layout->strides[i]);
+        x_stride[i] = static_cast<int>(x.layout->strides[i]) / 2;
+        y_stride[i] = static_cast<int>(y.layout->strides[i]) / 2;
         shape[i] = static_cast<int>(y.layout->shape[i]);
     }    
-
+    int *mlu_strideX, *mlu_strideY, *mlu_shape;
+    CNRT_CHECK(cnrtMalloc((void **)&mlu_strideX, ndim * sizeof(int)));
+    CNRT_CHECK(cnrtMalloc((void **)&mlu_strideY, ndim * sizeof(int)));
+    CNRT_CHECK(cnrtMalloc((void **)&mlu_shape, ndim * sizeof(int)));
+    CNRT_CHECK(cnrtMemcpy(mlu_strideX, x_stride, ndim * sizeof(int), cnrtMemcpyHostToDev));
+    CNRT_CHECK(cnrtMemcpy(mlu_strideY, y_stride, ndim * sizeof(int), cnrtMemcpyHostToDev));
+    CNRT_CHECK(cnrtMemcpy(mlu_shape, shape, ndim * sizeof(int), cnrtMemcpyHostToDev));
     auto queue = reinterpret_cast<cnrtQueue_t>(stream);
-    rmsNorm_fp16(queue, y.data, x.data, w.data, x_stride, y_stride, shape, n, d, epsilon);
+    rmsNorm_fp16(queue, y.data, x.data, w.data, mlu_strideX, mlu_strideY, mlu_shape, n, d, epsilon, ndim);
+    cnrtFree(mlu_strideX);
+    cnrtFree(mlu_strideY);
+    cnrtFree(mlu_shape);
 } 

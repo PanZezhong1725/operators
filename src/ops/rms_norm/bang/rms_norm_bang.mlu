@@ -188,8 +188,8 @@ void rms_norm_bang_f16(Tensor y, Tensor x, Tensor w, float epsilon, void *stream
     int ndim = y.layout->ndim;
     int x_stride[ndim], y_stride[ndim], shape[ndim];
     for (int i = 0; i < ndim; i++) {
-        x_stride[i] = static_cast<int>(x.layout->strides[i]) / 2;
-        y_stride[i] = static_cast<int>(y.layout->strides[i]) / 2;
+        x_stride[i] = static_cast<int>(x.layout->strides[i]) / y.layout->dt.size;
+        y_stride[i] = static_cast<int>(y.layout->strides[i]) / y.layout->dt.size;
         shape[i] = static_cast<int>(y.layout->shape[i]);
     }    
     int *mlu_strideX, *mlu_strideY, *mlu_shape;

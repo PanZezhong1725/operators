@@ -52,13 +52,13 @@ __mlu_global__ void reformUnion1(T *source, T *destination, int *strideSrc, int 
 
 void reform(cnrtQueue_t queue, void *y, void *x, int *y_stride, int *x_stride, int *shape, int n, int dimsize, int ndim){
     
-    auto y_ = reinterpret_cast<uint8_t *>(y);
-    auto x_ = reinterpret_cast<uint8_t *>(x);
+    auto y_ = reinterpret_cast<half *>(y);
+    auto x_ = reinterpret_cast<half *>(x);
 
     cnrtDim3_t dim = {16, 1, 1};
     cnrtFunctionType_t ktype = CNRT_FUNC_TYPE_UNION1;
     
-    reformUnion1<uint8_t><<<dim, ktype, queue>>>(x_, y_, x_stride, y_stride, shape, n, dimsize, ndim);
+    reformUnion1<half><<<dim, ktype, queue>>>(x_, y_, x_stride, y_stride, shape, n, dimsize, ndim);
     cnrtQueueSync(queue);
     
 }
@@ -76,8 +76,8 @@ void reform_bang(Tensor y, Tensor x, void *stream) {
     int x_stride[ndim], y_stride[ndim], shape[ndim];
     int n = 1;
     for (int i = 0; i < ndim; i++) {
-        x_stride[i] = static_cast<int>(x.layout->strides[i]);
-        y_stride[i] = static_cast<int>(y.layout->strides[i]);
+        x_stride[i] = static_cast<int>(x.layout->strides[i])/y.layout->dt.size;
+        y_stride[i] = static_cast<int>(y.layout->strides[i])/y.layout->dt.size;
         shape[i] = static_cast<int>(y.layout->shape[i]);
         n *= shape[i];
     }

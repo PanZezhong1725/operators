@@ -60,7 +60,7 @@ def test_bang(lib):
     _, bang_ans = test(lib, descriptor, "mlu", x)
     print(x)
     print(cpu_ans)
-    print(bang_ans)
+    print(bang_ans.cpu())
     
     assert torch.allclose(bang_ans.cpu(), cpu_ans, atol=1e-3, rtol=1e-3)
     print("Test passed!")

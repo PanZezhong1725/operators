@@ -2,19 +2,19 @@
 #include "bang_device_functions.h"
 #include "cnrt.h"
 #include "rms_norm_bang.h"
-//#include "../../../devices/bang/common_bang.h"
+#include "../../../devices/bang/common_bang.h"
 
-const int NRAM_MAX_SIZE = 1024 * (512 + 128);//the maximum NRAM memory is 1024 * 768
-const int nramNum = NRAM_MAX_SIZE/sizeof(float);
 
-const int SRC_MAX_SIZE = 1024 * 128;//至少大于等于128字节
+const int SRC_MAX_SIZE = 1024 * 64;//至少大于等于128字节
  
 const int wSize = 64;
 template <typename T>
 __mlu_device__ void rmsNormKernel(T *destination, T const *source, T const *weight, int *strideSrc, int *strideDest, int *shape, int othersize, int dimsize, int dimS, float eps, int ndim) {//axis=-1
+    const int nramNum = NRAM_MAX_SIZE/sizeof(T);
     __nram__  T nram_buffer[nramNum];
     const int maxNum = SRC_MAX_SIZE/sizeof(T);
     if(dimsize >= maxNum){
+        
         T *src = nram_buffer;//[maxNum]
         T *destSumFinal = src + maxNum;//[wSize]
         T *destSum = destSumFinal + wSize;//[wSize]
@@ -101,7 +101,7 @@ __mlu_device__ void rmsNormKernel(T *destination, T const *source, T const *weig
         T *destSumFinal = destSum + dimS;
         
         __bang_write_zero(destSum, dimS);
-        __bang_write_zero(destSumFinal, wSize);
+        __bang_write_zero(destSumFinal, dimS);
         __memcpy(wet, weight, dimsize * sizeof(T), GDRAM2NRAM);
         
         for(int i = 0; i < othersize; i += taskDim){
@@ -122,8 +122,8 @@ __mlu_device__ void rmsNormKernel(T *destination, T const *source, T const *weig
                 }
             }
             __bang_reduce_sum(destSumFinal, destSum, wSize);
-            destSumFinal[0] += eps;
             destSumFinal[0] /= dimsize;
+            destSumFinal[0] += eps;
             T globalSum = pow(destSumFinal[0], 0.5);
             T globalSumInv = 1.0 / globalSum;
             __bang_mul(src, src, wet, dimsize);

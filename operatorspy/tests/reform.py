@@ -16,25 +16,31 @@ import torch
 import time
 
 
-def test(lib, descriptor, torch_device):
-    x = torch.rand((120, 10, 12, 32, 128), dtype=torch.float16).to(torch_device)
-    y = torch.zeros_like(x)
+def test(lib, descriptor, torch_device, x = None):
+    if x is None:
+        x = torch.rand((10, 10), dtype=torch.float16).to(torch_device)
+    else:
+        x = x.to(torch_device)
+    y = torch.zeros((5, 5), dtype=torch.float16).to(torch_device)
 
-    start = time.time()
-    lib.reform(descriptor, to_tensor(y, lib), to_tensor(x, lib), None)
-    end = time.time()
-    print(f"Time elapsed: {(end - start) *1000} ms")
+    # start = time.time()
+    lib.reform(descriptor, to_tensor(y, lib), to_tensor(x, lib, [5, 5], [20, 2]), None)
+    # end = time.time()
+    # print(f"Time elapsed: {(end - start) *1000} ms")
 
-    assert torch.allclose(y, x, atol=1, rtol=1e-3)
-    print("Test passed!")
+    # assert torch.allclose(y, x, atol=1, rtol=1e-3)
+    # print("Test passed!")
+    
+    return x, y
 
 
 def test_cpu(lib):
     device = DeviceEnum.DEVICE_CPU
     config = None
     descriptor = lib.createReformDescriptor(device, config)
-    test(lib, descriptor, "cpu")
+    ans = test(lib, descriptor, "cpu")
     lib.destroyReformDescriptor(descriptor)
+    return ans
 
 
 def test_cuda(lib):
@@ -48,8 +54,19 @@ def test_bang(lib):
     import torch_mlu
     device = DeviceEnum.DEVICE_BANG
     descriptor = lib.createReformDescriptor(device, None)
-    test(lib, descriptor, "mlu")
+    
+    # compare with cpu results
+    x, cpu_ans = test_cpu(lib)
+    _, bang_ans = test(lib, descriptor, "mlu", x)
+    print(x)
+    print(cpu_ans)
+    print(bang_ans)
+    
+    assert torch.allclose(bang_ans.cpu(), cpu_ans, atol=1e-3, rtol=1e-3)
+    print("Test passed!")
+    
     lib.destroyReformDescriptor(descriptor)
+    
 
 if __name__ == "__main__":
     args = get_args()

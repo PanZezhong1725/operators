@@ -10,10 +10,17 @@ __mlu_device__ void reformKernel(T *source, T *destination, int *strideSrc, int 
         int maxNum = GDRAM_MAX_SIZE / sizeof(T);
         int remain = dimsize % maxNum;
         int repeat = (dimsize - remain) / maxNum;
-        for (int i = 0; i < n; i += taskDim){
+
+        int remainT = n % taskDim;
+        int stepEasy = (n - remainT) / taskDim;
+        int stepHard = stepEasy + 1;
+        int step = (taskId < remainT ? stepHard : stepEasy);
+        int indStart = (taskId < remainT ? taskId * stepHard : (taskId - remainT) * stepEasy + remainT * stepHard);
+        
+        for(int i = indStart; i < indStart + step; i++){
             int inds = 0;
             int indd = 0;
-            int indi = i + taskId;
+            int indi = i;
             for (int j = nDim - 2; j >= 0; --j) {
                 inds += (indi % shape[j]) * strideSrc[j];
                 indd += (indi % shape[j]) * strideDest[j];
@@ -28,10 +35,16 @@ __mlu_device__ void reformKernel(T *source, T *destination, int *strideSrc, int 
         }      
     }
     else {
-        for(int i = 0; i < n; i += taskDim){
+        int remainT = n % taskDim;
+        int stepEasy = (n - remainT) / taskDim;
+        int stepHard = stepEasy + 1;
+        int step = (taskId < remainT ? stepHard : stepEasy);
+        int indStart = (taskId < remainT ? taskId * stepHard : (taskId - remainT) * stepEasy + remainT * stepHard);
+        
+        for(int i = indStart; i < indStart + step; i++){
             int inds = 0;
             int indd = 0;
-            int indi = i + taskId;
+            int indi = i;
             for (int j = nDim - 2; j >= 0; --j) {
                 inds += (indi % shape[j]) * strideSrc[j];
                 indd += (indi % shape[j]) * strideDest[j];

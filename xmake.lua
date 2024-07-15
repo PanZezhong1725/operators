@@ -86,7 +86,7 @@ if has_config("cambricon-mlu") then
             os.mkdir(path.directory(objectfile))        
             local cc = "/usr/local/neuware/bin/cncc"
             print("Compiling " .. sourcefile .. " to " .. objectfile)
-            os.execv(cc, {"-c", sourcefile, "-o", objectfile, "-I/usr/local/neuware/include", "--bang-mlu-arch=mtp_372", "-O3", "-fPIC", "-Wall", "-Werror", "-std=c++17", "-pthread"})
+            os.execv(cc, {"-c", sourcefile, "-o", objectfile, "-I/usr/local/neuware/include", "--bang-mlu-arch=mtp_592", "-O3", "-fPIC", "-Wall", "-Werror", "-std=c++17", "-pthread"})
             table.insert(target:objectfiles(), objectfile)
         end)
     rule_end()

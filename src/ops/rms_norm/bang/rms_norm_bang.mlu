@@ -24,10 +24,17 @@ __mlu_device__ void rmsNormKernel(T *destination, T const *source, T const *weig
         int repeat = (dimsize - remain) / maxNum;
         int tidS;
         int tidD;
-        for(int i = 0; i < othersize; i += taskDim){
+
+        int remainT = othersize % taskDim;
+        int stepEasy = (othersize - remainT) / taskDim;
+        int stepHard = stepEasy + 1;
+        int step = (taskId < remainT ? stepHard : stepEasy);
+        int indStart = (taskId < remainT ? taskId * stepHard : (taskId - remainT) * stepEasy + remainT * stepHard);
+        
+        for(int i = indStart; i < indStart + step; i++){
             int inds = 0;
             int indd = 0;
-            int indi = i + taskId;
+            int indi = i;
             for (int j = ndim - 2; j >= 0; --j) {
                 inds += (indi % shape[j]) * strideSrc[j];
                 indd += (indi % shape[j]) * strideDest[j];
@@ -75,9 +82,7 @@ __mlu_device__ void rmsNormKernel(T *destination, T const *source, T const *weig
                 __memcpy(src, source + tidS, maxNum * sizeof(T), GDRAM2NRAM);
                 
                 __memcpy(wet, weight + s * maxNum, maxNum * sizeof(T), GDRAM2NRAM);
-                if(taskId == 0 && s == 0 && i == 0){
-                    __bang_printf("%.4e, %.4e, %.4e, %.4e\n", globalSumInv, src[1], weight[1], wet[1]);
-                }
+                
                 __bang_mul(src, src, wet, maxNum);//src = src * wet
                 __bang_mul_scalar(src, src, globalSumInv, maxNum);
                 __memcpy(destination + tidD, src, maxNum * sizeof(T), NRAM2GDRAM);
@@ -104,10 +109,16 @@ __mlu_device__ void rmsNormKernel(T *destination, T const *source, T const *weig
         __bang_write_zero(destSumFinal, dimS);
         __memcpy(wet, weight, dimsize * sizeof(T), GDRAM2NRAM);
         
-        for(int i = 0; i < othersize; i += taskDim){
+        int remainT = othersize % taskDim;
+        int stepEasy = (othersize - remainT) / taskDim;
+        int stepHard = stepEasy + 1;
+        int step = (taskId < remainT ? stepHard : stepEasy);
+        int indStart = (taskId < remainT ? taskId * stepHard : (taskId - remainT) * stepEasy + remainT * stepHard);
+        
+        for(int i = indStart; i < indStart + step; i++){
             int inds = 0;
             int indd = 0;
-            int indi = i + taskId;
+            int indi = i ;
             for (int j = ndim - 2; j >= 0; --j) {
                 inds += (indi % shape[j]) * strideSrc[j];
                 indd += (indi % shape[j]) * strideDest[j];

@@ -1,0 +1,39 @@
+#include "bang.h"
+#include "bang_device_functions.h"
+#include "cnrt.h"
+#include "swiglu_bang.h"
+#include "../../../devices/bang/common_bang.h"
+
+void swiglu_fp16(cnrtQueue_t queue, void *gate, void *up, int *gate_stride, int *up_stride, int *shape, int ndim) {
+    swiglu<half>(queue, gate, gate_stride, up, up_stride, shape, ndim);
+}
+
+void swiglu_bang_f16(Tensor gate, Tensor up, void *stream) {
+    ASSERT_EQ(gate.layout->ndim, 2);
+    ASSERT_EQ(up.layout->ndim, 2);
+    ASSERT_EQ(gate.layout->shape[0], up.layout->shape[0]);
+    ASSERT_EQ(gate.layout->shape[1], up.layout->shape[1]);
+
+    int ndim = gate.layout->ndim;
+    int gate_stride[ndim], up_stride[ndim], shape[ndim];
+    for (int i = 0; i < ndim; i++) {
+        gate_stride[i] = gate.layout->stride[i];
+        up_stride[i] = up.layout->stride[i];
+        shape[i] = gate.layout->shape[i];
+    }
+
+    int *mlu_stride_gate, *mlu_stride_up, *mlu_shape;
+    CNRT_CHECK(cnrtMalloc((void **)&mlu_stride_gate, ndim * sizeof(int)));
+    CNRT_CHECK(cnrtMalloc((void **)&mlu_stride_up, ndim * sizeof(int)));
+    CNRT_CHECK(cnrtMalloc((void **)&mlu_shape, ndim * sizeof(int)));
+    CNRT_CHECK(cnrtMemcpy(mlu_stride_gate, gate_stride, ndim * sizeof(int), cnrtMemcpyHostToDev));
+    CNRT_CHECK(cnrtMemcpy(mlu_stride_up, up_stride, ndim * sizeof(int), cnrtMemcpyHostToDev));
+    CNRT_CHECK(cnrtMemcpy(mlu_shape, shape, ndim * sizeof(int), cnrtMemcpyHostToDev));
+    auto queue = reinterpret_cast<cnrtQueue_t>(stream);
+
+    swiglu_fp16(queue, gate.data, up.data, mlu_stride_gate, mlu_stride_up, mlu_shape, ndim);
+
+    CNRT_CHECK(cnrtFree(mlu_stride_gate));
+    CNRT_CHECK(cnrtFree(mlu_stride_up));
+    CNRT_CHECK(cnrtFree(mlu_shape));
+}

@@ -58,39 +58,48 @@ __mlu_device__ void swigluKernel(T *gate, int *gate_stride, T const *up, int *up
     else{
         T *src = nram_buffer;//[dimsize]
         T *dest = src + dimsize; //[dimsize]
-        for(int i = 0; i < othersize; i += taskDim){
-            int inds = 0;
-            int indd = 0;
-            int indi = i + taskId;
-            for (int j = ndim - 2; j >= 0; --j) {
-                inds += (indi % shape[j]) * up_stride[j];
-                indd += (indi % shape[j]) * gate_stride[j];
-                indi /= shape[j];
-            }
-            __memcpy(src, up + inds, dimsize * sizeof(T), GDRAM2NRAM);
-            __memcpy(dest, gate + indd, dimsize * sizeof(T), GDRAM2NRAM);
-            if(taskId == 0){
-                __bang_printf("[%d,%d]\n", inds, indd);
-                for(int id = 0; id < dimsize; id++){
-                    __bang_printf("up:%.4f, gate:%.4f\n", up[id], gate[id]);
+        if(othersize < taskDim){
+            if(taskId < othersize){
+                int inds = 0;
+                int indd = 0;
+                int indi = taskId;
+                for (int j = ndim - 2; j >= 0; --j) {
+                    inds += (indi % shape[j]) * up_stride[j];
+                    indd += (indi % shape[j]) * gate_stride[j];
+                    indi /= shape[j];
                 }
+                __memcpy(src, up + inds, dimsize * sizeof(T), GDRAM2NRAM);
+                __memcpy(dest, gate + indd, dimsize * sizeof(T), GDRAM2NRAM);
                 
+                __bang_mul(src, src, dest, dimsize);//up = up * gate
+                __bang_active_sigmoid(dest, dest, dimsize);//gate = sigmoid(gate)
+                __bang_mul(src, src, dest, dimsize);//up = up * gate
+                __memcpy(gate + indd, src, dimsize * sizeof(T), NRAM2GDRAM);
             }
-            __bang_mul(src, src, dest, dimsize);//up = up * gate
-            if(taskId == 0){
-                __bang_printf("-up:%.4f, gate:%.4f\n", up[0], gate[0]);
-            }
-            __bang_active_sigmoid(dest, dest, dimsize);//gate = sigmoid(gate)
-            if(taskId == 0){
-                __bang_printf("--up:%.4f, gate:%.4f\n", src[0], dest[0]);
-            }
-            __bang_mul(src, src, dest, dimsize);//up = up * gate
-            if(taskId == 0){
-                __bang_printf("----up:%.4f, gate:%.4f\n", src[0], dest[0]);
-            }
-            __memcpy(gate + indd, src, dimsize * sizeof(T), NRAM2GDRAM);
-
+            
         }
+        else{
+            for(int i = 0; i < othersize; i += taskDim){
+                int inds = 0;
+                int indd = 0;
+                int indi = i + taskId;
+                for (int j = ndim - 2; j >= 0; --j) {
+                    inds += (indi % shape[j]) * up_stride[j];
+                    indd += (indi % shape[j]) * gate_stride[j];
+                    indi /= shape[j];
+                }
+                __memcpy(src, up + inds, dimsize * sizeof(T), GDRAM2NRAM);
+                __memcpy(dest, gate + indd, dimsize * sizeof(T), GDRAM2NRAM);
+                
+                __bang_mul(src, src, dest, dimsize);//up = up * gate
+                __bang_active_sigmoid(dest, dest, dimsize);//gate = sigmoid(gate)
+                __bang_mul(src, src, dest, dimsize);//up = up * gate
+                //__sync_all_ipu();
+                __memcpy(gate + indd, src, dimsize * sizeof(T), NRAM2GDRAM);
+
+            }
+        }
+        
     }
 }
 template<typename T>

@@ -20,7 +20,7 @@ def swiglu(gate, up):
 def test(lib, descriptor, torch_device):
     gate = torch.rand((1, 64), dtype=torch.float16).to(torch_device)
     up = torch.rand((1, 64), dtype=torch.float16).to(torch_device)
-
+    print(up)
     ans = swiglu(gate, up)
     lib.swiglu(descriptor, to_tensor(gate, lib), to_tensor(up, lib), None)
     print(ans)

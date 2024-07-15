@@ -3,9 +3,123 @@
 #include "cnrt.h"
 #include "swiglu_bang.h"
 #include "../../../devices/bang/common_bang.h"
+const int SRC_MAX_SIZE = 1024 * 64;//至少大于等于128字节
+ 
 
-void swiglu_fp16(cnrtQueue_t queue, void *gate, void *up, int *gate_stride, int *up_stride, int *shape, int ndim) {
-    swiglu<half>(queue, gate, gate_stride, up, up_stride, shape, ndim);
+template <typename T>
+__mlu_device__ void swigluKernel(T *gate, int *gate_stride, T const *up, int *up_stride, int *shape, int othersize, int dimsize, int ndim){
+    const int nramNum = NRAM_MAX_SIZE/sizeof(T);
+    __nram__  T nram_buffer[nramNum];
+    const int maxNum = SRC_MAX_SIZE/sizeof(T);
+    if(taskId == 0){
+        __bang_printf("dimsize:%d, maxNum:%d\n", dimsize, maxNum);
+        __bang_printf("shape:[%d,%d]\n", shape[0], shape[1]);
+        __bang_printf("up_stride:[%d,%d]\n", up_stride[0], up_stride[1]);
+        __bang_printf("gate_stride:[%d,%d]\n", gate_stride[0], gate_stride[1]);
+    }
+    if(dimsize >= maxNum){
+        T *src = nram_buffer;//[maxNum]
+        T *dest = src + maxNum; //[maxNum]
+        int remain = dimsize % maxNum;
+        int repeat = (dimsize - remain) / maxNum;
+        int tidS;
+        int tidD;
+        for(int i = 0; i < othersize; i += taskDim){
+            int inds = 0;
+            int indd = 0;
+            int indi = i + taskId;
+            for (int j = ndim - 2; j >= 0; --j) {
+                inds += (indi % shape[j]) * up_stride[j];
+                indd += (indi % shape[j]) * gate_stride[j];
+                indi /= shape[j];
+            }
+            for(int s = 0; s < repeat; s++){
+                tidS = inds + s * maxNum;
+                tidD = indd + s * maxNum;
+                __memcpy(src, up + tidS, maxNum * sizeof(T), GDRAM2NRAM);
+                __memcpy(dest, gate + tidD, maxNum * sizeof(T), GDRAM2NRAM);
+                __bang_mul(src, src, dest, maxNum);//up = up * gate
+                __bang_active_sigmoid(dest, dest, maxNum);//gate = sigmoid(gate)
+                __bang_mul(src, src, dest, maxNum);//up = up * gate
+                __memcpy(gate + tidD, src, maxNum * sizeof(T), NRAM2GDRAM);
+            }
+            if(remain){
+                tidS = inds + repeat * maxNum;
+                tidD = indd + repeat * maxNum;
+                __memcpy(src, up + tidS, remain * sizeof(T), GDRAM2NRAM);
+                __memcpy(dest, gate + tidD, remain * sizeof(T), GDRAM2NRAM);
+                __bang_mul(src, src, dest, remain);//up = up * gate
+                __bang_active_sigmoid(dest, dest, remain);//gate = sigmoid(gate)
+                __bang_mul(src, src, dest, remain);//up = up * gate
+                __memcpy(gate + tidD, src, remain * sizeof(T), NRAM2GDRAM);
+            }
+        }
+    }
+    else{
+        T *src = nram_buffer;//[dimsize]
+        T *dest = src + dimsize; //[dimsize]
+        for(int i = 0; i < othersize; i += taskDim){
+            int inds = 0;
+            int indd = 0;
+            int indi = i + taskId;
+            for (int j = ndim - 2; j >= 0; --j) {
+                inds += (indi % shape[j]) * up_stride[j];
+                indd += (indi % shape[j]) * gate_stride[j];
+                indi /= shape[j];
+            }
+            __memcpy(src, up + inds, dimsize * sizeof(T), GDRAM2NRAM);
+            __memcpy(dest, gate + indd, dimsize * sizeof(T), GDRAM2NRAM);
+            if(taskId == 0){
+                __bang_printf("[%d,%d]\n", inds, indd);
+                for(int id = 0; id < dimsize; id++){
+                    __bang_printf("up:%.4f, gate:%.4f\n", up[id], gate[id]);
+                }
+                
+            }
+            __bang_mul(src, src, dest, dimsize);//up = up * gate
+            if(taskId == 0){
+                __bang_printf("-up:%.4f, gate:%.4f\n", up[0], gate[0]);
+            }
+            __bang_active_sigmoid(dest, dest, dimsize);//gate = sigmoid(gate)
+            if(taskId == 0){
+                __bang_printf("--up:%.4f, gate:%.4f\n", src[0], dest[0]);
+            }
+            __bang_mul(src, src, dest, dimsize);//up = up * gate
+            if(taskId == 0){
+                __bang_printf("----up:%.4f, gate:%.4f\n", src[0], dest[0]);
+            }
+            __memcpy(gate + indd, src, dimsize * sizeof(T), NRAM2GDRAM);
+
+        }
+    }
+}
+template<typename T>
+__mlu_global__ void swigluUnion1(T *gate, int *gate_stride, T const *up, int *up_stride, int *shape, int othersize, int dimsize, int ndim) {
+
+    swigluKernel<T>(gate, gate_stride, up, up_stride, shape, othersize, dimsize, ndim);
+}
+template<typename T>
+void swiglu(cnrtQueue_t queue, void *gate, int *gate_stride, void const *up, int *up_stride, int *shape, int othersize, int dimsize, int ndim) {
+    
+    auto y_ = reinterpret_cast<T *>(gate);
+    auto x_ = reinterpret_cast<T const *>(up);
+    
+    cnrtDim3_t k_dim;
+    cnrtFunctionType_t k_type;
+
+    k_dim.x = 4;
+    k_dim.y = 1;
+    k_dim.z = 1;
+    k_type = CNRT_FUNC_TYPE_UNION1;
+    
+    swigluUnion1<T><<<k_dim, k_type, queue>>>(y_, gate_stride, x_, up_stride, shape, othersize, dimsize, ndim);
+    cnrtQueueSync(queue);
+    
+}
+void swiglu_fp16(cnrtQueue_t queue, void *gate, void *up, int *gate_stride, int *up_stride, int *shape, int othersize, int dimsize, int ndim) {
+    
+    swiglu<half>(queue, gate, gate_stride, up, up_stride, shape, othersize, dimsize, ndim);
+    
 }
 
 void swiglu_bang_f16(Tensor gate, Tensor up, void *stream) {
@@ -13,12 +127,13 @@ void swiglu_bang_f16(Tensor gate, Tensor up, void *stream) {
     ASSERT_EQ(up.layout->ndim, 2);
     ASSERT_EQ(gate.layout->shape[0], up.layout->shape[0]);
     ASSERT_EQ(gate.layout->shape[1], up.layout->shape[1]);
-
+    auto n = gate.layout->shape[0],
+         d = gate.layout->shape[1];
     int ndim = gate.layout->ndim;
     int gate_stride[ndim], up_stride[ndim], shape[ndim];
     for (int i = 0; i < ndim; i++) {
-        gate_stride[i] = gate.layout->stride[i];
-        up_stride[i] = up.layout->stride[i];
+        gate_stride[i] = gate.layout->strides[i] / gate.layout->dt.size;
+        up_stride[i] = up.layout->strides[i] / up.layout->dt.size;
         shape[i] = gate.layout->shape[i];
     }
 
@@ -30,9 +145,9 @@ void swiglu_bang_f16(Tensor gate, Tensor up, void *stream) {
     CNRT_CHECK(cnrtMemcpy(mlu_stride_up, up_stride, ndim * sizeof(int), cnrtMemcpyHostToDev));
     CNRT_CHECK(cnrtMemcpy(mlu_shape, shape, ndim * sizeof(int), cnrtMemcpyHostToDev));
     auto queue = reinterpret_cast<cnrtQueue_t>(stream);
-
-    swiglu_fp16(queue, gate.data, up.data, mlu_stride_gate, mlu_stride_up, mlu_shape, ndim);
-
+    
+    swiglu_fp16(queue, gate.data, up.data, mlu_stride_gate, mlu_stride_up, mlu_shape, n, d, ndim);
+    
     CNRT_CHECK(cnrtFree(mlu_stride_gate));
     CNRT_CHECK(cnrtFree(mlu_stride_up));
     CNRT_CHECK(cnrtFree(mlu_shape));

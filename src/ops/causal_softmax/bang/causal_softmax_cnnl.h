@@ -8,13 +8,16 @@
 struct CausalSoftmaxBangDescriptor {
     Device device;
     cnnlTensorDescriptor_t tDesc;
+    cnnlTensorDescriptor_t maskDesc;
 
     CausalSoftmaxBangDescriptor(Device device);
     void createCnnlDescriptors() {
         cnnlCreateTensorDescriptor(&tDesc);
+        cnnlCreateTensorDescriptor(&maskDesc);
     }
     void destroyCnnlDescriptors() {
         cnnlDestroyTensorDescriptor(tDesc);
+        cnnlDestroyTensorDescriptor(maskDesc);
     }
 };
 

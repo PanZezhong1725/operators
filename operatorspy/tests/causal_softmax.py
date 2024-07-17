@@ -24,11 +24,12 @@ def causal_softmax(x):
 
 
 def test(lib, descriptor, torch_device):
-    x = torch.rand((2, 1, 7), dtype=torch.float16).to(torch_device)
+    x = torch.rand((2, 4, 7), dtype=torch.float16).to(torch_device)
 
     ans = causal_softmax(x)
     lib.causalSoftmax(descriptor, to_tensor(x, lib), None)
-    
+    print(ans)
+    print(x)
     assert torch.allclose(x, ans, atol=0, rtol=1e-3)
     print("Test passed!")
 

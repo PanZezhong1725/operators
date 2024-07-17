@@ -5,7 +5,7 @@
 #include "../../utils.h"
 #include "cnrt.h"
 
-void causal_softmax_bang_f16(Tensor y, Tensor x, void *stream);
+void causal_softmax_bang_f16(Tensor y, void *stream);
 
 #endif// __BANG_CAUSAL_SOFTMAX_H__
 

@@ -114,8 +114,13 @@ __mlu_device__ void causal_softmaxKernel(T *destination, T *source, int *strideS
         int step = (taskId < remainT ? stepHard : stepEasy);
         int indStart = (taskId < remainT ? taskId * stepHard : (taskId - remainT) * stepEasy + remainT * stepHard);
         __bang_write_zero(src, dimsize);
-        __bang_write_zero(destSum, dimS);
-        __bang_printf("taskId:%d, indStart:%d, step:%d\n", taskId, indStart, step);
+        
+        __bang_printf("taskId:%d, indStart:%d, step:%d, dimS:%d, dimsize:%d, wSize:%d\n", taskId, indStart, step, dimS, dimsize, wSize);
+        if(taskId == 0){
+            __bang_printf("[%d,%d, %d]\n", shape[0], shape[1], shape[2]);
+            __bang_printf("[%d,%d, %d]\n", strideDest[0], strideDest[1], strideDest[2]);
+            __bang_printf("[%d,%d, %d]\n", strideSrc[0], strideSrc[1], strideSrc[2]);
+        }
         for(int i = indStart; i < indStart + step; i++){
             int inds = 0;
             int indd = 0;
@@ -125,11 +130,14 @@ __mlu_device__ void causal_softmaxKernel(T *destination, T *source, int *strideS
                 indd += (indi % shape[j]) * strideDest[j];
                 indi /= shape[j];
             }
+            __bang_write_zero(destSum, dimS);
+            __bang_write_zero(destSumFinal, wSize);
             __memcpy(src, source + inds, dimsize * sizeof(T), GDRAM2NRAM);
-            __memcpy(destSum, src, dimsize * sizeof(T), NRAM2NRAM);
             __bang_argmax(srcMax, src, dimsize);
-            __bang_sub_scalar(destSum, destSum, srcMax[0], dimsize);
+            __bang_sub_scalar(src, src, srcMax[0], dimsize);
+            __bang_active_exp_less_0(src, src, dimsize);
 
+            __memcpy(destSum, src, dimsize * sizeof(T), NRAM2NRAM);
             int segNum = dimS / wSize;//准备数值求和
             for(int strip = segNum / 2; strip > 0; strip = strip / 2){
                 for(int j = 0; j < strip; j++){
@@ -137,10 +145,12 @@ __mlu_device__ void causal_softmaxKernel(T *destination, T *source, int *strideS
                 }
             }
             __bang_reduce_sum(destSumFinal, destSum, wSize);//此时destSum[0]保存的就是当前maxNum长度数据的数值和
-            T globalSumInv = 1.0 / destSumFinal[0];//下面开始指数变换，写回GDRAM
-            __bang_sub_scalar(src, src, srcMax[0], dimsize);
-            __bang_mul_scalar(src, src, globalSumInv, dimsize);
+            //T globalSumInv = 1.0 / destSumFinal[0];//下面开始指数变换，写回GDRAM
+            //__bang_mul_scalar(src, src, globalSumInv, dimsize);
+            
             __memcpy(destination + indd, src, dimsize * sizeof(T), NRAM2GDRAM);
+            
+
         }
     }
 }
@@ -150,30 +160,12 @@ __mlu_global__ void causal_softmaxUnion1(T *destination, T *source, int *strideS
     causal_softmaxKernel<T>(destination, source, strideSrc, strideDest, shape, othersize, dimsize, dimS, mask, ndim);
 }
 template<typename T>
-void causal_softmax(cnrtQueue_t queue, void *destination, void *source, int *strideSrc, int *strideDest, int *shape, int othersize, int dimsize, int mask, int ndim) {
+void causal_softmax(cnrtQueue_t queue, void *destination, int *strideSrc, int *strideDest, int *shape, int othersize, int dimsize, int mask, int ndim) {
     int wSize = 128 / sizeof(T);
     auto y_ = reinterpret_cast<T *>(destination);
-    auto x_ = reinterpret_cast<T *>(source);
-    T* host_dst = (T*)malloc(othersize * dimsize * sizeof(T));
-    cnrtMemcpy(y_, host_dst, othersize * dimsize * sizeof(T), cnrtMemcpyHostToDev);
-    T* host_src = (T*)malloc(othersize * dimsize * sizeof(T));
-    cnrtMemcpy(x_, host_src, othersize * dimsize * sizeof(T), cnrtMemcpyHostToDev);
-    for(int id = 0; id < othersize * dimsize; id++){
-        printf("%.4f ", host_src[id]);
-        if((id + 1) % dimsize == 0){
-            printf("\n");
-        }
-    }
-    printf("----\n");
-    for(int id = 0; id < othersize * dimsize; id++){
-        printf("%.4f ", host_dst[id]);
-        if((id + 1) % dimsize == 0){
-            printf("\n");
-        }
-    }
-    printf("---\n");
-    free(host_dst);
-    free(host_src);
+    T *x_;
+    cnrtMalloc((void**)&x_, othersize * dimsize * sizeof(T));
+    cnrtMemcpy(x_, y_, othersize * dimsize * sizeof(T), cnrtMemcpyDevToDev);
     int dimS;
     float mi = log2(dimsize);
     if (floor(mi) == mi) {
@@ -195,13 +187,13 @@ void causal_softmax(cnrtQueue_t queue, void *destination, void *source, int *str
 
     causal_softmaxUnion1<T><<<k_dim, k_type, queue>>>(y_, x_, strideSrc, strideDest, shape, othersize, dimsize, dimS, mask, ndim);
     cnrtQueueSync(queue);
+    cnrtFree(x_);
 }
-void causal_softmax_fp16(cnrtQueue_t queue, void *destination, void *source, int *strideSrc, int *strideDest, int *shape, int othersize, int dimsize, int mask, int ndim) {
-   causal_softmax<half>(queue, destination, source, strideSrc, strideDest, shape, othersize, dimsize, mask, ndim);
+void causal_softmax_fp16(cnrtQueue_t queue, void *destination, int *strideSrc, int *strideDest, int *shape, int othersize, int dimsize, int mask, int ndim) {
+   causal_softmax<half>(queue, destination, strideSrc, strideDest, shape, othersize, dimsize, mask, ndim);
 }
-void causal_softmax_bang_f16(Tensor y, Tensor x, void *stream) {
-    ASSERT(x.layout->ndim >= 2);
-    ASSERT(x.layout->shape[x.layout->ndim - 1] >= x.layout->shape[x.layout->ndim - 2]);
+void causal_softmax_bang_f16(Tensor y, void *stream) {
+   
     ASSERT(y.layout->ndim >= 2);
     ASSERT(y.layout->shape[y.layout->ndim - 1] >= y.layout->shape[y.layout->ndim - 2]);
     int n = 1;
@@ -210,7 +202,7 @@ void causal_softmax_bang_f16(Tensor y, Tensor x, void *stream) {
     
     int x_stride[ndim], y_stride[ndim], shape[ndim];
     for (int i = 0; i < ndim; i++) {
-        x_stride[i] = static_cast<int>(x.layout->strides[i]) / y.layout->dt.size;
+        x_stride[i] = static_cast<int>(y.layout->strides[i]) / y.layout->dt.size;
         y_stride[i] = static_cast<int>(y.layout->strides[i]) / y.layout->dt.size;
         shape[i] = static_cast<int>(y.layout->shape[i]);
         if(i < ndim - 1){
@@ -228,7 +220,7 @@ void causal_softmax_bang_f16(Tensor y, Tensor x, void *stream) {
     CNRT_CHECK(cnrtMemcpy(mlu_strideY, y_stride, ndim * sizeof(int), cnrtMemcpyHostToDev));
     CNRT_CHECK(cnrtMemcpy(mlu_shape, shape, ndim * sizeof(int), cnrtMemcpyHostToDev));
     auto queue = reinterpret_cast<cnrtQueue_t>(stream);
-    causal_softmax_fp16(queue, y.data, x.data, mlu_strideX, mlu_strideY, mlu_shape, n, d, mask, ndim);
+    causal_softmax_fp16(queue, y.data, mlu_strideX, mlu_strideY, mlu_shape, n, d, mask, ndim);
     cnrtFree(mlu_strideX);
     cnrtFree(mlu_strideY);
     cnrtFree(mlu_shape);

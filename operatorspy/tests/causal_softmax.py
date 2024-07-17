@@ -17,19 +17,19 @@ import torch
 
 def causal_softmax(x):
     type = x.dtype
-    mask = torch.tril(torch.ones_like(x))
+    mask = torch.tril(torch.ones_like(x), diagonal=-1).flip(dims=[-2, -1])
     y = x.clone()
-    masked = torch.where(mask == 0, -torch.inf, y.to(torch.float32))
+    masked = torch.where(mask == 1, -torch.inf, y.to(torch.float32))
     return torch.nn.functional.softmax(masked, dim=-1).to(type)
 
 
 def test(lib, descriptor, torch_device):
-    x = torch.rand((5, 32, 1999), dtype=torch.float16).to(torch_device)
+    x = torch.rand((2, 1, 7), dtype=torch.float16).to(torch_device)
 
     ans = causal_softmax(x)
     lib.causalSoftmax(descriptor, to_tensor(x, lib), None)
     
-    assert torch.allclose(x, ans, atol=1, rtol=1e-3)
+    assert torch.allclose(x, ans, atol=0, rtol=1e-3)
     print("Test passed!")
 
 

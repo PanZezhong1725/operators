@@ -7,6 +7,6 @@ typedef struct TopKCudaDescriptor {
     Device device;
 } TopKCudaDescriptor;
 
-void topK_nv_gpu_f16(Tensor, Tensor, Tensor, int64_t, void *stream);
+void topK_nv_gpu_f16(Tensor, Tensor, Tensor, int64_t, void *);
 
 #endif

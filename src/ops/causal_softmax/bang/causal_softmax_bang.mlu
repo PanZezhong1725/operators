@@ -104,8 +104,8 @@ __mlu_device__ void causal_softmaxKernel(T *destination, T *source, int *strideS
         }
     }
     else{
-        T *src = nram_buffer;//[dimsize]
-        T *destSum = src + dimsize;//[dimS]
+        T *src = nram_buffer;//[dimS]
+        T *destSum = src + dimS;//[dimS]
         T *destSumFinal = destSum + dimS;//[wSize]
 
         int remainT = othersize % taskDim;
@@ -113,31 +113,30 @@ __mlu_device__ void causal_softmaxKernel(T *destination, T *source, int *strideS
         int stepHard = stepEasy + 1;
         int step = (taskId < remainT ? stepHard : stepEasy);
         int indStart = (taskId < remainT ? taskId * stepHard : (taskId - remainT) * stepEasy + remainT * stepHard);
-        __bang_write_zero(src, dimsize);
         
-        __bang_printf("taskId:%d, indStart:%d, step:%d, dimS:%d, dimsize:%d, wSize:%d\n", taskId, indStart, step, dimS, dimsize, wSize);
-        if(taskId == 0){
-            __bang_printf("[%d,%d, %d]\n", shape[0], shape[1], shape[2]);
-            __bang_printf("[%d,%d, %d]\n", strideDest[0], strideDest[1], strideDest[2]);
-            __bang_printf("[%d,%d, %d]\n", strideSrc[0], strideSrc[1], strideSrc[2]);
-        }
+        __bang_write_value(src, dimS, -INFINITY);
+        
         for(int i = indStart; i < indStart + step; i++){
             int inds = 0;
             int indd = 0;
-            int indi = i ;
+            int indi = i;
+            
             for (int j = ndim - 2; j >= 0; --j) {
                 inds += (indi % shape[j]) * strideSrc[j];
                 indd += (indi % shape[j]) * strideDest[j];
                 indi /= shape[j];
             }
-            __bang_write_zero(destSum, dimS);
+            
             __bang_write_zero(destSumFinal, wSize);
-            __memcpy(src, source + inds, dimsize * sizeof(T), GDRAM2NRAM);
-            __bang_argmax(srcMax, src, dimsize);
-            __bang_sub_scalar(src, src, srcMax[0], dimsize);
-            __bang_active_exp_less_0(src, src, dimsize);
-
-            __memcpy(destSum, src, dimsize * sizeof(T), NRAM2NRAM);
+            int lastI = i % shape[ndim - 2];
+            __memcpy(src, source + inds, (mask + 1 + lastI) * sizeof(T), GDRAM2NRAM);
+            __bang_argmax(srcMax, src, dimS);
+            __bang_write_value(destSum, dimS, srcMax[0]);
+            __memcpy(destSum, src, (mask + 1 + lastI) * sizeof(T), NRAM2NRAM);
+            __bang_sub_scalar(destSum, destSum, srcMax[0], dimS);
+            __bang_active_exp_less_0(destSum, destSum, dimS);
+            __bang_write_zero(src, dimS);
+            __memcpy(src, destSum, (mask + 1 + lastI) * sizeof(T), NRAM2NRAM);
             int segNum = dimS / wSize;//准备数值求和
             for(int strip = segNum / 2; strip > 0; strip = strip / 2){
                 for(int j = 0; j < strip; j++){
@@ -145,8 +144,8 @@ __mlu_device__ void causal_softmaxKernel(T *destination, T *source, int *strideS
                 }
             }
             __bang_reduce_sum(destSumFinal, destSum, wSize);//此时destSum[0]保存的就是当前maxNum长度数据的数值和
-            //T globalSumInv = 1.0 / destSumFinal[0];//下面开始指数变换，写回GDRAM
-            //__bang_mul_scalar(src, src, globalSumInv, dimsize);
+            T globalSumInv = 1.0 / (destSumFinal[0] - (dimS - (mask + 1 + lastI)));//下面开始指数变换，写回GDRAM
+            __bang_mul_scalar(src, src, globalSumInv, dimS);
             
             __memcpy(destination + indd, src, dimsize * sizeof(T), NRAM2GDRAM);
             

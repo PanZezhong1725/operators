@@ -16,7 +16,7 @@ __mlu_device__ void causal_softmaxKernel(T *destination, T *source, int *strideS
         T *destSum = src + maxNum;//[maxNum]
         T *destSumFinal = destSum + maxNum;//[wSize]
         T *tmp = destSumFinal + wSize;//[maxNum]
-        T *destSumTmp = tmp + maxNum;
+        
         T destOldMax;
         T destNewMax;
         
@@ -84,6 +84,7 @@ __mlu_device__ void causal_softmaxKernel(T *destination, T *source, int *strideS
                 
                 __bang_write_zero(destSum, maxNum);
                 __bang_write_zero(destSumFinal, wSize);
+                
                 destOldMax = -INFINITY;
                 destNewMax = -INFINITY;
                 for(int s = 0; s < nR; s++){
@@ -96,29 +97,37 @@ __mlu_device__ void causal_softmaxKernel(T *destination, T *source, int *strideS
                     }
                     __bang_sub_scalar(src, src, destNewMax, maxNum);
                     __bang_active_exp_less_0(src, src, maxNum);
+                    
                     if(s > 0){
                         __bang_mul_scalar(destSum, destSum, exp(destOldMax - destNewMax), maxNum);
                     }
                     __bang_add(destSum, destSum, src, maxNum);
+                    
                     destOldMax = destNewMax;
                 }
                 
-                if(newRemain){
-                    __bang_write_value(src, maxNum, -INFINITY);
+                if(newRemain){  
+                    //__bang_write_value(src, maxNum, -INFINITY);
+                    
                     __memcpy(src, source + inds + nR * maxNum, newRemain * sizeof(T), GDRAM2NRAM);
+                    
                     __bang_argmax(srcMax, src, maxNum);
+                    
                     if(destNewMax < srcMax[0]){
                         destNewMax = srcMax[0];
                     }
+                    
                     __bang_write_value(tmp, maxNum, destNewMax);
                     __memcpy(tmp, src, newRemain * sizeof(T), NRAM2NRAM);
                     
                     __bang_sub_scalar(tmp, tmp, destNewMax, maxNum);
                     __bang_active_exp_less_0(tmp, tmp, maxNum);
+                    
                     if(nR > 0){
                         __bang_mul_scalar(destSum, destSum, exp(destOldMax - destNewMax), maxNum);
                     }
                     __bang_add(destSum, destSum, tmp, maxNum);
+                    
                     destOldMax = destNewMax;
                 }
                 
@@ -133,18 +142,20 @@ __mlu_device__ void causal_softmaxKernel(T *destination, T *source, int *strideS
                     
                 }
                 else{
-                    __bang_write_zero(destSumTmp, wSize);
-                    __memcpy(destSumTmp, destSum, maxNum * sizeof(T), NRAM2NRAM);
-                    __bang_reduce_sum(destSumFinal, destSumTmp, wSize);//此时destSum[0]保存的就是当前maxNum长度数据的数值和
+                    
+                    __memcpy(destSumFinal, destSum, maxNum * sizeof(T), NRAM2NRAM);
+                    __bang_reduce_sum(destSumFinal, destSumFinal, wSize);//此时destSum[0]保存的就是当前maxNum长度数据的数值和
                     
                 }
                 
                 T globalSumInv;
                 if(newRemain){
                     globalSumInv = 1.0 / (destSumFinal[0] - (maxNum - newRemain));//下面开始指数变换，写回GDRAM
+                    
                 }
                 else{
                     globalSumInv = 1.0 / destSumFinal[0];//下面开始指数变换，写回GDRAM
+                   
                 }
                 
                 for(int s = 0; s < nR; s++){

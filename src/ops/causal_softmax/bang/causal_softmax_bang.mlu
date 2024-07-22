@@ -3,7 +3,7 @@
 #include "cnrt.h"
 #include "causal_softmax_bang.h"
 #include "../../../devices/bang/common_bang.h"
-const int SRC_MAX_SIZE = 4;//至少大于等于128字节
+const int SRC_MAX_SIZE = 1024 * 64;//至少大于等于128字节
 template <typename T>
 __mlu_device__ void causal_softmaxKernel(T *destination, T *source, int *strideSrc, int *strideDest, int *shape, int othersize, int dimsize, int dimS, int mask, int ndim){
     const int nramNum = NRAM_MAX_SIZE/sizeof(T);

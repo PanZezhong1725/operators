@@ -91,6 +91,7 @@ __mlu_global__ void swigluUnion1(T *gate, int *gate_stride, T const *up, int *up
 
     swigluKernel<T>(gate, gate_stride, up, up_stride, shape, othersize, dimsize, ndim);
 }
+
 template<typename T>
 void swiglu(cnrtQueue_t queue, void *gate, int *gate_stride, void const *up, int *up_stride, int *shape, int othersize, int dimsize, int ndim) {
     
@@ -114,34 +115,245 @@ void swiglu_fp16(cnrtQueue_t queue, void *gate, void *up, int *gate_stride, int 
     swiglu<half>(queue, gate, gate_stride, up, up_stride, shape, othersize, dimsize, ndim);
     
 }
+template <typename T>
+__mlu_global__ void swigluDim_2(T *gate, T const *up, int strideS_f, int strideD_f, int othersize, int dimsize){
+    const int nramNum = NRAM_MAX_SIZE/sizeof(T);
+    __nram__  T nram_buffer[nramNum];
+    const int maxNum = SRC_MAX_SIZE/sizeof(T);
+    
+    if(dimsize >= maxNum){
+        T *src = nram_buffer;//[maxNum]
+        T *dest = src + maxNum; //[maxNum]
+        int remainT = othersize % taskDim;
+        int stepEasy = (othersize - remainT) / taskDim;
+        int stepHard = stepEasy + 1;
+        int step = (taskId < remainT ? stepHard : stepEasy);
+        int indStart = (taskId < remainT ? taskId * stepHard : (taskId - remainT) * stepEasy + remainT * stepHard);
 
+        int remain = dimsize % maxNum;
+        int repeat = (dimsize - remain) / maxNum;
+        int tidS;
+        int tidD;
+        for(int i = indStart; i < indStart + step; i++){
+            int inds = 0;
+            int indd = 0;
+            int indi = i;
+            inds += (indi % othersize) * strideS_f;
+            indd += (indi % othersize) * strideD_f;
+            for(int s = 0; s < repeat; s++){
+                tidS = inds + s * maxNum;
+                tidD = indd + s * maxNum;
+                __memcpy(src, up + tidS, maxNum * sizeof(T), GDRAM2NRAM);
+                __memcpy(dest, gate + tidD, maxNum * sizeof(T), GDRAM2NRAM);
+                __bang_mul(src, src, dest, maxNum);//up = up * gate
+                __bang_active_sigmoid(dest, dest, maxNum);//gate = sigmoid(gate)
+                __bang_mul(src, src, dest, maxNum);//up = up * gate
+                __memcpy(gate + tidD, src, maxNum * sizeof(T), NRAM2GDRAM);
+            }
+            if(remain){
+                tidS = inds + repeat * maxNum;
+                tidD = indd + repeat * maxNum;
+                __memcpy(src, up + tidS, remain * sizeof(T), GDRAM2NRAM);
+                __memcpy(dest, gate + tidD, remain * sizeof(T), GDRAM2NRAM);
+                __bang_mul(src, src, dest, remain);//up = up * gate
+                __bang_active_sigmoid(dest, dest, remain);//gate = sigmoid(gate)
+                __bang_mul(src, src, dest, remain);//up = up * gate
+                __memcpy(gate + tidD, src, remain * sizeof(T), NRAM2GDRAM);
+            }
+        }
+    }
+    else{
+        T *src = nram_buffer;//[dimsize]
+        T *dest = src + dimsize; //[dimsize]
+        int remainT = othersize % taskDim;
+        int stepEasy = (othersize - remainT) / taskDim;
+        int stepHard = stepEasy + 1;
+        int step = (taskId < remainT ? stepHard : stepEasy);
+        int indStart = (taskId < remainT ? taskId * stepHard : (taskId - remainT) * stepEasy + remainT * stepHard);
+        
+        for(int i = indStart; i < indStart + step; i++){
+            int inds = 0;
+            int indd = 0;
+            int indi = i;
+            inds += (indi % othersize) * strideS_f;
+            indd += (indi % othersize) * strideD_f;
+            __memcpy(src, up + inds, dimsize * sizeof(T), GDRAM2NRAM);
+            __memcpy(dest, gate + indd, dimsize * sizeof(T), GDRAM2NRAM);
+            
+            __bang_mul(src, src, dest, dimsize);//up = up * gate
+            __bang_active_sigmoid(dest, dest, dimsize);//gate = sigmoid(gate)
+            __bang_mul(src, src, dest, dimsize);//up = up * gate
+
+            __memcpy(gate + indd, src, dimsize * sizeof(T), NRAM2GDRAM);
+        }
+        
+    }
+}
+template<typename T>
+void swigluUnionDim_2(cnrtQueue_t queue, void *gate, void const *up, int strideS_f, int strideD_f, int othersize, int dimsize) {
+    
+    auto y_ = reinterpret_cast<T *>(gate);
+    auto x_ = reinterpret_cast<T const *>(up);
+    
+    cnrtDim3_t k_dim;
+    cnrtFunctionType_t k_type;
+
+    k_dim.x = 4;
+    k_dim.y = 1;
+    k_dim.z = 1;
+    k_type = CNRT_FUNC_TYPE_UNION1;
+    
+    swigluDim_2<T><<<k_dim, k_type, queue>>>(y_, x_, strideS_f, strideD_f, othersize, dimsize);
+    cnrtQueueSync(queue);
+    
+}
+template <typename T>
+__mlu_global__ void swigluDim_3(T *gate, T const *up, int strideS_f, int strideS_m, int strideD_f, int strideD_m, int othersize, int middle, int dimsize){
+    const int nramNum = NRAM_MAX_SIZE/sizeof(T);
+    __nram__  T nram_buffer[nramNum];
+    const int maxNum = SRC_MAX_SIZE/sizeof(T);
+    int startDim = othersize / middle;
+    if(dimsize >= maxNum){
+        T *src = nram_buffer;//[maxNum]
+        T *dest = src + maxNum; //[maxNum]
+        int remainT = othersize % taskDim;
+        int stepEasy = (othersize - remainT) / taskDim;
+        int stepHard = stepEasy + 1;
+        int step = (taskId < remainT ? stepHard : stepEasy);
+        int indStart = (taskId < remainT ? taskId * stepHard : (taskId - remainT) * stepEasy + remainT * stepHard);
+
+        int remain = dimsize % maxNum;
+        int repeat = (dimsize - remain) / maxNum;
+        int tidS;
+        int tidD;
+        for(int i = indStart; i < indStart + step; i++){
+            int inds = 0;
+            int indd = 0;
+            int indi = i;
+            inds += (indi % middle) * strideS_m;
+            indd += (indi % middle) * strideD_m;
+            indi /= middle;
+            inds += (indi % startDim) * strideS_f;
+            indd += (indi % startDim) * strideD_f;
+            for(int s = 0; s < repeat; s++){
+                tidS = inds + s * maxNum;
+                tidD = indd + s * maxNum;
+                __memcpy(src, up + tidS, maxNum * sizeof(T), GDRAM2NRAM);
+                __memcpy(dest, gate + tidD, maxNum * sizeof(T), GDRAM2NRAM);
+                __bang_mul(src, src, dest, maxNum);//up = up * gate
+                __bang_active_sigmoid(dest, dest, maxNum);//gate = sigmoid(gate)
+                __bang_mul(src, src, dest, maxNum);//up = up * gate
+                __memcpy(gate + tidD, src, maxNum * sizeof(T), NRAM2GDRAM);
+            }
+            if(remain){
+                tidS = inds + repeat * maxNum;
+                tidD = indd + repeat * maxNum;
+                __memcpy(src, up + tidS, remain * sizeof(T), GDRAM2NRAM);
+                __memcpy(dest, gate + tidD, remain * sizeof(T), GDRAM2NRAM);
+                __bang_mul(src, src, dest, remain);//up = up * gate
+                __bang_active_sigmoid(dest, dest, remain);//gate = sigmoid(gate)
+                __bang_mul(src, src, dest, remain);//up = up * gate
+                __memcpy(gate + tidD, src, remain * sizeof(T), NRAM2GDRAM);
+            }
+        }
+    }
+    else{
+        T *src = nram_buffer;//[dimsize]
+        T *dest = src + dimsize; //[dimsize]
+        int remainT = othersize % taskDim;
+        int stepEasy = (othersize - remainT) / taskDim;
+        int stepHard = stepEasy + 1;
+        int step = (taskId < remainT ? stepHard : stepEasy);
+        int indStart = (taskId < remainT ? taskId * stepHard : (taskId - remainT) * stepEasy + remainT * stepHard);
+        
+        for(int i = indStart; i < indStart + step; i++){
+            int inds = 0;
+            int indd = 0;
+            int indi = i;
+            inds += (indi % middle) * strideS_m;
+            indd += (indi % middle) * strideD_m;
+            indi /= middle;
+            inds += (indi % startDim) * strideS_f;
+            indd += (indi % startDim) * strideD_f;
+            __memcpy(src, up + inds, dimsize * sizeof(T), GDRAM2NRAM);
+            __memcpy(dest, gate + indd, dimsize * sizeof(T), GDRAM2NRAM);
+            
+            __bang_mul(src, src, dest, dimsize);//up = up * gate
+            __bang_active_sigmoid(dest, dest, dimsize);//gate = sigmoid(gate)
+            __bang_mul(src, src, dest, dimsize);//up = up * gate
+
+            __memcpy(gate + indd, src, dimsize * sizeof(T), NRAM2GDRAM);
+        }
+        
+    }
+}
+template<typename T>
+void swigluUnionDim_3(cnrtQueue_t queue, void *gate, void const *up, int strideS_f, int strideS_m, int strideD_f, int strideD_m, int othersize, int middle, int dimsize) {
+    
+    auto y_ = reinterpret_cast<T *>(gate);
+    auto x_ = reinterpret_cast<T const *>(up);
+    
+    cnrtDim3_t k_dim;
+    cnrtFunctionType_t k_type;
+
+    k_dim.x = 4;
+    k_dim.y = 1;
+    k_dim.z = 1;
+    k_type = CNRT_FUNC_TYPE_UNION1;
+    
+    swigluDim_3<T><<<k_dim, k_type, queue>>>(y_, x_, strideS_f, strideS_m, strideD_f, strideD_m, othersize, middle, dimsize);
+    cnrtQueueSync(queue);
+    
+}
 void swiglu_bang_f16(Tensor gate, Tensor up, void *stream) {
-    ASSERT_EQ(gate.layout->ndim, 2);
-    ASSERT_EQ(up.layout->ndim, 2);
-    ASSERT_EQ(gate.layout->shape[0], up.layout->shape[0]);
-    ASSERT_EQ(gate.layout->shape[1], up.layout->shape[1]);
-    auto n = gate.layout->shape[0],
-         d = gate.layout->shape[1];
+    auto queue = reinterpret_cast<cnrtQueue_t>(stream);
+    int num = 1;
     int ndim = gate.layout->ndim;
     int gate_stride[ndim], up_stride[ndim], shape[ndim];
     for (int i = 0; i < ndim; i++) {
         gate_stride[i] = gate.layout->strides[i] / gate.layout->dt.size;
         up_stride[i] = up.layout->strides[i] / up.layout->dt.size;
         shape[i] = gate.layout->shape[i];
+        num *= shape[i];
     }
-
-    int *mlu_stride_gate, *mlu_stride_up, *mlu_shape;
-    CNRT_CHECK(cnrtMalloc((void **)&mlu_stride_gate, ndim * sizeof(int)));
-    CNRT_CHECK(cnrtMalloc((void **)&mlu_stride_up, ndim * sizeof(int)));
-    CNRT_CHECK(cnrtMalloc((void **)&mlu_shape, ndim * sizeof(int)));
-    CNRT_CHECK(cnrtMemcpy(mlu_stride_gate, gate_stride, ndim * sizeof(int), cnrtMemcpyHostToDev));
-    CNRT_CHECK(cnrtMemcpy(mlu_stride_up, up_stride, ndim * sizeof(int), cnrtMemcpyHostToDev));
-    CNRT_CHECK(cnrtMemcpy(mlu_shape, shape, ndim * sizeof(int), cnrtMemcpyHostToDev));
-    auto queue = reinterpret_cast<cnrtQueue_t>(stream);
+    if(ndim == 2){
+        ASSERT_EQ(gate.layout->ndim, 2);
+        ASSERT_EQ(up.layout->ndim, 2);
+        ASSERT_EQ(gate.layout->shape[0], up.layout->shape[0]);
+        ASSERT_EQ(gate.layout->shape[1], up.layout->shape[1]);
+        auto n = gate.layout->shape[0],
+            d = gate.layout->shape[1];
+        int strideS_f = up_stride[0];
+        int strideD_f = gate_stride[0];
+        swigluUnionDim_2<half>(queue, gate.data, up.data, strideS_f, strideD_f, n, d);
+    }
+    else if(ndim == 3){
+        int strideS_f = up_stride[0];
+        int strideD_f = gate_stride[0];
+        int strideS_m = up_stride[1];
+        int strideD_m = gate_stride[1];
+        int middle = shape[1];
+        int d = shape[ndim - 1];
+        int n = num / d;
+        swigluUnionDim_3<half>(queue, gate.data, up.data, strideS_f, strideS_m, strideD_f, strideD_m, n, middle, d);
+    }
+    else{
+        int d = shape[ndim - 1];
+        int n = num / d;
+        int *mlu_stride_gate, *mlu_stride_up, *mlu_shape;
+        CNRT_CHECK(cnrtMalloc((void **)&mlu_stride_gate, ndim * sizeof(int)));
+        CNRT_CHECK(cnrtMalloc((void **)&mlu_stride_up, ndim * sizeof(int)));
+        CNRT_CHECK(cnrtMalloc((void **)&mlu_shape, ndim * sizeof(int)));
+        CNRT_CHECK(cnrtMemcpy(mlu_stride_gate, gate_stride, ndim * sizeof(int), cnrtMemcpyHostToDev));
+        CNRT_CHECK(cnrtMemcpy(mlu_stride_up, up_stride, ndim * sizeof(int), cnrtMemcpyHostToDev));
+        CNRT_CHECK(cnrtMemcpy(mlu_shape, shape, ndim * sizeof(int), cnrtMemcpyHostToDev));
+        
+        
+        swiglu_fp16(queue, gate.data, up.data, mlu_stride_gate, mlu_stride_up, mlu_shape, n, d, ndim);
+        
+        CNRT_CHECK(cnrtFree(mlu_stride_gate));
+        CNRT_CHECK(cnrtFree(mlu_stride_up));
+        CNRT_CHECK(cnrtFree(mlu_shape));
+    }
     
-    swiglu_fp16(queue, gate.data, up.data, mlu_stride_gate, mlu_stride_up, mlu_shape, n, d, ndim);
-    
-    CNRT_CHECK(cnrtFree(mlu_stride_gate));
-    CNRT_CHECK(cnrtFree(mlu_stride_up));
-    CNRT_CHECK(cnrtFree(mlu_shape));
 }

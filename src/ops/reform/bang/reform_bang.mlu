@@ -75,7 +75,125 @@ void reform(cnrtQueue_t queue, void *y, void *x, int *y_stride, int *x_stride, i
     cnrtQueueSync(queue);
     
 }
+template <typename T>
+__mlu_global__ void reformDim_2(T *source, T *destination, int strideS_f, int strideD_f, int n, int dimsize){
+    if (dimsize * sizeof(T) > GDRAM_MAX_SIZE){
+        int maxNum = GDRAM_MAX_SIZE / sizeof(T);
+        int remain = dimsize % maxNum;
+        int repeat = (dimsize - remain) / maxNum;
 
+        int remainT = n % taskDim;
+        int stepEasy = (n - remainT) / taskDim;
+        int stepHard = stepEasy + 1;
+        int step = (taskId < remainT ? stepHard : stepEasy);
+        int indStart = (taskId < remainT ? taskId * stepHard : (taskId - remainT) * stepEasy + remainT * stepHard);
+        
+        for(int i = indStart; i < indStart + step; i++){
+            int inds = 0;
+            int indd = 0;
+            int indi = i;
+            inds += (indi % n) * strideS_f;
+            indd += (indi % n) * strideD_f;
+            for (int s = 0; s < repeat; s++){
+                __memcpy(destination + indd + s * maxNum, source + inds + s * maxNum, maxNum * sizeof(T), GDRAM2GDRAM); 
+            }
+            if (remain){
+                __memcpy(destination + indd + repeat * maxNum, source + inds + repeat * maxNum, remain * sizeof(T), GDRAM2GDRAM); 
+            }                              
+        }      
+    }
+    else {
+        int remainT = n % taskDim;
+        int stepEasy = (n - remainT) / taskDim;
+        int stepHard = stepEasy + 1;
+        int step = (taskId < remainT ? stepHard : stepEasy);
+        int indStart = (taskId < remainT ? taskId * stepHard : (taskId - remainT) * stepEasy + remainT * stepHard);
+        
+        for(int i = indStart; i < indStart + step; i++){
+            int inds = 0;
+            int indd = 0;
+            int indi = i;
+            inds += (indi % n) * strideS_f;
+            indd += (indi % n) * strideD_f;
+            __memcpy(destination + indd, source + inds, dimsize * sizeof(T), GDRAM2GDRAM);                                  
+        }      
+    }   
+}
+void reformUnionDim_2(cnrtQueue_t queue, void *y, void *x , int strideS_f, int strideD_f, int n, int dimsize){
+    
+    auto y_ = reinterpret_cast<half *>(y);
+    auto x_ = reinterpret_cast<half *>(x);
+
+    cnrtDim3_t dim = {16, 1, 1};
+    cnrtFunctionType_t ktype = CNRT_FUNC_TYPE_UNION1;
+    
+    reformDim_2<half><<<dim, ktype, queue>>>(x_, y_, strideS_f, strideD_f, n, dimsize);
+    cnrtQueueSync(queue);
+    
+}
+template <typename T>
+__mlu_global__ void reformDim_3(T *source, T *destination, int strideS_f, int strideS_m, int strideD_f, int strideD_m, int n, int middle, int dimsize){
+    int startDim = n / middle;
+    if (dimsize * sizeof(T) > GDRAM_MAX_SIZE){
+        int maxNum = GDRAM_MAX_SIZE / sizeof(T);
+        int remain = dimsize % maxNum;
+        int repeat = (dimsize - remain) / maxNum;
+
+        int remainT = n % taskDim;
+        int stepEasy = (n - remainT) / taskDim;
+        int stepHard = stepEasy + 1;
+        int step = (taskId < remainT ? stepHard : stepEasy);
+        int indStart = (taskId < remainT ? taskId * stepHard : (taskId - remainT) * stepEasy + remainT * stepHard);
+        
+        for(int i = indStart; i < indStart + step; i++){
+            int inds = 0;
+            int indd = 0;
+            int indi = i;
+            inds += (indi % middle) * strideS_m;
+            indd += (indi % middle) * strideD_m;
+            indi /= middle;
+            inds += (indi % startDim) * strideS_f;
+            indd += (indi % startDim) * strideD_f;
+            for (int s = 0; s < repeat; s++){
+                __memcpy(destination + indd + s * maxNum, source + inds + s * maxNum, maxNum * sizeof(T), GDRAM2GDRAM); 
+            }
+            if (remain){
+                __memcpy(destination + indd + repeat * maxNum, source + inds + repeat * maxNum, remain * sizeof(T), GDRAM2GDRAM); 
+            }                              
+        }      
+    }
+    else {
+        int remainT = n % taskDim;
+        int stepEasy = (n - remainT) / taskDim;
+        int stepHard = stepEasy + 1;
+        int step = (taskId < remainT ? stepHard : stepEasy);
+        int indStart = (taskId < remainT ? taskId * stepHard : (taskId - remainT) * stepEasy + remainT * stepHard);
+        
+        for(int i = indStart; i < indStart + step; i++){
+            int inds = 0;
+            int indd = 0;
+            int indi = i;
+            inds += (indi % middle) * strideS_m;
+            indd += (indi % middle) * strideD_m;
+            indi /= middle;
+            inds += (indi % startDim) * strideS_f;
+            indd += (indi % startDim) * strideD_f;
+            __memcpy(destination + indd, source + inds, dimsize * sizeof(T), GDRAM2GDRAM);                                  
+        }      
+    }   
+}
+void reformUnionDim_3(cnrtQueue_t queue, void *y, void *x, int strideS_f, int strideS_m, int strideD_f, int strideD_m, int n, int middle, int dimsize){
+    
+    auto y_ = reinterpret_cast<half *>(y);
+    auto x_ = reinterpret_cast<half *>(x);
+
+    cnrtDim3_t dim = {16, 1, 1};
+    cnrtFunctionType_t ktype = CNRT_FUNC_TYPE_UNION1;
+    
+    reformDim_3<half><<<dim, ktype, queue>>>(x_, y_, strideS_f, strideS_m, strideD_f, strideD_m, n, middle, dimsize);
+    cnrtQueueSync(queue);
+    
+}
 void reform_bang(Tensor y, Tensor x, void *stream) {
     ASSERT_EQ(y.layout->ndim, x.layout->ndim);
     int ndim = y.layout->ndim;
@@ -85,7 +203,7 @@ void reform_bang(Tensor y, Tensor x, void *stream) {
     }
     ASSERT_EQ(y.layout->strides[ndim - 1], y.layout->dt.size);
     ASSERT_EQ(x.layout->strides[ndim - 1], x.layout->dt.size);
-
+    
     int x_stride[ndim], y_stride[ndim], shape[ndim];
     int n = 1;
     for (int i = 0; i < ndim; i++) {
@@ -96,18 +214,34 @@ void reform_bang(Tensor y, Tensor x, void *stream) {
     }
     int dimsize = shape[ndim - 1];
     n /= dimsize;
-    int *mlu_strideX, *mlu_strideY, *mlu_shape;
-    CNRT_CHECK(cnrtMalloc((void **)&mlu_strideX, ndim * sizeof(int)));
-    CNRT_CHECK(cnrtMalloc((void **)&mlu_strideY, ndim * sizeof(int)));
-    CNRT_CHECK(cnrtMalloc((void **)&mlu_shape, ndim * sizeof(int)));
-    CNRT_CHECK(cnrtMemcpy(mlu_strideX, x_stride, ndim * sizeof(int), cnrtMemcpyHostToDev));
-    CNRT_CHECK(cnrtMemcpy(mlu_strideY, y_stride, ndim * sizeof(int), cnrtMemcpyHostToDev));
-    CNRT_CHECK(cnrtMemcpy(mlu_shape, shape, ndim * sizeof(int), cnrtMemcpyHostToDev));
     auto queue = reinterpret_cast<cnrtQueue_t>(stream);
-    
-    reform(queue, y.data, x.data, mlu_strideY, mlu_strideX, mlu_shape, n, dimsize, ndim);
-    cnrtFree(mlu_strideX);
-    cnrtFree(mlu_strideY);
-    cnrtFree(mlu_shape);
+    if(ndim == 2){
+        int strideS_f = x_stride[0];
+        int strideD_f = y_stride[0];
+        reformUnionDim_2(queue, y.data, x.data, strideS_f, strideD_f, n, dimsize);
+    }
+    else if(ndim == 3){
+        int strideS_f = x_stride[0];
+        int strideD_f = y_stride[0];
+        int strideS_m = x_stride[1];
+        int strideD_m = y_stride[1];
+        int middle = shape[1];
+        reformUnionDim_3(queue, y.data, x.data, strideS_f, strideS_m, strideD_f, strideD_m, n, middle, dimsize);
+    }
+    else{
+        int *mlu_strideX, *mlu_strideY, *mlu_shape;
+        CNRT_CHECK(cnrtMalloc((void **)&mlu_strideX, ndim * sizeof(int)));
+        CNRT_CHECK(cnrtMalloc((void **)&mlu_strideY, ndim * sizeof(int)));
+        CNRT_CHECK(cnrtMalloc((void **)&mlu_shape, ndim * sizeof(int)));
+        CNRT_CHECK(cnrtMemcpy(mlu_strideX, x_stride, ndim * sizeof(int), cnrtMemcpyHostToDev));
+        CNRT_CHECK(cnrtMemcpy(mlu_strideY, y_stride, ndim * sizeof(int), cnrtMemcpyHostToDev));
+        CNRT_CHECK(cnrtMemcpy(mlu_shape, shape, ndim * sizeof(int), cnrtMemcpyHostToDev));
+        
+        
+        reform(queue, y.data, x.data, mlu_strideY, mlu_strideX, mlu_shape, n, dimsize, ndim);
+        cnrtFree(mlu_strideX);
+        cnrtFree(mlu_strideY);
+        cnrtFree(mlu_shape);
+    }
     
 }

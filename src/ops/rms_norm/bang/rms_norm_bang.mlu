@@ -6,16 +6,15 @@
 
 
 const int SRC_MAX_SIZE = 1024 * 64;//至少大于等于128字节
- 
+__nram__  char nram_buffer[NRAM_MAX_SIZE];
 const int wSize = 64;
 template <typename T>
 __mlu_device__ void rmsNormKernel(T *destination, T const *source, T const *weight, int *strideSrc, int *strideDest, int *shape, int othersize, int dimsize, int dimS, float eps, int ndim) {//axis=-1
-    const int nramNum = NRAM_MAX_SIZE/sizeof(T);
-    __nram__  T nram_buffer[nramNum];
+    
     const int maxNum = SRC_MAX_SIZE/sizeof(T);
     if(dimsize >= maxNum){
         
-        T *src = nram_buffer;//[maxNum]
+        T *src = (T *)nram_buffer;//[maxNum]
         T *destSumFinal = src + maxNum;//[wSize]
         T *destSum = destSumFinal + wSize;//[wSize]
         T *wet = destSum + wSize;//[maxNum]
@@ -100,7 +99,7 @@ __mlu_device__ void rmsNormKernel(T *destination, T const *source, T const *weig
     }
     else{//dimsize < maxNum
         
-        T *src = nram_buffer;
+        T *src = (T *)nram_buffer;
         T *wet = src + dimsize;   
         T *destSum = wet + dimsize;  
         T *destSumFinal = destSum + dimS;
@@ -185,12 +184,11 @@ void rmsNorm_fp16(cnrtQueue_t queue, void *y, void const *x, void const *w, int 
 }
 template <typename T>
 __mlu_global__ void rmsNormDim_2(T *destination, T const *source, T const *weight, int strideS_f, int strideD_f, int othersize, int dimsize, int dimS, float eps) {//axis=-1
-    const int nramNum = NRAM_MAX_SIZE/sizeof(T);
-    __nram__  T nram_buffer[nramNum];
+    
     const int maxNum = SRC_MAX_SIZE/sizeof(T);
     if(dimsize >= maxNum){
         
-        T *src = nram_buffer;//[maxNum]
+        T *src = (T *)nram_buffer;//[maxNum]
         T *destSumFinal = src + maxNum;//[wSize]
         T *destSum = destSumFinal + wSize;//[wSize]
         T *wet = destSum + wSize;//[maxNum]
@@ -272,7 +270,7 @@ __mlu_global__ void rmsNormDim_2(T *destination, T const *source, T const *weigh
     }
     else{//dimsize < maxNum
         
-        T *src = nram_buffer;
+        T *src = (T *)nram_buffer;
         T *wet = src + dimsize;   
         T *destSum = wet + dimsize;  
         T *destSumFinal = destSum + dimS;
@@ -346,13 +344,12 @@ void rmsNormUnionDim_2(cnrtQueue_t queue, void *y, void const *x, void const *w,
 }
 template <typename T>
 __mlu_global__ void rmsNormDim_3(T *destination, T const *source, T const *weight, int strideS_f, int strideS_m, int strideD_f, int strideD_m, int othersize, int middle, int dimsize, int dimS, float eps) {//axis=-1
-    const int nramNum = NRAM_MAX_SIZE/sizeof(T);
-    __nram__  T nram_buffer[nramNum];
+    
     const int maxNum = SRC_MAX_SIZE/sizeof(T);
     int startDim = othersize / middle;
     if(dimsize >= maxNum){
         
-        T *src = nram_buffer;//[maxNum]
+        T *src = (T *)nram_buffer;//[maxNum]
         T *destSumFinal = src + maxNum;//[wSize]
         T *destSum = destSumFinal + wSize;//[wSize]
         T *wet = destSum + wSize;//[maxNum]
@@ -437,7 +434,7 @@ __mlu_global__ void rmsNormDim_3(T *destination, T const *source, T const *weigh
     }
     else{//dimsize < maxNum
         
-        T *src = nram_buffer;
+        T *src = (T *)nram_buffer;
         T *wet = src + dimsize;   
         T *destSum = wet + dimsize;  
         T *destSumFinal = destSum + dimS;

@@ -4,16 +4,15 @@
 #include "swiglu_bang.h"
 #include "../../../devices/bang/common_bang.h"
 const int SRC_MAX_SIZE = 1024 * 64;//至少大于等于128字节
- 
+__nram__  char nram_buffer[NRAM_MAX_SIZE];
 
 template <typename T>
 __mlu_device__ void swigluKernel(T *gate, int *gate_stride, T const *up, int *up_stride, int *shape, int othersize, int dimsize, int ndim){
-    const int nramNum = NRAM_MAX_SIZE/sizeof(T);
-    __nram__  T nram_buffer[nramNum];
+    
     const int maxNum = SRC_MAX_SIZE/sizeof(T);
     
     if(dimsize >= maxNum){
-        T *src = nram_buffer;//[maxNum]
+        T *src = (T *)nram_buffer;//[maxNum]
         T *dest = src + maxNum; //[maxNum]
         int remainT = othersize % taskDim;
         int stepEasy = (othersize - remainT) / taskDim;
@@ -57,7 +56,7 @@ __mlu_device__ void swigluKernel(T *gate, int *gate_stride, T const *up, int *up
         }
     }
     else{
-        T *src = nram_buffer;//[dimsize]
+        T *src = (T *)nram_buffer;//[dimsize]
         T *dest = src + dimsize; //[dimsize]
         int remainT = othersize % taskDim;
         int stepEasy = (othersize - remainT) / taskDim;
@@ -117,12 +116,11 @@ void swiglu_fp16(cnrtQueue_t queue, void *gate, void *up, int *gate_stride, int 
 }
 template <typename T>
 __mlu_global__ void swigluDim_2(T *gate, T const *up, int strideS_f, int strideD_f, int othersize, int dimsize){
-    const int nramNum = NRAM_MAX_SIZE/sizeof(T);
-    __nram__  T nram_buffer[nramNum];
+    
     const int maxNum = SRC_MAX_SIZE/sizeof(T);
     
     if(dimsize >= maxNum){
-        T *src = nram_buffer;//[maxNum]
+        T *src = (T *)nram_buffer;//[maxNum]
         T *dest = src + maxNum; //[maxNum]
         int remainT = othersize % taskDim;
         int stepEasy = (othersize - remainT) / taskDim;
@@ -163,7 +161,7 @@ __mlu_global__ void swigluDim_2(T *gate, T const *up, int strideS_f, int strideD
         }
     }
     else{
-        T *src = nram_buffer;//[dimsize]
+        T *src = (T *)nram_buffer;//[dimsize]
         T *dest = src + dimsize; //[dimsize]
         int remainT = othersize % taskDim;
         int stepEasy = (othersize - remainT) / taskDim;
@@ -209,12 +207,11 @@ void swigluUnionDim_2(cnrtQueue_t queue, void *gate, void const *up, int strideS
 }
 template <typename T>
 __mlu_global__ void swigluDim_3(T *gate, T const *up, int strideS_f, int strideS_m, int strideD_f, int strideD_m, int othersize, int middle, int dimsize){
-    const int nramNum = NRAM_MAX_SIZE/sizeof(T);
-    __nram__  T nram_buffer[nramNum];
+    
     const int maxNum = SRC_MAX_SIZE/sizeof(T);
     int startDim = othersize / middle;
     if(dimsize >= maxNum){
-        T *src = nram_buffer;//[maxNum]
+        T *src = (T *)nram_buffer;//[maxNum]
         T *dest = src + maxNum; //[maxNum]
         int remainT = othersize % taskDim;
         int stepEasy = (othersize - remainT) / taskDim;
@@ -258,7 +255,7 @@ __mlu_global__ void swigluDim_3(T *gate, T const *up, int strideS_f, int strideS
         }
     }
     else{
-        T *src = nram_buffer;//[dimsize]
+        T *src = (T *)nram_buffer;//[dimsize]
         T *dest = src + dimsize; //[dimsize]
         int remainT = othersize % taskDim;
         int stepEasy = (othersize - remainT) / taskDim;

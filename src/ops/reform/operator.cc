@@ -1,5 +1,5 @@
 #include "../utils.h"
-#include "reform.h"
+#include "ops/reform/reform.h"
 
 #ifdef ENABLE_CPU
 #include "cpu/reform_cpu.h"

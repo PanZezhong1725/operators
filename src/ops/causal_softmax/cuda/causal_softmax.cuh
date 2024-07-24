@@ -1,7 +1,7 @@
 #ifndef __NV_CPU_CAUSAL_SOFTMAX_H__
 #define __NV_CPU_CAUSAL_SOFTMAX_H__
 
-#include "../../../operators.h"
+#include "operators.h"
 
 typedef struct CausalSoftmaxCudaDescriptor {
     Device device;

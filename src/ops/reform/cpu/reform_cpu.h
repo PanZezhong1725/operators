@@ -1,7 +1,7 @@
 #ifndef __CPU_REFORM_H__
 #define __CPU_REFORM_H__
 
-#include "../../../operators.h"
+#include "operators.h"
 
 struct ReformCpuDescriptor {
     Device device;

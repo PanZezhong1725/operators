@@ -1,5 +1,5 @@
 #include "../utils.h"
-#include "swiglu.h"
+#include "ops/swiglu/swiglu.h"
 
 #ifdef ENABLE_CPU
 #include "cpu/swiglu_cpu.h"

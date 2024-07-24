@@ -1,8 +1,8 @@
 #ifndef __BLAS_H__
 #define __BLAS_H__
 
-#include "../../operators.h"
 #include "../utils.h"
+#include "operators.h"
 #include <algorithm>
 #include <stdint.h>
 

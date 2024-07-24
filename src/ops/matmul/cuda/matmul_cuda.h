@@ -1,7 +1,7 @@
 #ifndef __NV_GPU_MATMUL_H__
 #define __NV_GPU_MATMUL_H__
 
-#include "../../../operators.h"
+#include "operators.h"
 
 typedef struct MatmulCudaDescriptor {
     Device device;

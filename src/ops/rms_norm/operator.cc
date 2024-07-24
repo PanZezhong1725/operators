@@ -1,5 +1,5 @@
 #include "../utils.h"
-#include "rms_norm.h"
+#include "ops/rms_norm/rms_norm.h"
 
 #ifdef ENABLE_CPU
 #include "cpu/rms_norm_cpu.h"

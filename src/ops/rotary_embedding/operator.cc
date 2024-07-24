@@ -1,5 +1,5 @@
 #include "../utils.h"
-#include "rotary_embedding.h"
+#include "ops/rotary_embedding/rotary_embedding.h"
 
 #ifdef ENABLE_CPU
 #include "cpu/rotary_embedding_cpu.h"

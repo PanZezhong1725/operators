@@ -1,7 +1,7 @@
 #ifndef __CPU_ROTARY_EMBEDDING_H__
 #define __CPU_ROTARY_EMBEDDING_H__
 
-#include "../../../operators.h"
+#include "operators.h"
 
 struct RotaryEmbeddingCpuDescriptor {
     Device device;

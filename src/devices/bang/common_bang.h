@@ -1,8 +1,8 @@
 #ifndef __COMMON_BANG_H__
 #define __COMMON_BANG_H__
 
-#include "../../tensor.h"
 #include "cnnl.h"
+#include "tensor.h"
 #include <iostream>
 #include <vector>
 

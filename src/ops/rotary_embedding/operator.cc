@@ -9,6 +9,7 @@
 #endif
 #ifdef ENABLE_CAMBRICON_MLU
 #include "bang/rotary_embedding_cnnl.h"
+#include "bang/rotary_embedding_bang.h"
 #endif
 
 struct RotaryEmbeddingDescriptor {
@@ -77,7 +78,8 @@ __C void rotaryEmbedding(RotaryEmbeddingDescriptor *descriptor, Tensor t, Tensor
 #endif
 #ifdef ENABLE_CAMBRICON_MLU
         case DevCambriconMlu:
-            rotary_embedding_cnnl_f16((RotaryEmbeddingBangDescriptor *) (descriptor), t, pos, theta, stream);
+            //rotary_embedding_cnnl_f16((RotaryEmbeddingBangDescriptor *) (descriptor), t, pos, theta, stream);
+            rotaryEmbedding_bang_f16(t, pos, theta, stream);
             break;
 #endif
         default:

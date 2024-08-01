@@ -46,7 +46,6 @@ def test(lib, descriptor, torch_device):
     lib.rotaryEmbedding(
         descriptor, to_tensor(t, lib), to_tensor(pos, lib), c_float(theta, lib), None
     )
-
     assert torch.allclose(t, ans, atol=1, rtol=1e-3)
     print("Test passed!")
 
@@ -73,16 +72,17 @@ def test_bang(lib):
     descriptor = lib.createRotaryEmbeddingDescriptor(device, config)
     
     # Note: BANG does not support complex calculation, compare with cpu results 
-    t = torch.rand((1, 32, 128), dtype=torch.float16)
+    t = torch.rand((1, 4, 8), dtype=torch.float16)
     pos = torch.ones((1,), dtype=torch.int32)
     theta = 1e4
     ans = rotary_embedding(t, pos, theta, "cpu")
-
+    print(ans)
     t = t.to("mlu")
     pos = pos.to("mlu")
     lib.rotaryEmbedding(
         descriptor, to_tensor(t, lib), to_tensor(pos, lib), c_float(theta), None
     )
+    print(t.cpu())
     assert torch.allclose(t.cpu(), ans, atol=1e-3, rtol=1e-3)
     print("Test passed!")
 

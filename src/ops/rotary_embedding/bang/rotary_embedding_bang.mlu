@@ -9,7 +9,7 @@ const int SRC_MAX_SIZE = 1024 * 16;//至少大于等于128字节
 __nram__  char nram_buffer[NRAM_MAX_SIZE];
 template <typename T>
 __mlu_global__ void rotaryEmbeddingDim_3(T *destination, T const *pos, float theta, int stride_0, int stride_1, int nt, int nh, int dimsize) {//axis=-1
-    
+
     const int maxNum = SRC_MAX_SIZE/sizeof(T);
     int dh = dimsize / 2;
     T dh_inv = 1.0 / dh;
@@ -80,8 +80,11 @@ __mlu_global__ void rotaryEmbeddingDim_3(T *destination, T const *pos, float the
                     __bang_mul(freq, srcb, cosF, maxNum);//freq = b * cos
                     __bang_add(srcJ, srcJ, freq, maxNum);
 
-                    __memcpy(destination, srcO, segsize, NRAM2GDRAM, destStrideW, srcStrideW, segnum);
-                    __memcpy(destination + 1, srcJ, segsize, NRAM2GDRAM, destStrideW, srcStrideW, segnum);
+                    __memcpy(src, srcO, segsize, NRAM2NRAM, destStrideW, srcStrideW, segnum);
+                    __memcpy(src + 1, srcJ, segsize, NRAM2NRAM, destStrideW, srcStrideW, segnum);
+                    __memcpy(destination + indd + s * 2 * maxNum, src, 2 * maxNum * sizeof(T), NRAM2GDRAM);
+
+                    
                 }
                 if(remain){
                     //int fracRemain = remain / 2;
@@ -109,8 +112,11 @@ __mlu_global__ void rotaryEmbeddingDim_3(T *destination, T const *pos, float the
                     __bang_mul(freq, srcb, cosF, maxNum);//freq = b * cos
                     __bang_add(srcJ, srcJ, freq, maxNum);
 
-                    __memcpy(destination, srcO, segsize, NRAM2GDRAM, destStrideW, srcStrideW, remain);
-                    __memcpy(destination + 1, srcJ, segsize, NRAM2GDRAM, destStrideW, srcStrideW, remain);
+                    __memcpy(src, srcO, segsize, NRAM2NRAM, destStrideW, srcStrideW, remain);
+                    __memcpy(src + 1, srcJ, segsize, NRAM2NRAM, destStrideW, srcStrideW, remain);
+                    __memcpy(destination + indd, src, remain * sizeof(T), NRAM2GDRAM);
+
+                    
                 }
             }
             
@@ -126,10 +132,10 @@ __mlu_global__ void rotaryEmbeddingDim_3(T *destination, T const *pos, float the
             T *srcJ = src + dimsize;//[dh]
             T *srcO = srcJ + dh;//[dh]
             T *freq = srcO + dh;//[dh]
-            T *sinF = freq + dh;
-            T *cosF = sinF + dh;
-            T *srca = cosF + dh;
+            T *srca = freq + dh;
             T *srcb = srca + dh;
+            T *sinF = srcb + 3 * dh;//由于srcb的memcpy有stride，这里尽量放大srcb的内存>2dh
+            T *cosF = sinF + dh;
             
             for(int i = indStart; i < indStart + step; i++){
                 int indd = 0;
@@ -141,7 +147,6 @@ __mlu_global__ void rotaryEmbeddingDim_3(T *destination, T const *pos, float the
                 T posData = srcP[indi];
                 
                 __bang_mul_scalar(freq, srcK, dh_inv, dh);//freq = srcK / dh
-                
                 __bang_mul_scalar(freq, freq, log(theta), dh);//freq = freq * log(theta)
                 __bang_active_exp(freq, freq, dh);//freq = exp(freq)
                 __bang_active_recip(freq, freq, dh);//freq = 1/freq
@@ -149,22 +154,26 @@ __mlu_global__ void rotaryEmbeddingDim_3(T *destination, T const *pos, float the
 
                 __bang_active_sin(sinF, freq, dh);
                 __bang_active_cos(cosF, freq, dh);
-
+                
+                
+                
                 __memcpy(src, destination + indd, dimsize * sizeof(T), GDRAM2NRAM);
-                __memcpy(srcb, src + 1, segsize, NRAM2NRAM, destStrideL, srcStrideL, segnum);     
                 __memcpy(srca, src, segsize, NRAM2NRAM, destStrideL, srcStrideL, segnum); 
-
+                __memcpy(srcb, src + 1, segsize, NRAM2NRAM, destStrideL, srcStrideL, segnum);     
+                
                 __bang_mul(srcO, srca, cosF, dh);// srcO = a * cos
                 __bang_mul(freq, srcb, sinF, dh);//freq = b * sin
                 __bang_mul_scalar(freq, freq, -1.0, dh);
                 __bang_add(srcO, srcO, freq, dh);//srcO = a * cos - b * sin
-
+                
                 __bang_mul(srcJ, srca, sinF, dh);//srcJ = a * sin
                 __bang_mul(freq, srcb, cosF, dh);//freq = b * cos
                 __bang_add(srcJ, srcJ, freq, dh);
-
-                __memcpy(destination, srcO, segsize, NRAM2GDRAM, destStrideW, srcStrideW, segnum);
-                __memcpy(destination + 1, srcJ, segsize, NRAM2GDRAM, destStrideW, srcStrideW, segnum);
+                
+                
+                __memcpy(src, srcO, segsize, NRAM2NRAM, destStrideW, srcStrideW, segnum);
+                __memcpy(src + 1, srcJ, segsize, NRAM2NRAM, destStrideW, srcStrideW, segnum);
+                __memcpy(destination + indd, src, dimsize * sizeof(T), NRAM2GDRAM);
             }
             
 
@@ -202,6 +211,8 @@ void rotaryEmbedding_bang_f16(Tensor t, Tensor pos, float theta, void *stream) {
     auto queue = reinterpret_cast<cnrtQueue_t>(stream);
     int stride_0 = y_stride[0];
     int stride_1 = y_stride[1];
+    printf("%d,%d\n", stride_0, stride_1);
+    printf("%d,%d, %d\n", shape[0], shape[1], shape[2]);
     int nt = shape[0];
     int nh = shape[1];
     int dimsize = shape[2];

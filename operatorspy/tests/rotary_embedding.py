@@ -72,7 +72,11 @@ def test_bang(lib):
     descriptor = lib.createRotaryEmbeddingDescriptor(device, config)
     
     # Note: BANG does not support complex calculation, compare with cpu results 
-    t = torch.rand((1, 4, 8), dtype=torch.float16)
+    #t = torch.ones((1, 4, 8), dtype=torch.float16)
+    t = torch.zeros(32, dtype = torch.float16)
+    for i in range(32):
+        t[i] = i
+    t = t.reshape([1, 4, 8])
     pos = torch.ones((1,), dtype=torch.int32)
     theta = 1e4
     ans = rotary_embedding(t, pos, theta, "cpu")

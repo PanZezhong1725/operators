@@ -23,9 +23,9 @@ def matmul(c, beta, a, b, alpha):
 
 
 def test(lib, descriptor, torch_device):
-    c = torch.zeros((3, 3, 4), dtype=torch.float16).to(torch_device)
-    a = torch.rand((1, 3, 5), dtype=torch.float16).to(torch_device)
-    b = torch.rand((3, 5, 4), dtype=torch.float16).to(torch_device)
+    c = torch.zeros((1, 2048), dtype=torch.float16).to(torch_device)
+    a = torch.rand((1, 2048), dtype=torch.float16).to(torch_device)
+    b = torch.rand((2048, 2048), dtype=torch.float16).to(torch_device)
 
     beta = 0.0
     alpha = 1.0

@@ -2,7 +2,7 @@
 #define __NV_GPU_REFORM_H__
 
 #include "../../../devices/cuda/common_cuda.h"
-#include "../../../operators.h"
+#include "operators.h"
 
 struct ReformCudaDescriptor {
     Device device;

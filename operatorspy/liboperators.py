@@ -59,15 +59,21 @@ def open_lib():
 
 
 # Convert PyTorch tensor to library Tensor
-def to_tensor(tensor, lib):
+def to_tensor(tensor, lib, shape = None, strides = None):
     import torch
 
     ndim = tensor.ndimension()
-    shape = (ctypes.c_uint64 * ndim)(*tensor.shape)
+    if shape is None:
+        shape = (ctypes.c_uint64 * ndim)(*tensor.shape)
+    else:
+        shape = (ctypes.c_uint64 * ndim)(*shape)
     # Get strides in bytes
-    strides = (ctypes.c_int64 * ndim)(
-        *(s * tensor.element_size() for s in tensor.stride())
-    )
+    if strides is None:
+        strides = (ctypes.c_int64 * ndim)(
+            *(s * tensor.element_size() for s in tensor.stride())
+        )
+    else:
+        strides = (ctypes.c_int64 * ndim)(*strides)
     data_ptr = tensor.data_ptr()
     # fmt: off
     dt = (

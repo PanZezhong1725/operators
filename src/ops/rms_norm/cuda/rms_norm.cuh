@@ -1,7 +1,7 @@
 ﻿#ifndef __NV_GPU_RMS_NORM_H__
 #define __NV_GPU_RMS_NORM_H__
 
-#include "../../../operators.h"
+#include "operators.h"
 
 struct RMSNormCudaDescriptor {
     Device device;

@@ -1,5 +1,5 @@
 #include "../utils.h"
-#include "swiglu.h"
+#include "ops/swiglu/swiglu.h"
 
 #ifdef ENABLE_CPU
 #include "cpu/swiglu_cpu.h"
@@ -8,6 +8,7 @@
 #include "cuda/swiglu.cuh"
 #endif
 #ifdef ENABLE_CAMBRICON_MLU
+#include "bang/swiglu_bang.h"
 #include "bang/swiglu_cnnl.h"
 #endif
 
@@ -77,7 +78,8 @@ __C void swiglu(SwigluDescriptor *descriptor, Tensor gate, Tensor up, void *stre
 #endif
 #ifdef ENABLE_CAMBRICON_MLU
         case DevCambriconMlu:
-            swiglu_cnnl_f16((SwigluBangDescriptor *) (descriptor), gate, up, stream);
+            // swiglu_cnnl_f16((SwigluBangDescriptor *) (descriptor), gate, up, stream);
+            swiglu_bang_f16(gate, up, stream);
             break;
 #endif
         default:

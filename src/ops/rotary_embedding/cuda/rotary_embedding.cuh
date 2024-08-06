@@ -1,7 +1,7 @@
 #ifndef __NV_GPU_ROTARY_EMBEDDING_H__
 #define __NV_GPU_ROTARY_EMBEDDING_H__
 
-#include "../../../operators.h"
+#include "operators.h"
 
 struct RotaryEmbeddingCudaDescriptor {
     Device device;

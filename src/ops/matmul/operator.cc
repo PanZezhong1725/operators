@@ -1,5 +1,5 @@
 #include "../utils.h"
-#include "matmul.h"
+#include "ops/matmul/matmul.h"
 
 #ifdef ENABLE_CPU
 #include "cpu/matmul_cpu.h"

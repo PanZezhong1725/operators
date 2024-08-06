@@ -1,9 +1,9 @@
 #ifndef __CNNL_CAUSAL_SOFTMAX_H__
 #define __CNNL_CAUSAL_SOFTMAX_H__
 
-#include "../../../operators.h"
 #include "cnnl.h"
 #include "cnnl_extra.h"
+#include "operators.h"
 
 struct CausalSoftmaxBangDescriptor {
     Device device;

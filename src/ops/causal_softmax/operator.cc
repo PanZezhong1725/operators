@@ -1,5 +1,5 @@
 #include "../utils.h"
-#include "causal_softmax.h"
+#include "ops/causal_softmax/causal_softmax.h"
 
 #ifdef ENABLE_CPU
 #include "cpu/causal_softmax_cpu.h"
@@ -10,6 +10,7 @@
 #endif
 #ifdef ENABLE_CAMBRICON_MLU
 #include "bang/causal_softmax_cnnl.h"
+#include "bang/causal_softmax_bang.h"
 #endif
 
 struct CausalSoftmaxDescriptor {
@@ -76,6 +77,7 @@ __C void causalSoftmax(CausalSoftmaxDescriptor *descriptor, Tensor y, void *stre
 #endif
 #ifdef ENABLE_CAMBRICON_MLU
         case DevCambriconMlu:
+            // causal_softmax_bang_f16(y, y, stream);
             causal_softmax_cnnl_f16(y, stream);
             break;
 #endif

@@ -1,7 +1,7 @@
 ﻿#ifndef __CPU_RMS_NORM_H__
 #define __CPU_RMS_NORM_H__
 
-#include "../../../operators.h"
+#include "operators.h"
 
 struct RMSNormCpuDescriptor {
     Device device;

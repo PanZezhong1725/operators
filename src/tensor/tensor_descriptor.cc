@@ -1,4 +1,4 @@
-#include "tensor_descriptor.h"
+#include "tensor/tensor_descriptor.h"
 #include <cstring>
 
 __C __export void createTensorDescriptor(TensorDescriptor* desc_ptr, uint64_t ndim, uint64_t *shape_, int64_t *strides_, DataLayout datatype) {

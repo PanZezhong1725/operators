@@ -46,6 +46,12 @@ xmake f --cpu=true -cv
 xmake f --nv-gpu=true --cuda=$CUDA_HOME -cv
 ```
 
+#### 配置 MLU
+
+```xmake
+xmake f --cambricon-mlu=true -cv
+```
+
 ### 编译
 
 ```xmake
@@ -71,23 +77,28 @@ python operator_name.py
 
 ```bash
 ├── xmake.lua  # xmake 构建脚本
+├── include
+│   ├── ops
+│   │   ├── [operator_name].h  # 对外暴露的算子 C 接口定义，descriptor 定义
+│   ├── tensor
+│   │   ├── tensor_descriptor.h  # 对外暴露的张量 descriptor 定义
+│   ├── *.h  # 对外暴露的核心结构体定义
 ├── src
 │   ├── devices
 │   │   ├── [device_name]
-│   │       ├── *.cc/.h # 特定硬件（如cpu、英伟达）通用代码
+│   │       ├── *.cc/.h # 特定硬件（如 cpu、英伟达）通用代码
 │   ├── ops
-│   │   ├── utils.h  # 全算子通用代码 (如assert)
+│   │   ├── utils.h  # 全算子通用代码 (如 assert)
 │   │   ├── [operator_name]  # 算子实现目录
-│   │       ├── operator.cc # 算子C接口实现 (根据descriptor调用不同的算子实现)
-│   │       ├── [operator_name].h # 算子C接口定义，descriptor定义
+│   │       ├── operator.cc # 算子 C 接口实现 (根据 descriptor 调用不同的算子实现)
 │   │       ├── [device_name]
 │   │       │   ├── *.cc/.h/... # 特定硬件的算子实现代码
 │   ├── *.h  # 核心结构体定义
 │  
-├── operatorspy  # Python封装以及测试脚本
+├── operatorspy  # Python 封装以及测试脚本
     ├── tests
     │   ├── operator_name.py  # 测试脚本
-    ├── *.py     # Python封装代码
+    ├── *.py     # Python 封装代码
 ```
 
 ### 增加新的硬件

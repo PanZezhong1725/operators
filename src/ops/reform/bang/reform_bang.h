@@ -1,9 +1,9 @@
 #ifndef __BANG_REFORM_H__
 #define __BANG_REFORM_H__
 
-#include "../../../operators.h"
 #include "../../utils.h"
 #include "cnrt.h"
+#include "operators.h"
 
 struct ReformBangDescriptor {
     Device device;

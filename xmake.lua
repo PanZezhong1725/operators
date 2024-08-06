@@ -1,5 +1,7 @@
 add_rules("mode.debug", "mode.release")
 
+add_includedirs("include")
+
 option("cpu")
     set_default(true)
     set_showmenu(true)
@@ -81,15 +83,30 @@ if has_config("cambricon-mlu") then
 
     rule("mlu")
         set_extensions(".mlu")
+
+        on_load(function (target)
+            target:add("includedirs", "include")
+        end)
+
         on_build_file(function (target, sourcefile)
             local objectfile = target:objectfile(sourcefile)
-            os.mkdir(path.directory(objectfile))        
+            os.mkdir(path.directory(objectfile))
+
             local cc = "/usr/local/neuware/bin/cncc"
-            print("Compiling " .. sourcefile .. " to " .. objectfile)
-            os.execv(cc, {"-c", sourcefile, "-o", objectfile, "-I/usr/local/neuware/include", "--bang-mlu-arch=mtp_592", "-O3", "-fPIC", "-Wall", "-Werror", "-std=c++17", "-pthread"})
+
+            local includedirs = table.concat(target:get("includedirs"), " ")
+            local args = {"-c", sourcefile, "-o", objectfile, "-I/usr/local/neuware/include", "--bang-mlu-arch=mtp_592", "-O3", "-fPIC", "-Wall", "-Werror", "-std=c++17", "-pthread"}
+            
+            for _, includedir in ipairs(target:get("includedirs")) do
+                table.insert(args, "-I" .. includedir)
+            end
+
+            os.execv(cc, args)
             table.insert(target:objectfiles(), objectfile)
         end)
-    rule_end()
+
+rule_end()
+
 
     target("cambricon-mlu")
         set_kind("static")
@@ -125,3 +142,29 @@ target("main")
     set_languages("c11")
     add_files("src/main.c")
 target_end()
+
+task("install-operators")
+    set_menu {
+        usage = "xmake install-operators",
+        description = "Build and install the operators",
+        options = {}
+    }
+    on_run(function ()
+        os.exec("xmake --root")
+        os.exec("mkdir -p $(projectdir)/lib/")
+        os.exec("cp $(projectdir)/build/linux/x86_64/release/liboperators.so $(projectdir)/lib/")
+        os.exec("cp -r $(projectdir)/include $(projectdir)/lib/")
+        -- Define color codes
+        local GREEN = '\27[0;32m'
+        local YELLOW = '\27[1;33m'
+        local NC = '\27[0m'  -- No Color
+
+        -- Get the current directory
+        local current_dir = os.curdir()
+
+        -- Output messages with colors
+        os.exec("echo -e '" .. GREEN .. "Compilation completed successfully." .. NC .. "'")
+        os.exec("echo -e '" .. YELLOW .. "To set the environment variable, please run the following command:" .. NC .. "'")
+        os.exec("echo -e '" .. YELLOW .. "echo \"export INFINI_ROOT=" .. current_dir .. "/lib\" >> ~/.bashrc" .. NC .. "'")
+
+    end)

@@ -1,9 +1,9 @@
 ﻿#ifndef __CNNL_RMS_NORM_H__
 #define __CNNL_RMS_NORM_H__
 
-#include "../../../operators.h"
 #include "cnnl.h"
 #include "cnnl_extra.h"
+#include "operators.h"
 
 struct RMSNormBangDescriptor {
     Device device;

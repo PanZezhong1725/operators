@@ -1,7 +1,7 @@
 #ifndef __CPU_MATMUL_H__
 #define __CPU_MATMUL_H__
 
-#include "../../../operators.h"
+#include "operators.h"
 typedef struct MatmulCpuDescriptor {
     Device device;
 } MatmulCpuDescriptor;

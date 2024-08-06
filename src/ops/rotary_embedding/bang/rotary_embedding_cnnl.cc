@@ -19,6 +19,10 @@ void rotary_embedding_cnnl_f16(RotaryEmbeddingBangDescriptor *descriptor, Tensor
          dh = static_cast<int>(t.layout->shape[2]);
 
     int inDim[4] = {nt, 1, nh, dh};
+    int inDimStride[4] = {static_cast<int>(t.layout->strides[0] / t.layout->dt.size),
+                          0,
+                          static_cast<int>(t.layout->strides[1] / t.layout->dt.size),
+                          static_cast<int>(t.layout->strides[2] / t.layout->dt.size)};
     int posDim[2] = {nt, 1};
     int thetaDim[2] = {1, dh / 2};
     int freqDim[2] = {nt, dh / 2};
@@ -32,19 +36,19 @@ void rotary_embedding_cnnl_f16(RotaryEmbeddingBangDescriptor *descriptor, Tensor
     cnnlCreateTensorDescriptor(&freqDesc);
     cnnlCreateTensorDescriptor(&freqConcatDesc);
     cnnlCreateTensorDescriptor(&scalerDesc);
-
-    cnnlSetTensorDescriptor(inDesc, CNNL_LAYOUT_ARRAY, CNNL_DTYPE_HALF, 4, inDim);
+    
     cnnlSetTensorDescriptor(posDesc, CNNL_LAYOUT_ARRAY, CNNL_DTYPE_INT32, 2, posDim);
+    cnnlSetTensorDescriptorEx(inDesc, CNNL_LAYOUT_ARRAY, CNNL_DTYPE_HALF, 4, inDim, inDimStride);
     cnnlSetTensorDescriptor(thetaDesc, CNNL_LAYOUT_ARRAY, CNNL_DTYPE_FLOAT, 2, thetaDim);
     cnnlSetTensorDescriptor(freqDesc, CNNL_LAYOUT_ARRAY, CNNL_DTYPE_FLOAT, 2, freqDim);
     cnnlSetTensorDescriptor(freqConcatDesc, CNNL_LAYOUT_ARRAY, CNNL_DTYPE_FLOAT, 2, freqConcatDim);
     cnnlSetTensorDescriptor(scalerDesc, CNNL_LAYOUT_ARRAY, CNNL_DTYPE_FLOAT, 1, scalerDim);
 
     void *thetaData, *freqData, *freqConcatData, *scalerData;
-    cnrtMalloc(&thetaData, dh / 2 * sizeof(float));
-    cnrtMalloc(&freqData, nt * dh / 2 * sizeof(float));
-    cnrtMalloc(&freqConcatData, nt * dh * sizeof(float));
-    cnrtMalloc(&scalerData, sizeof(float));
+    cnrtMalloc(&thetaData, dh / 2 * sizeof(float) + nt * dh / 2 * sizeof(float) + nt * dh * sizeof(float) + sizeof(float));
+    freqData = static_cast<char *>(thetaData) + dh / 2 * sizeof(float);
+    freqConcatData = static_cast<char *>(freqData) + nt * dh / 2 * sizeof(float);
+    scalerData = static_cast<char *>(freqConcatData) + nt * dh * sizeof(float);
 
     void *powWorkspace, *outerWorkspace, *concatWorkspace;
     float zero = 0.0f, one = 1.0f;
@@ -53,21 +57,13 @@ void rotary_embedding_cnnl_f16(RotaryEmbeddingBangDescriptor *descriptor, Tensor
     use_cnnl((cnrtQueue_t) stream,
              [&](cnnlHandle_t handle) {
                  cnrtMemcpy(scalerData, &scaler, sizeof(float), cnrtMemcpyHostToDev);
-                 // Use Arange to get [0, 1, 2, ..., dh / 2]
-                 cnnlArange_v2(handle, CNNL_COMPUTATION_ULTRAHIGH_PRECISION, &zero,
-                               &scaler, thetaDesc, thetaData);
 
-                 // Use PowR to calc ((theta)^(-2/d))^n
-                 cnrtMemcpy(scalerData, &theta, sizeof(float), cnrtMemcpyHostToDev);
-
+                 void *workspace;
+                 size_t workspaceSize = 0;
                  size_t powWorkspaceSize;
                  cnnlGetPowWorkspaceSize(handle, scalerDesc, thetaDesc,
                                          thetaDesc, &powWorkspaceSize);
-                 cnrtMalloc(&powWorkspace, powWorkspaceSize);
-
-                 cnnlPow(handle, CNNL_COMPUTATION_ULTRAHIGH_PRECISION,
-                         scalerDesc, scalerData, thetaDesc, thetaData,
-                         powWorkspace, powWorkspaceSize, thetaDesc, thetaData);
+                 workspaceSize += powWorkspaceSize;
 
                  // Use Broadcast Mul to calc t * theta_n
                  size_t outerWorkspaceSize;
@@ -76,7 +72,30 @@ void rotary_embedding_cnnl_f16(RotaryEmbeddingBangDescriptor *descriptor, Tensor
                                                  &one, thetaDesc, thetaData,
                                                  &zero, freqDesc, freqData,
                                                  &outerWorkspaceSize);
-                 cnrtMalloc(&outerWorkspace, outerWorkspaceSize);
+                 workspaceSize += outerWorkspaceSize;
+
+                 // Concat two freqs to get [freq, freq]
+                 size_t concatWorkspaceSize;
+                 cnnlGetConcatWorkspaceSize(handle, 2, &concatWorkspaceSize);
+                 workspaceSize += concatWorkspaceSize;
+
+                 cnrtMalloc(&workspace, workspaceSize);
+                 powWorkspace = workspace;
+                 outerWorkspace = static_cast<char *>(powWorkspace) + powWorkspaceSize;
+                 concatWorkspace = static_cast<char *>(outerWorkspace) + outerWorkspaceSize;
+
+                 // Use Arange to get [0, 1, 2, ..., dh / 2]
+                 cnnlArange_v2(handle, CNNL_COMPUTATION_ULTRAHIGH_PRECISION, &zero,
+                               &scaler, thetaDesc, thetaData);
+
+                 // Use PowR to calc ((theta)^(-2/d))^n
+                 cnrtMemcpy(scalerData, &theta, sizeof(float), cnrtMemcpyHostToDev);
+
+
+                 cnnlPow(handle, CNNL_COMPUTATION_ULTRAHIGH_PRECISION,
+                         scalerDesc, scalerData, thetaDesc, thetaData,
+                         powWorkspace, powWorkspaceSize, thetaDesc, thetaData);
+
 
                  cnnlOpTensor(handle, descriptor->outerDesc, &one,
                               posDesc, pos.data,
@@ -84,10 +103,6 @@ void rotary_embedding_cnnl_f16(RotaryEmbeddingBangDescriptor *descriptor, Tensor
                               outerWorkspace, outerWorkspaceSize,
                               &zero, freqDesc, freqData);
 
-                 // Concat two freqs to get [freq, freq]
-                 size_t concatWorkspaceSize;
-                 cnnlGetConcatWorkspaceSize(handle, 2, &concatWorkspaceSize);
-                 cnrtMalloc(&concatWorkspace, concatWorkspaceSize);
 
                  cnnlTensorDescriptor_t concatDescs[2] = {freqDesc, freqDesc};
                  void *const concatData[2] = {freqData, freqData};
@@ -99,18 +114,13 @@ void rotary_embedding_cnnl_f16(RotaryEmbeddingBangDescriptor *descriptor, Tensor
                  // Do RotaryEmbedding with t(fp16) and [freq, freq](fp32)
                  cnnlRotaryEmbedding_v2(handle, descriptor->ropeDesc, inDesc, t.data,
                                         nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
-                                        freqConcatDesc, freqConcatData, 
+                                        freqConcatDesc, freqConcatData,
                                         nullptr, nullptr, nullptr, 0,
                                         inDesc, t.data, nullptr, nullptr);
              });
 
     cnrtFree(thetaData);
-    cnrtFree(freqData);
-    cnrtFree(freqConcatData);
-    cnrtFree(scalerData);
     cnrtFree(powWorkspace);
-    cnrtFree(outerWorkspace);
-    cnrtFree(concatWorkspace);
 
     cnnlDestroyTensorDescriptor(inDesc);
     cnnlDestroyTensorDescriptor(posDesc);

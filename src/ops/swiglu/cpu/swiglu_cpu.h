@@ -1,7 +1,7 @@
 #ifndef __CPU_SWIGLU_H__
 #define __CPU_SWIGLU_H__
 
-#include "../../../operators.h"
+#include "operators.h"
 
 struct SwigluCpuDescriptor {
     Device device;

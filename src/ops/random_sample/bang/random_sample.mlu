@@ -1,0 +1,101 @@
+#include "bang.h"
+#include "bang_device_functions.h"
+#include "cnrt.h"
+#include "random_sample_bang.h"
+#include "../../../devices/bang/common_bang.h"
+const int SRC_MAX_SIZE = 1024 * 64;//至少大于等于128字节
+__nram__  char nram_buffer[NRAM_MAX_SIZE];
+
+
+template <typename T>
+__mlu_global__ void random_sample(T const *source, int *indices, int *index_, float random, float topp, int topk, int voc){
+    __nram__ T srcVoc[1];
+    __nram__ T srcTopk[1];
+    __memcpy(srcVoc, source + voc - 1, sizeof(T), GDRAM2NRAM);
+    __memcpy(srcTopk, source + topk - 1, sizeof(T), GDRAM2NRAM);
+    T p = static_cast<T>(random * fmin(topp * static_cast<float>(srcVoc[0]), static_cast<float>(srcTopk[0])));
+    const int maxNum = SRC_MAX_SIZE/sizeof(T);
+    int size = maxNum * taskDim;
+    if(voc >= size){
+        T *src = (T *)nram_buffer;//[maxNum]
+        __nram__ int srcIndices[maxNum];
+        __nram__ int srcIndex[1];
+        int remain = voc % size;
+        int repeat = (voc - remain) / size;
+        int remainT = remain % taskDim;
+        int stepEasy = (remain - remainT) / taskDim;
+        int stepHard = stepEasy + 1;
+        int step = (taskId < remainT ? stepHard : stepEasy);
+        int indStart = (taskId < remainT ? taskId * stepHard : remainT * stepHard + (taskId - remainT) * stepEasy);
+        for(int i = 0; i < repeat; i++){
+            __memcpy(src, source + i * size + taskId * maxNum, maxNum * sizeof(T), GDRAM2NRAM);
+            __memcpy(srcIndices, indices + i * size + taskId * maxNum, maxNum * sizeof(int), GDRAM2NRAM);
+            for(int j = 0; j < maxNum; j++){
+                if(src[j] >= p){
+                    srcIndex[0] = srcIndices[j];
+                    break;
+                }
+            }
+        }
+        if(step){
+            __memcpy(src, source + repeat * size + indStart, step * sizeof(T), GDRAM2NRAM);
+            __memcpy(srcIndices, indices + repeat * size + indStart, step * sizeof(int), GDRAM2NRAM);
+            for(int j = 0; j < step; j++){
+                if(src[j] >= p){
+                    srcIndex[0] = srcIndices[j];
+                    break;
+                }
+            }
+        }
+        __memcpy(index_, srcIndex, sizeof(int), NRAM2GDRAM);
+    }
+    
+    else{
+        T *src = (T *)nram_buffer;//[voc]
+        __nram__ int srcIndices[maxNum];//[voc]
+        __nram__ int srcIndex[1];
+
+        int remainT = voc % taskDim;
+        int stepEasy = (voc - remainT) / taskDim;
+        int stepHard = stepEasy + 1;
+        int step = (taskId < remainT ? stepHard : stepEasy);
+        int indStart = (taskId < remainT ? taskId * stepHard : remainT * stepHard + (taskId - remainT) * stepEasy);
+        if(step){
+            __memcpy(src, source + indStart, step * sizeof(T), GDRAM2NRAM);
+            __memcpy(srcIndices, indices + indStart, step * sizeof(int), GDRAM2NRAM);
+            for(int j = 0; j < step; j++){
+                if(src[j] >= p){
+                    srcIndex[0] = srcIndices[j];
+                    break;
+                }
+            }
+        }
+        __memcpy(index_, srcIndex, sizeof(int), NRAM2GDRAM);
+    }
+}
+template<typename T>
+void random_sampleUnion(cnrtQueue_t queue, void const *source, void *indices, void *index, float random, float topp, int topk, int voc) {
+    
+    auto source_ = reinterpret_cast<T const *>(source);
+    auto indices_ = reinterpret_cast<int *>(indices);
+    auto index_ = reinterpret_cast<int *>(index);
+    
+    cnrtDim3_t k_dim;
+    cnrtFunctionType_t k_type;
+
+    k_dim.x = 4;
+    k_dim.y = 1;
+    k_dim.z = 1;
+    k_type = CNRT_FUNC_TYPE_UNION1;
+    
+    random_sample<T><<<k_dim, k_type, queue>>>(source_, indices_, index_, random, topp, topk, voc);
+    cnrtQueueSync(queue);
+    
+}
+
+void random_sample_bang_f16(Tensor source, Tensor indices, Tensor index, float random, float topp, int topk, void *stream) {
+    auto queue = reinterpret_cast<cnrtQueue_t>(stream);
+    int voc = static_cast<int>(source.layout->shape[0]);
+    
+    random_sampleUnion<half>(queue, source.data, indices.data, index.data, random, topp, topk, voc);
+}

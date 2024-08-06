@@ -28,9 +28,7 @@ __C void *createRandomSampleDescriptor(Device device, void *config) {
 #endif
 #ifdef ENABLE_CAMBRICON_MLU
     case DevCambriconMlu: {
-        auto bangDescriptor = new RandomSampleBangDescriptor(device);
-        bangDescriptor->createCnnlDescriptors();
-        return (RandomSampleDescriptor *) (bangDescriptor);
+        return (RandomSampleDescriptor *) (new RandomSampleBangDescriptor{device});
     }
 #endif
     default:
@@ -53,9 +51,7 @@ __C void destroyRandomSampleDescriptor(RandomSampleDescriptor *descriptor) {
 #endif
 #ifdef ENABLE_CAMBRICON_MLU
         case DevCambriconMlu: {
-            auto bangDescriptor = (RandomSampleBangDescriptor *) (descriptor);
-            bangDescriptor->destroyCnnlDescriptors();
-            delete bangDescriptor;
+            delete (RandomSampleBangDescriptor *) (descriptor);
             break;
         }
 #endif

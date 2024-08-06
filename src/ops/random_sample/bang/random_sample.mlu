@@ -3,8 +3,9 @@
 #include "cnrt.h"
 #include "random_sample_bang.h"
 #include "../../../devices/bang/common_bang.h"
-const int SRC_MAX_SIZE = 1024 * 64;//至少大于等于128字节
+const int SRC_MAX_SIZE = 1024 * 32;
 __nram__  char nram_buffer[NRAM_MAX_SIZE];
+
 
 
 template <typename T>
@@ -17,8 +18,9 @@ __mlu_global__ void random_sample(T const *source, int *indices, int *index_, fl
     const int maxNum = SRC_MAX_SIZE/sizeof(T);
     int size = maxNum * taskDim;
     if(voc >= size){
+        char *nram_bufferInd = nram_buffer + SRC_MAX_SIZE;
         T *src = (T *)nram_buffer;//[maxNum]
-        __nram__ int srcIndices[maxNum];
+        int *srcIndices = (int *)nram_bufferInd;
         __nram__ int srcIndex[1];
         int remain = voc % size;
         int repeat = (voc - remain) / size;
@@ -51,8 +53,10 @@ __mlu_global__ void random_sample(T const *source, int *indices, int *index_, fl
     }
     
     else{
+        
+        char *nram_bufferInd = nram_buffer + SRC_MAX_SIZE;
         T *src = (T *)nram_buffer;//[voc]
-        __nram__ int srcIndices[maxNum];//[voc]
+        int *srcIndices = (int *)nram_bufferInd;
         __nram__ int srcIndex[1];
 
         int remainT = voc % taskDim;

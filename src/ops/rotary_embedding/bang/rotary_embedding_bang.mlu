@@ -7,8 +7,9 @@
 
 const int SRC_MAX_SIZE = 1024 * 16;//至少大于等于128字节
 __nram__  char nram_buffer[NRAM_MAX_SIZE];
+
 template <typename T>
-__mlu_global__ void rotaryEmbeddingDim_3(T *destination, T const *pos, float theta, int stride_0, int stride_1, int nt, int nh, int dimsize) {//axis=-1
+__mlu_global__ void rotaryEmbeddingDim_3(T *destination, int const *pos, float theta, int stride_0, int stride_1, int nt, int nh, int dimsize) {//axis=-1
 
     const int maxNum = SRC_MAX_SIZE/sizeof(T);
     int dh = dimsize / 2;
@@ -29,16 +30,18 @@ __mlu_global__ void rotaryEmbeddingDim_3(T *destination, T const *pos, float the
     int indStart = (taskId < remainT ? taskId * stepHard : (taskId - remainT) * stepEasy + remainT * stepHard);
 
     if(nt < maxNum){
-        T *srcP = (T *)nram_buffer;//[maxNum]
-        __memcpy(srcP, pos, nt * sizeof(T), GDRAM2NRAM);
+        char *nram_buffer1 = nram_buffer + nt * sizeof(int);
+        int *srcP = (int *)nram_buffer;
+
+        __memcpy(srcP, pos, nt * sizeof(int), GDRAM2NRAM);
         
         if(dimsize >= maxNum){
-            T *srcK = srcP + maxNum;
+            T *srcK = (T *)nram_buffer1;//[maxNum]
             for(int i = 0; i < maxNum; i++){
                 srcK[i] = i;
             }
             int segnum = 2 * maxNum;
-            T *src = srcK + 2 * maxNum;//[2maxNum]
+            T *src = srcK + maxNum;//[2maxNum]
             T *srcJ = src + 2 * maxNum;//[2maxNum]
             T *srcO = srcJ + maxNum;//[2maxNum]
             T *freq = srcO + maxNum;//[maxNum]
@@ -123,7 +126,7 @@ __mlu_global__ void rotaryEmbeddingDim_3(T *destination, T const *pos, float the
         }
         else{
             //__bang_printf("xiao\n");
-            T *srcK = srcP + maxNum;//[dh]
+            T *srcK = (T *)nram_buffer1;//[dh]
             for(int i = 0; i < dh; i++){
                 srcK[i] = i;
             }
@@ -185,8 +188,9 @@ template<typename T>
 void rotaryEmbeddingUnionDim_3(cnrtQueue_t queue, void *destination, void const *pos, float theta, int stride_0, int stride_1, int nt, int nh, int dimsize) {
     
     auto y_ = reinterpret_cast<T *>(destination);
-    auto x_ = reinterpret_cast<T const *>(pos);
-   
+    auto x_ = reinterpret_cast<int const *>(pos);
+    
+    
     cnrtDim3_t k_dim;
     cnrtFunctionType_t k_type;
 
@@ -211,8 +215,7 @@ void rotaryEmbedding_bang_f16(Tensor t, Tensor pos, float theta, void *stream) {
     auto queue = reinterpret_cast<cnrtQueue_t>(stream);
     int stride_0 = y_stride[0];
     int stride_1 = y_stride[1];
-    printf("%d,%d\n", stride_0, stride_1);
-    printf("%d,%d, %d\n", shape[0], shape[1], shape[2]);
+    
     int nt = shape[0];
     int nh = shape[1];
     int dimsize = shape[2];

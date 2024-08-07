@@ -38,15 +38,25 @@ def rotary_embedding(t, pos, theta, torch_device):
 
 
 def test(lib, descriptor, torch_device):
-    t = torch.rand((1, 32, 128), dtype=torch.float16).to(torch_device)
-    pos = torch.ones((1,), dtype=torch.int32).to(torch_device)
+    #t = torch.ones((1, 4, 8), dtype=torch.float16)
+    t = torch.zeros(32, dtype = torch.float16)
+    for i in range(32):
+        t[i] = i
+    t = t.reshape([1, 4, 8])
+    #pos = torch.ones((1,), dtype=torch.int32)
+    pos = torch.ones([1], dtype=torch.int32)
     theta = 1e4
+    ans = rotary_embedding(t, pos, theta, "cpu")
+    t = t.to(torch_device)
+    pos = pos.to(torch_device)
 
-    ans = rotary_embedding(t, pos, theta, torch_device)
+    
+    print(ans.cpu())
     lib.rotaryEmbedding(
-        descriptor, to_tensor(t, lib), to_tensor(pos, lib), c_float(theta, lib), None
+        descriptor, to_tensor(t, lib), to_tensor(pos, lib), theta, None
     )
-    assert torch.allclose(t, ans, atol=1, rtol=1e-3)
+    print(t.cpu())
+    assert torch.allclose(t.cpu(), ans, atol=1e-3, rtol=1e-3)
     print("Test passed!")
 
 
@@ -70,26 +80,7 @@ def test_bang(lib):
     device = DeviceEnum.DEVICE_BANG
     config = None
     descriptor = lib.createRotaryEmbeddingDescriptor(device, config)
-    
-    # Note: BANG does not support complex calculation, compare with cpu results 
-    #t = torch.ones((1, 4, 8), dtype=torch.float16)
-    t = torch.zeros(32, dtype = torch.float16)
-    for i in range(32):
-        t[i] = i
-    t = t.reshape([1, 4, 8])
-    pos = torch.ones((1,), dtype=torch.int32)
-    theta = 1e4
-    ans = rotary_embedding(t, pos, theta, "cpu")
-    print(ans)
-    t = t.to("mlu")
-    pos = pos.to("mlu")
-    lib.rotaryEmbedding(
-        descriptor, to_tensor(t, lib), to_tensor(pos, lib), c_float(theta), None
-    )
-    print(t.cpu())
-    assert torch.allclose(t.cpu(), ans, atol=1e-3, rtol=1e-3)
-    print("Test passed!")
-
+    test(lib, descriptor, "mlu")
     lib.destroyRotaryEmbeddingDescriptor(descriptor)
 
 if __name__ == "__main__":

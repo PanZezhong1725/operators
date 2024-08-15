@@ -13,11 +13,38 @@ from operatorspy import (
 from operatorspy.tests.test_utils import get_args
 import torch
 
-def random_sample(data, indices, rad, topp, topk, voc):
-    p = rad * min(topp * data[voc - 1], data[topk - 1])
-    for i in range(voc):
-        if(data[i] >= p):
-            return indices[i];
+def random_sample(data, topp, topk, voc, temperature):
+    indices = torch.zeros([topk], dtype = torch.int32)
+    for i in range(topk):
+        index = i
+        localM = data[i]
+        for j in range(i + 1, voc):
+            if(localM < data[j]):
+                localM = data[j]
+                index = j 
+        tmp = data[i]
+        data[i] = localM
+        data[index] = tmp
+        indices[i] = index
+    globalM = data[0]
+    data = data - globalM
+    data = torch.softmax(data, dim = 0)
+    sum_s = 0
+    for end in range(topk):
+        sum_s += data[end]
+        if(sum_s >= topp):
+            break
+    rad = torch.rand(1)
+    sum_s = 0
+    for i in range(end):
+        sum_s += data[i]
+    rad *= sum_s
+    sum_s = 0
+    for i in range(end):
+        sum_s += data[i]
+        if(rad < sum_s):
+            return torch.tensor(indices[i])
+    
     
 
 
@@ -25,17 +52,17 @@ def test(lib, descriptor, torch_device):
     voc = 10
     data = torch.rand((voc), dtype=torch.float16).to(torch_device)
     #data = torch.tensor(np.arange(voc), dtype=torch.float16).to(torch_device)
-    indices = torch.tensor(np.arange(voc), dtype = torch.int32).to(torch_device)
-    index = torch.zeros([1], dtype = torch.int32).to(torch_device)
-    rad = 0.7
+    indices = torch.zeros([1], dtype = torch.int32).to(torch_device)
+    
     topp = 0.9
     topk = 5
-    
-    ans = random_sample(data, indices, rad, topp, topk, voc)
-    lib.random_sample(descriptor, to_tensor(data, lib), to_tensor(indices, lib), to_tensor(index, lib), rad, topp, topk, None)
+    temperature = 2.0
+
+    ans = random_sample(data.to("cpu"), topp, topk, voc, temperature)
+    lib.random_sample(descriptor, to_tensor(data, lib), to_tensor(indices, lib), topp, topk, temperature, None)
     print(ans)
-    print(index)
-    assert torch.allclose(index, ans, atol=1e-3, rtol=1e-3)
+    print(indices.cpu())
+    assert torch.allclose(indices, ans, atol=1e-3, rtol=1e-3)
     print("Test passed!")
 
 
@@ -71,10 +98,9 @@ if __name__ == "__main__":
         c_void_p,
         CTensor,
         CTensor,
-        CTensor,
-        c_float,
         c_float,
         c_int,
+        c_float,
         c_void_p,
     ]
     if args.cpu:

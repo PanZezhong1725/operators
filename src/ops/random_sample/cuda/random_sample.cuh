@@ -7,6 +7,6 @@ struct RandomSampleCudaDescriptor {
     Device device;
 };
 
-void random_sample_nv_gpu_f16(Tensor source, Tensor indices, Tensor index, float random, float topp, int topk, void *stream);
+void random_sample_nv_gpu_f16(Tensor source, Tensor indices, float topp, int topk, float temperature, void *stream);
 
 #endif// __NV_GPU_RANDOM_SAMPLE_H__

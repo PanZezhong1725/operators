@@ -7,6 +7,6 @@ struct RandomSampleCpuDescriptor {
     Device device;
 };
 
-void random_sample_cpu_f16(Tensor source, Tensor indices, Tensor index, float random, float topp, int topk);
+void random_sample_cpu_f16(Tensor source, Tensor indices, float topp, int topk, float temperature);
 
 #endif// __CPU_RANDOM_SAMPLE_H__

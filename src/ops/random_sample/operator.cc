@@ -60,22 +60,22 @@ __C void destroyRandomSampleDescriptor(RandomSampleDescriptor *descriptor) {
     }
 }
 
-__C void random_sample(RandomSampleDescriptor *descriptor, Tensor source, Tensor indices, Tensor index, float random, float topp, int topk, void *stream) {
+__C void random_sample(RandomSampleDescriptor *descriptor, Tensor source, Tensor indices, float topp, int topk, float temperature, void *stream) {
     switch (descriptor->device) {
 #ifdef ENABLE_CPU
         case DevCpu:
-            random_sample_cpu_f16(source, indices, index, random, topp, topk);
+            random_sample_cpu_f16(source, indices, topp, topk, temperature);
             break;
 #endif
 #ifdef ENABLE_NV_GPU
         case DevNvGpu:
-            random_sample_nv_gpu_f16(source, indices, index, random, topp, topk, stream);
+            random_sample_nv_gpu_f16(source, indices, topp, topk, temperature, stream);
             break;
 #endif
 #ifdef ENABLE_CAMBRICON_MLU
         case DevCambriconMlu:
             
-            random_sample_bang_f16(source, indices, index, random, topp, topk, stream);
+            random_sample_bang_f16(source, indices, topp, topk, temperature, stream);
             break;
 #endif
         default:

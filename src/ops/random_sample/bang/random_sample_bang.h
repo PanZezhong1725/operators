@@ -9,6 +9,6 @@ struct RandomSampleBangDescriptor {
     Device device;
 };
 
-void random_sample_bang_f16(Tensor source, Tensor indices, Tensor index, float random, float topp, int topk, void *stream);
+void random_sample_bang_f16(Tensor source, Tensor indices, float topp, int topk, float temperature, void *stream);
 
 #endif// __BANG_RANDOM_SAMPLE_H__

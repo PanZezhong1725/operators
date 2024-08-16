@@ -17,6 +17,10 @@ void random_sample_cpu_f16(Tensor source, Tensor indices, float topp, int topk, 
         topk = voc;  
     }  
     //排序得到前k个最大值，按照从大到小顺序存储在logits_前k个位置里面
+    for(int i = 0; i < voc; i++){
+        printf("%.2f ", f16_to_f32(logits_[i]));
+    }
+    printf("\n");
     int *indexTmp = (int *)malloc(topk * sizeof(int));
     for(int i = 0; i < topk; i++){
         float M = f16_to_f32(logits_[i]);
@@ -31,6 +35,7 @@ void random_sample_cpu_f16(Tensor source, Tensor indices, float topp, int topk, 
         logits_[i] = f32_to_f16(M);
         logits_[index] = f32_to_f16(tmp);
         indexTmp[i] = index;
+        //printf("%.2f, %.2f, %d\n", M, tmp, indexTmp[i]);
     }
 
     //做类似于softmax的temperature变换
@@ -52,7 +57,8 @@ void random_sample_cpu_f16(Tensor source, Tensor indices, float topp, int topk, 
         }
     }
     //利用随机数随机输出满足同时满足topk,topp的某个元素在原始向量的index
-    float randomVal = (float)rand() / RAND_MAX;  
+    //float randomVal = (float)rand() / RAND_MAX;  
+    float randomVal = 0.75;
     float sum_s = 0.0f;
     for(int i = 0; i < end; i++){
         sum_s += f16_to_f32(logits_[i]);

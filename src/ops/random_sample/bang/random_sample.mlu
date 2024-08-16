@@ -14,32 +14,34 @@ __mlu_global__ void random_sample(T *source, int *indices, int *indGdram, T *glo
     int wSize = 128 / sizeof(T);
     if(taskId == 0){
         for(int i = 0; i < topk; i++){
+            T localM = source[i];
+            int index = i;
             for(int j = i + 1; j < voc; j++){
-                T localM = source[i];
-                int index = i;
                 if(localM < source[j]){
                     localM = source[j];
                     index = j;
-                }
-                T tmp = source[i];
-                source[i] = localM;
-                source[index] = tmp;
-                indGdram[i] = index;
+                }   
             }
+            T tmp = source[i];
+            source[i] = localM;
+            source[index] = tmp;
+            indGdram[i] = index;
+            //__bang_printf("%d\n", indGdram[i]);
         }
+        
     }
+    __sync_all();
     T globalM = source[0];
+    
     T temInv = 1.0 / static_cast<T>(temperature);
     int segNum = maxNum / wSize;//将destSum分成segNum段，每段向量长度为wSize，分段进行树状求和，segNum要求是2的幂次
     int size = maxNum * taskDim;
     T *src = (T *)nram_buffer;//[maxNum]
     T *destSum = src + maxNum;
     T *destSumFinal = destSum + maxNum;
-    
+    __bang_write_zero(destSum, maxNum);
+    __bang_write_zero(destSumFinal, wSize);
     if(voc >= size){
-        
-        __bang_write_zero(destSum, maxNum);
-        __bang_write_zero(destSumFinal, wSize);
 
         int remain = voc % size;
         int repeat = (voc - remain) / size;
@@ -48,12 +50,12 @@ __mlu_global__ void random_sample(T *source, int *indices, int *indGdram, T *glo
         int stepHard = stepEasy + 1;
         int step = (taskId < remainT ? stepHard : stepEasy);
         int indStart = (taskId < remainT ? taskId * stepHard : remainT * stepHard + (taskId - remainT) * stepEasy);
-
+        
         
         for(int i = 0; i < repeat; i++){
             __memcpy(src, source + i * size + taskId * maxNum, maxNum * sizeof(T), GDRAM2NRAM);
             __bang_sub_scalar(src, src, globalM, maxNum);
-            __bang_sub_scalar(src, src, temInv, maxNum);
+            __bang_mul_scalar(src, src, temInv, maxNum);
             __bang_active_exp_less_0(src, src, maxNum);
             __bang_add(destSum, destSum, src, maxNum);
         }
@@ -61,7 +63,7 @@ __mlu_global__ void random_sample(T *source, int *indices, int *indGdram, T *glo
             __bang_write_value(src, maxNum, globalM);
             __memcpy(src, source + repeat * size + indStart, step * sizeof(T), GDRAM2NRAM);
             __bang_sub_scalar(src, src, globalM, maxNum);
-            __bang_sub_scalar(src, src, temInv, maxNum);
+            __bang_mul_scalar(src, src, temInv, maxNum);
             __bang_active_exp_less_0(src, src, maxNum);
             __bang_add(destSum, destSum, src, maxNum);
         }
@@ -81,9 +83,6 @@ __mlu_global__ void random_sample(T *source, int *indices, int *indGdram, T *glo
 
     }
     else{
-        
-        __bang_write_zero(destSum, maxNum);
-        __bang_write_zero(destSumFinal, wSize);
         int remainT = voc % taskDim;
         int stepEasy = (voc - remainT) / taskDim;
         int stepHard = stepEasy + 1;
@@ -93,7 +92,7 @@ __mlu_global__ void random_sample(T *source, int *indices, int *indGdram, T *glo
             __bang_write_value(src, maxNum, globalM);
             __memcpy(src, source + indStart, step * sizeof(T), GDRAM2NRAM);
             __bang_sub_scalar(src, src, globalM, maxNum);
-            __bang_sub_scalar(src, src, temInv, maxNum);
+            __bang_mul_scalar(src, src, temInv, maxNum);
             __bang_active_exp_less_0(src, src, maxNum);
             __bang_add(destSum, destSum, src, maxNum);
         }
@@ -104,33 +103,39 @@ __mlu_global__ void random_sample(T *source, int *indices, int *indGdram, T *glo
             } 
         }
         __bang_reduce_sum(destSumFinal, destSum, wSize);
+        
         if(step){
             destSumFinal[0] = destSumFinal[0] - (maxNum - step);//把上面多加的(maxNum - step)减掉
         }
         globalSum[0] = 0.0;
+        //__bang_printf("taskId:%d, max:%.4f, sum:%.4f, %.4f\n", taskId, globalM, globalSum[0], destSumFinal[0]);
         __sync_all();
         __bang_atomic_add(destSumFinal, globalSum, destSumFinal, 1);//globalSum[0]必须初始化为0
     }
+    
     if(taskId == 0){
-        T tmp = 0.0f;
+        //__bang_printf("max:%.4f, sum:%.4f\n", globalM, globalSum[0]);
+        float tmp = 0.0f;
         int end = 0;
         for(end = 0; end < topk; end++){
-            tmp += exp((source[end] - globalM) / temperature) / globalSum[0];
+            tmp += exp(static_cast<float>(source[end] - globalM) / temperature) / static_cast<float>(globalSum[0]);
             if(tmp >= topp){
                 break;
             }
         }
         __nram__ short destRand[64];
         __bang_rand(destRand, 64);
-        T randomVal = static_cast<T>(destRand[0] / RAND_MAX);  
-        T sum_s = 0.0;
+        //T randomVal = static_cast<T>(destRand[0] / RAND_MAX);
+        float randomVal = 0.75;  
+        float sum_s = 0.0;
         for(int i = 0; i < end; i++){
-            sum_s += exp((source[end] - globalM) / temperature) / globalSum[0];
+            sum_s += exp(static_cast<float>(source[i] - globalM) / temperature) / static_cast<float>(globalSum[0]);
         }
         randomVal *= sum_s;
+        //__bang_printf("%d\n", end);
         sum_s = 0.0;
         for(int i = 0; i < end; i++){
-            sum_s += exp((source[end] - globalM) / temperature) / globalSum[0];
+            sum_s += exp(static_cast<float>(source[i] - globalM) / temperature) / static_cast<float>(globalSum[0]);
             if(randomVal < sum_s){
                 indices[0] = indGdram[i];
                 break;
@@ -139,12 +144,21 @@ __mlu_global__ void random_sample(T *source, int *indices, int *indGdram, T *glo
     }
 }
 
+
 template<typename T>
 void random_sampleUnion(cnrtQueue_t queue, void *source, void *indices, float topp, int topk, float temperature, int voc) {
     
     auto logits_ = reinterpret_cast<T *>(source);
     auto index_ = reinterpret_cast<int *>(indices);
-    
+    /***
+    T *Tmp = (T *)malloc(voc * sizeof(T));
+    CNRT_CHECK(cnrtMemcpy(Tmp, logits_, voc * sizeof(T), cnrtMemcpyDevToHost));
+    for(int i = 0; i < voc; i++){
+        printf("%.2f ", Tmp[i]);
+    }
+    printf("\n");
+    free(Tmp);
+    ***/
     cnrtDim3_t k_dim;
     cnrtFunctionType_t k_type;
 
@@ -153,9 +167,9 @@ void random_sampleUnion(cnrtQueue_t queue, void *source, void *indices, float to
     k_dim.z = 1;
     k_type = CNRT_FUNC_TYPE_UNION1;
     
-    int taskNum = k_dim.x * k_dim.y * k_dim.z;
+    
     int *indGdram;
-    CNRT_CHECK(cnrtMalloc((void**)&indGdram, taskNum * sizeof(int)));
+    CNRT_CHECK(cnrtMalloc((void**)&indGdram, topk * sizeof(int)));
     T *globalSum;
     CNRT_CHECK(cnrtMalloc((void**)&globalSum, sizeof(T)));
     random_sample<T><<<k_dim, k_type, queue>>>(logits_, index_, indGdram, globalSum, topp, topk, temperature, voc);

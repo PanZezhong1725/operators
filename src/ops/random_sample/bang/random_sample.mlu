@@ -5,89 +5,65 @@
 #include "../../../devices/bang/common_bang.h"
 #include <stdlib.h>
 
-const int SRC_MAX_SIZE = 1024 * 32;
+const int SRC_MAX_SIZE = 1024 * 16;
 __nram__  char nram_buffer[NRAM_MAX_SIZE];
 
 template <typename T>
 __mlu_global__ void random_sample(T *source, int *indices, int *indGdram, T *globalSum, float topp, int topk, float temperature, int voc){
     const int maxNum = SRC_MAX_SIZE/sizeof(T);
     int wSize = 128 / sizeof(T);
-    if(taskId == 0){
-        for(int i = 0; i < topk; i++){
-            T localM = source[i];
-            int index = i;
-            for(int j = i + 1; j < voc; j++){
-                if(localM < source[j]){
-                    localM = source[j];
-                    index = j;
-                }   
-            }
-            T tmp = source[i];
-            source[i] = localM;
-            source[index] = tmp;
-            indGdram[i] = index;
-            //__bang_printf("%d\n", indGdram[i]);
-        }
-        
-    }
-    __sync_all();
-    T globalM = source[0];
-    
+    int segNum = maxNum / wSize;
+
     T temInv = 1.0 / static_cast<T>(temperature);
-    int segNum = maxNum / wSize;//将destSum分成segNum段，每段向量长度为wSize，分段进行树状求和，segNum要求是2的幂次
-    int size = maxNum * taskDim;
-    T *src = (T *)nram_buffer;//[maxNum]
-    T *destSum = src + maxNum;
-    T *destSumFinal = destSum + maxNum;
-    __bang_write_zero(destSum, maxNum);
-    __bang_write_zero(destSumFinal, wSize);
-    if(voc >= size){
 
-        int remain = voc % size;
-        int repeat = (voc - remain) / size;
-        int remainT = remain % taskDim;
-        int stepEasy = (remain - remainT) / taskDim;
-        int stepHard = stepEasy + 1;
-        int step = (taskId < remainT ? stepHard : stepEasy);
-        int indStart = (taskId < remainT ? taskId * stepHard : remainT * stepHard + (taskId - remainT) * stepEasy);
-        
-        
-        for(int i = 0; i < repeat; i++){
-            __memcpy(src, source + i * size + taskId * maxNum, maxNum * sizeof(T), GDRAM2NRAM);
-            __bang_sub_scalar(src, src, globalM, maxNum);
-            __bang_mul_scalar(src, src, temInv, maxNum);
-            __bang_active_exp_less_0(src, src, maxNum);
-            __bang_add(destSum, destSum, src, maxNum);
-        }
-        if(step){
-            __bang_write_value(src, maxNum, globalM);
-            __memcpy(src, source + repeat * size + indStart, step * sizeof(T), GDRAM2NRAM);
-            __bang_sub_scalar(src, src, globalM, maxNum);
-            __bang_mul_scalar(src, src, temInv, maxNum);
-            __bang_active_exp_less_0(src, src, maxNum);
-            __bang_add(destSum, destSum, src, maxNum);
-        }
-        
-        for(int strip = segNum/2; strip > 0; strip = strip / 2){//segNum要求是2的幂次即maxNum必须选取2的幂次
-            for(int i = 0; i < strip ; i++){
-                __bang_add(destSum + i * wSize, destSum + i * wSize, destSum + (i + strip) * wSize, wSize);
-            } 
-        }
-        __bang_reduce_sum(destSumFinal, destSum, wSize);
-        if(step){
-            destSumFinal[0] = destSumFinal[0] - (maxNum - step);//把上面多加的(maxNum - step)减掉
-        }
-        globalSum[0] = 0.0;
-        __sync_all();
-        __bang_atomic_add(destSumFinal, globalSum, destSumFinal, 1);//globalSum[0]必须初始化为0
-
-    }
-    else{
+    if(maxNum >= voc){
         int remainT = voc % taskDim;
         int stepEasy = (voc - remainT) / taskDim;
         int stepHard = stepEasy + 1;
         int step = (taskId < remainT ? stepHard : stepEasy);
         int indStart = (taskId < remainT ? taskId * stepHard : remainT * stepHard + (taskId - remainT) * stepEasy);
+
+        char *nram_bufferInd = nram_buffer + voc * sizeof(int);
+        int *srcInd = (int *)nram_buffer;//[voc]
+        for(int i = 0; i < step; i++){
+            srcInd[i] = indStart + i;
+        }
+        __memcpy(indGdram + indStart, srcInd, step * sizeof(int), NRAM2GDRAM);//全局索引
+        __sync_all();
+        
+        T *src = (T *)nram_bufferInd;//[voc]
+        T *destSum = src + maxNum;
+        T *destSumFinal = destSum + maxNum;
+        __bang_write_value(src, maxNum, -INFINITY);
+        __bang_write_zero(destSum, maxNum);
+        __bang_write_zero(destSumFinal, wSize);
+        if(taskId == 0){
+            __memcpy(src, source, voc * sizeof(T), GDRAM2NRAM);
+            __memcpy(srcInd, indGdram, voc * sizeof(int), GDRAM2NRAM);
+            
+            for(int i = 0; i < topk; i++){
+                
+                for(int j = i + 1; j < voc; j++){
+                    if(src[i] < src[j]){
+                        T tmp = src[i];
+                        src[i] = src[j];
+                        src[j] = tmp;
+
+                        int indexTmp = srcInd[i];
+                        srcInd[i] = srcInd[j];
+                        srcInd[j] = indexTmp;
+                    }
+                }
+                
+            }
+            __memcpy(source, src, voc * sizeof(T), NRAM2GDRAM);
+            __memcpy(indGdram, srcInd, topk * sizeof(int), NRAM2GDRAM);
+            
+            
+        }
+        __sync_all();
+            
+        T globalM = source[0];
         if(step){
             __bang_write_value(src, maxNum, globalM);
             __memcpy(src, source + indStart, step * sizeof(T), GDRAM2NRAM);
@@ -102,48 +78,66 @@ __mlu_global__ void random_sample(T *source, int *indices, int *indGdram, T *glo
                 __bang_add(destSum + i * wSize, destSum + i * wSize, destSum + (i + strip) * wSize, wSize);
             } 
         }
-        __bang_reduce_sum(destSumFinal, destSum, wSize);
         
+        //__bang_reduce_sum(destSumFinal, destSum, wSize);
+        for(int i = 0; i < wSize; i++){
+            destSumFinal[0] += destSum[i];
+        }
+        //__bang_printf("taskId:%d, indStart:%d, step:%d, max:%.4f, sum: %.4f\n", taskId, indStart, step, globalM, destSumFinal[0]);
         if(step){
             destSumFinal[0] = destSumFinal[0] - (maxNum - step);//把上面多加的(maxNum - step)减掉
         }
         globalSum[0] = 0.0;
-        //__bang_printf("taskId:%d, max:%.4f, sum:%.4f, %.4f\n", taskId, globalM, globalSum[0], destSumFinal[0]);
+        
         __sync_all();
         __bang_atomic_add(destSumFinal, globalSum, destSumFinal, 1);//globalSum[0]必须初始化为0
-    }
-    
-    if(taskId == 0){
-        //__bang_printf("max:%.4f, sum:%.4f\n", globalM, globalSum[0]);
-        float tmp = 0.0f;
-        int end = 0;
-        for(end = 0; end < topk; end++){
-            tmp += exp(static_cast<float>(source[end] - globalM) / temperature) / static_cast<float>(globalSum[0]);
-            if(tmp >= topp){
-                break;
+        //__bang_printf("taskId:%d, max:%.2f, sum:%.2f \n", taskId, globalM, globalSum[0]);
+        T globalSumInv = 1.0 / globalSum[0];
+        
+        if(step){
+            __bang_mul_scalar(src, src, globalSumInv, maxNum);
+            __memcpy(source + indStart, src, step * sizeof(T), NRAM2GDRAM);
+        }
+        __sync_all();
+        
+        if(taskId == 0){
+            for(int i = 0; i < topk; i++){
+                __bang_printf("%d ", indGdram[i]);
+            }
+            __bang_printf("\n");
+            __bang_write_zero(destSum, maxNum);
+            __memcpy(src, source, topk * sizeof(T), GDRAM2NRAM);
+            destSum[0] = src[0];
+            for(int i = 1; i < topk; i++){
+                destSum[i] = destSum[i - 1] + src[i];
+            }
+            int end = 0;
+            
+            for(end = 0; end < topk; end++){
+                if(destSum[end] >= topp){
+                    break;
+                }
+            }
+            
+            T randomVal = 0.75;
+            if(end < topk - 1){
+                end += 1;
+            }
+            else{
+                end = topk;
+            }
+            //__bang_printf("%d\n", end);
+            randomVal *= destSum[end - 1];
+            for(int i = 0; i < end; i++){
+                if(randomVal < destSum[i]){
+                    indices[0] = indGdram[i];
+                    break;
+                }
             }
         }
-        __nram__ short destRand[64];
-        __bang_rand(destRand, 64);
-        //T randomVal = static_cast<T>(destRand[0] / RAND_MAX);
-        float randomVal = 0.75;  
-        float sum_s = 0.0;
-        for(int i = 0; i < end; i++){
-            sum_s += exp(static_cast<float>(source[i] - globalM) / temperature) / static_cast<float>(globalSum[0]);
-        }
-        randomVal *= sum_s;
-        //__bang_printf("%d\n", end);
-        sum_s = 0.0;
-        for(int i = 0; i < end; i++){
-            sum_s += exp(static_cast<float>(source[i] - globalM) / temperature) / static_cast<float>(globalSum[0]);
-            if(randomVal < sum_s){
-                indices[0] = indGdram[i];
-                break;
-            }
-        }
+        
     }
 }
-
 
 template<typename T>
 void random_sampleUnion(cnrtQueue_t queue, void *source, void *indices, float topp, int topk, float temperature, int voc) {
@@ -167,9 +161,8 @@ void random_sampleUnion(cnrtQueue_t queue, void *source, void *indices, float to
     k_dim.z = 1;
     k_type = CNRT_FUNC_TYPE_UNION1;
     
-    
     int *indGdram;
-    CNRT_CHECK(cnrtMalloc((void**)&indGdram, topk * sizeof(int)));
+    CNRT_CHECK(cnrtMalloc((void**)&indGdram, voc * sizeof(int)));
     T *globalSum;
     CNRT_CHECK(cnrtMalloc((void**)&globalSum, sizeof(T)));
     random_sample<T><<<k_dim, k_type, queue>>>(logits_, index_, indGdram, globalSum, topp, topk, temperature, voc);

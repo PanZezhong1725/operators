@@ -17,15 +17,9 @@ def random_sample(data, topp, topk, voc, temperature):
     indices = torch.zeros([topk], dtype = torch.int32)
     dataNp = data.clone().numpy()
     print(dataNp)
-    for i in range(topk):
-        index = i
-        localM = dataNp[i]
-        for j in range(i + 1, voc):
-            if(localM < dataNp[j]):
-                localM = dataNp[j]
-                index = j 
-        dataNp[i], dataNp[index] = dataNp[index], dataNp[i]
-        indices[i] = index
+    sorted_indices = np.argsort(dataNp)[::-1]  
+    indices = sorted_indices[:topk] 
+    dataNp = dataNp[sorted_indices]
     print(dataNp)
     print(indices)
     globalM = dataNp[0]
@@ -36,25 +30,31 @@ def random_sample(data, topp, topk, voc, temperature):
         sum_s += dataNp[end]
         if(sum_s >= topp):
             break
+    if(end < topk - 1):
+        end += 1
+    else:
+        end = topk
+    
     #rad = torch.rand(1)
     rad = 0.75
     sum_s = 0
     for i in range(end):
         sum_s += dataNp[i]
     rad *= sum_s
+    #print(rad)
     sum_s = 0
     for i in range(end):
         sum_s += dataNp[i]
         if(rad < sum_s):
-            return indices[i]
+            return torch.tensor(indices[i]).to(torch.int32)
     
     
 
 
 def test(lib, descriptor, torch_device):
     voc = 10
-    #data = torch.rand((voc), dtype=torch.float16).to(torch_device)
-    data = torch.tensor(np.arange(voc), dtype=torch.float16).to(torch_device)
+    data = torch.rand((voc), dtype=torch.float16).to(torch_device)
+    #data = torch.tensor(np.arange(voc), dtype=torch.float16).to(torch_device)
     indices = torch.zeros([1], dtype = torch.int32).to(torch_device)
     topp = 0.9
     topk = 3

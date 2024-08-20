@@ -17,27 +17,28 @@ void random_sample_cpu_f16(Tensor source, Tensor indices, float topp, int topk, 
         topk = voc;  
     }  
     //排序得到前k个最大值，按照从大到小顺序存储在logits_前k个位置里面
+    int *indexTmp = (int *)malloc(voc * sizeof(int));
     for(int i = 0; i < voc; i++){
-        printf("%.2f ", f16_to_f32(logits_[i]));
+        indexTmp[i] = i;
     }
-    printf("\n");
-    int *indexTmp = (int *)malloc(topk * sizeof(int));
     for(int i = 0; i < topk; i++){
-        float M = f16_to_f32(logits_[i]);
-        int index = i;
         for(int j = i + 1; j < voc; j++){
-            if(M < f16_to_f32(logits_[j])){
-                M = f16_to_f32(logits_[j]);
-                index = j;
+            if(f16_to_f32(logits_[i]) < f16_to_f32(logits_[j])){
+                float M = f16_to_f32(logits_[i]);
+                logits_[i] = logits_[j];
+                logits_[j] = f32_to_f16(M);
+
+
+                int index = indexTmp[i];
+                indexTmp[i] = indexTmp[j];
+                indexTmp[j] = index;
             }
         }
-        float tmp = f16_to_f32(logits_[i]);
-        logits_[i] = f32_to_f16(M);
-        logits_[index] = f32_to_f16(tmp);
-        indexTmp[i] = index;
-        //printf("%.2f, %.2f, %d\n", M, tmp, indexTmp[i]);
     }
-
+    // for(int i = 0; i < topk; i++){
+    //     printf("%d ", indexTmp[i]);
+    // }
+    // printf("\n");
     //做类似于softmax的temperature变换
     float reduceM = f16_to_f32(logits_[0]);
     float reduceS = 0.0f;
@@ -56,6 +57,13 @@ void random_sample_cpu_f16(Tensor source, Tensor indices, float topp, int topk, 
             break;
         }
     }
+    //printf("%d\n", end);
+    if(end < topk - 1){
+        end += 1;
+    }
+    else{
+        end = topk;
+    }
     //利用随机数随机输出满足同时满足topk,topp的某个元素在原始向量的index
     //float randomVal = (float)rand() / RAND_MAX;  
     float randomVal = 0.75;
@@ -64,6 +72,7 @@ void random_sample_cpu_f16(Tensor source, Tensor indices, float topp, int topk, 
         sum_s += f16_to_f32(logits_[i]);
     }
     randomVal *= sum_s;
+    //printf("%.5f\n", randomVal);
     sum_s = 0.0f;
     for(int i = 0; i < end; i++){
         sum_s += f16_to_f32(logits_[i]);

@@ -23,15 +23,15 @@ __mlu_global__ void random_sample(T *source, int *indices, int *indGdram, T *glo
         int step = (taskId < remainT ? stepHard : stepEasy);
         int indStart = (taskId < remainT ? taskId * stepHard : remainT * stepHard + (taskId - remainT) * stepEasy);
 
-        char *nram_bufferInd = nram_buffer + voc * sizeof(int);
-        int *srcInd = (int *)nram_buffer;//[voc]
+        char *nram_bufferInd = nram_buffer + (2 * maxNum + wSize) * sizeof(char);
+        int *srcInd = (int *)nram_bufferInd;//[voc]
         for(int i = 0; i < step; i++){
             srcInd[i] = indStart + i;
         }
         __memcpy(indGdram + indStart, srcInd, step * sizeof(int), NRAM2GDRAM);//全局索引
         __sync_all();
         
-        T *src = (T *)nram_bufferInd;//[voc]
+        T *src = (T *)nram_buffer;//[voc]
         T *destSum = src + maxNum;
         T *destSumFinal = destSum + maxNum;
         __bang_write_value(src, maxNum, -INFINITY);
@@ -79,11 +79,8 @@ __mlu_global__ void random_sample(T *source, int *indices, int *indGdram, T *glo
             } 
         }
         
-        //__bang_reduce_sum(destSumFinal, destSum, wSize);
-        for(int i = 0; i < wSize; i++){
-            destSumFinal[0] += destSum[i];
-        }
-        //__bang_printf("taskId:%d, indStart:%d, step:%d, max:%.4f, sum: %.4f\n", taskId, indStart, step, globalM, destSumFinal[0]);
+        __bang_reduce_sum(destSumFinal, destSum, wSize);
+        
         if(step){
             destSumFinal[0] = destSumFinal[0] - (maxNum - step);//把上面多加的(maxNum - step)减掉
         }
@@ -91,7 +88,7 @@ __mlu_global__ void random_sample(T *source, int *indices, int *indGdram, T *glo
         
         __sync_all();
         __bang_atomic_add(destSumFinal, globalSum, destSumFinal, 1);//globalSum[0]必须初始化为0
-        //__bang_printf("taskId:%d, max:%.2f, sum:%.2f \n", taskId, globalM, globalSum[0]);
+        
         T globalSumInv = 1.0 / globalSum[0];
         
         if(step){

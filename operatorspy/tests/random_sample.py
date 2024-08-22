@@ -52,10 +52,10 @@ def random_sample(data, topp, topk, voc, temperature):
 
 
 def test(lib, descriptor, torch_device):
-    voc = 10
+    voc = 20
     data = torch.rand((voc), dtype=torch.float16).to(torch_device)
     #data = torch.tensor(np.arange(voc), dtype=torch.float16).to(torch_device)
-    #data = torch.tensor([0.2500, 0.1516, 0.0920, 0.0028, 0.0046, 0.0075, 0.0124, 0.0205, 0.0338, 0.0558], dtype=torch.float16).to(torch_device)
+    
     indices = torch.zeros([1], dtype = torch.int32).to(torch_device)
     topp = 0.9
     topk = 3

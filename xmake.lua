@@ -132,7 +132,6 @@ if has_config("mthreads-gpu") then
 
     add_defines("ENABLE_MT_GPU")
     local musa_home = os.getenv("MUSA_INSTALL_PATH")
-    print(musa_home)
     -- Add include dirs
     add_includedirs(musa_home .. "/include")
     -- Add shared lib
@@ -143,12 +142,22 @@ if has_config("mthreads-gpu") then
 
     rule("mu")
         set_extensions(".mu")
+        on_load(function (target)
+            target:add("includedirs", "include")
+        end)
+
         on_build_file(function (target, sourcefile)
             local objectfile = target:objectfile(sourcefile)
             os.mkdir(path.directory(objectfile))
+
             local mcc = "/usr/local/musa/bin/mcc"
-            print("Compiling" .. sourcefile .. "to " .. objectfile)
-            os.execv(mcc, {"-c", sourcefile, "-o", objectfile, "-I/usr/local/musa/include", "-O3", "-fPIC", "-Wall", "-Werror", "-std=c++17", "-pthread"})
+            local includedirs = table.concat(target:get("includedirs"), " ")
+            local args = {"-c", sourcefile, "-o", objectfile, "-I/usr/local/musa/include", "-O3", "-fPIC", "-Wall", "-Werror", "-std=c++17", "-pthread"}
+            for _, includedir in ipairs(target:get("includedirs")) do
+                table.insert(args, "-I" .. includedir)
+            end
+
+            os.execv(mcc, args)
             table.insert(target:objectfiles(), objectfile)
         end)
     rule_end()

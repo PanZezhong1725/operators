@@ -18,8 +18,7 @@ struct MusaContext {
 };
 typedef struct MusaContext *MusaHandle_t;
 
-infiniopStatus_t createMusaHandle(Handle *handle_ptr, int device_id);
-// const Pool<Handle> &get_musa_pool();
+infiniopStatus_t createMusaHandle(MusaHandle_t *handle_ptr, int device_id);
 
 template<typename T>
 void use_mudnn(MusaHandle_t musa_handle, musaStream_t stream, T const &f) {

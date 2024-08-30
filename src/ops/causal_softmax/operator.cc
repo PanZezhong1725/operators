@@ -47,6 +47,11 @@ __C infiniopStatus_t infiniopCreateCausalSoftmaxDescriptor(
                     return musaCreateCausalSoftmaxDescriptor(handle, (CausalSoftmaxMusaDescriptor_t *) desc_ptr, y_desc);
                 }
 #endif
+#ifdef ENABLE_MT_GPU
+        case DevMtGpu: {
+                    return musaCreateCausalSoftmaxDescriptor(handle, (CausalSoftmaxMusaDescriptor_t *) desc_ptr, y_desc);
+                }
+#endif
     }
     return STATUS_BAD_DEVICE;
 }
@@ -69,6 +74,11 @@ __C infiniopStatus_t infiniopGetCausalSoftmaxWorkspaceSize(infiniopCausalSoftmax
             // return cnnlGetCausalSoftmaxWorkspaceSize((CausalSoftmaxCnnlDescriptor_t) desc, size);
         }
 
+#endif
+#ifdef ENABLE_MT_GPU
+        case DevNvGpu: {
+            return musaGetCausalSoftmaxWorkspaceSize((CausalSoftmaxMusaDescriptor_t) desc, size);
+        }
 #endif
 #ifdef ENABLE_MT_GPU
         case DevNvGpu: {
@@ -103,6 +113,11 @@ __C infiniopStatus_t infiniopCausalSoftmax(infiniopCausalSoftmaxDescriptor_t des
             return musaCausalSoftmax((CausalSoftmaxMusaDescriptor_t) desc, workspace, workspace_size, data, stream);
         }
 #endif
+#ifdef ENABLE_MT_GPU
+    case DevMtGpu: {
+            return musaCausalSoftmax((CausalSoftmaxMusaDescriptor_t) desc, workspace, workspace_size, data, stream);
+        }
+#endif
     }
     return STATUS_BAD_DEVICE;
 }
@@ -125,6 +140,10 @@ __C infiniopStatus_t infiniopDestroyCausalSoftmaxDescriptor(infiniopCausalSoftma
             // return cnnlDestroyCausalSoftmaxDescriptor((CausalSoftmaxCnnlDescriptor_t) desc);
         }
 
+#endif
+#ifdef ENABLE_MT_GPU
+        case DevMtGpu:
+            return musaDestroyCausalSoftmaxDescriptor((CausalSoftmaxMusaDescriptor_t) desc);
 #endif
 #ifdef ENABLE_MT_GPU
         case DevMtGpu:

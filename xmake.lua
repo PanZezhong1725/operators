@@ -23,6 +23,13 @@ option("cambricon-mlu")
     add_defines("ENABLE_CAMBRICON_MLU")
 option_end()
 
+option("mthreads-gpu")
+    set_default(false)
+    set_showmenu(true)
+    set_description("Enable or disable MThreads GPU kernel")
+    add_defines("ENABLE_MT_GPU")
+option_end()
+
 if is_mode("debug") then
     add_cxflags("-g -O0")
     add_defines("DEBUG_MODE")
@@ -121,6 +128,41 @@ rule_end()
 
 end
 
+if has_config("mthreads-gpu") then
+
+    add_defines("ENABLE_MT_GPU")
+    local musa_home = os.getenv("MUSA_INSTALL_PATH")
+    print(musa_home)
+    -- Add include dirs
+    add_includedirs(musa_home .. "/include")
+    -- Add shared lib
+    add_linkdirs(musa_home .. "/lib")
+    add_links("libmusa.so")
+    add_links("libmusart.so")
+    add_links("libmudnn.so")
+
+    rule("mu")
+        set_extensions(".mu")
+        on_build_file(function (target, sourcefile)
+            local objectfile = target:objectfile(sourcefile)
+            os.mkdir(path.directory(objectfile))
+            local mcc = "/usr/local/musa/bin/mcc"
+            print("Compiling" .. sourcefile .. "to " .. objectfile)
+            os.execv(mcc, {"-c", sourcefile, "-o", objectfile, "-I/usr/local/musa/include", "-O3", "-fPIC", "-Wall", "-Werror", "-std=c++17", "-pthread"})
+            table.insert(target:objectfiles(), objectfile)
+        end)
+    rule_end()
+
+    target("mthreads-gpu")
+        set_kind("static")
+        set_languages("cxx17")
+        add_files("src/devices/musa/*.cc", "src/ops/*/musa/*.cc")
+        add_files("src/ops/*/musa/*.mu", {rule = "mu"})
+        add_cxflags("-lstdc++ -Wall -Werror -fPIC")
+    target_end()
+
+end
+
 target("operators")
     set_kind("shared")
 
@@ -132,6 +174,9 @@ target("operators")
     end
     if has_config("cambricon-mlu") then
         add_deps("cambricon-mlu")
+    end
+    if has_config("mthreads-gpu") then
+        add_deps("mthreads-gpu")
     end
     set_languages("cxx17")
     add_files("src/devices/handle.cc")

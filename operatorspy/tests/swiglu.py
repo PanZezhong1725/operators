@@ -197,6 +197,20 @@ def test_bang(lib, test_cases):
 
     destroy_handle(lib, handle)
 
+def test_musa(lib, test_cases):
+    import torch_musa
+    device = DeviceEnum.DEVICE_MUSA
+    handle = create_handle(lib, device)
+
+    for shape, a_stride, b_stride, c_stride, dtype in test_cases:
+        test_out_of_place(
+            lib, handle, "musa", shape, a_stride, b_stride, c_stride, dtype
+        )
+        test_in_place1(lib, handle, "musa", shape, a_stride, b_stride, dtype)
+        test_in_place2(lib, handle, "musa", shape, a_stride, b_stride, dtype)
+
+    destroy_handle(lib, handle)
+
 
 if __name__ == "__main__":
     test_cases = [
@@ -238,3 +252,5 @@ if __name__ == "__main__":
         test_cuda(lib, test_cases)
     if args.bang:
         test_bang(lib, test_cases)
+    if args.musa:
+        test_musa(lib, test_cases)

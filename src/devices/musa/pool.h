@@ -47,4 +47,4 @@ private:
     mutable std::atomic<Node<T> *> _head;
 };
 
-#endif
+#endif // __POOL_MUSA_H__

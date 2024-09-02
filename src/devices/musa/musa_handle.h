@@ -1,5 +1,5 @@
-#ifndef __MUSA_HANDLE_POOL_H__
-#define __MUSA_HANDLE_POOL_H__
+#ifndef __MUSA_HANDLE_H__
+#define __MUSA_HANDLE_H__
 
 #include "pool.h"
 #include "device.h"
@@ -33,4 +33,4 @@ void use_mudnn(MusaHandle_t musa_handle, musaStream_t stream, T const &f) {
     pool.push(handle);
 }
 
-#endif
+#endif // __MUSA_HANDLE_H__

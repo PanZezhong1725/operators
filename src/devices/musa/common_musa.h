@@ -35,4 +35,4 @@ enum class Format {
 // #define MAX_WARP_PER_BLOCK 128
 #define WARP_SIZE 128
 
-#endif
+#endif // __COMMON_MUSA_H__

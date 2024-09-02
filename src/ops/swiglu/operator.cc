@@ -12,6 +12,9 @@
 #include "bang/swiglu_bang.h"
 #include "bang/swiglu_cnnl.h"
 #endif
+#ifdef ENABLE_MT_GPU
+#include "musa/swiglu_musa.h"
+#endif
 
 __C infiniopStatus_t infiniopCreateSwiGLUDescriptor(infiniopHandle_t handle,
                                                     infiniopSwiGLUDescriptor_t *desc_ptr,
@@ -36,6 +39,10 @@ __C infiniopStatus_t infiniopCreateSwiGLUDescriptor(infiniopHandle_t handle,
                                               b_desc);
         }
 #endif
+#ifdef ENABLE_MT_GPU
+        case DevMtGpu:
+            return musaCreateSwiGLUDescriptor(handle, (SwiGLUMusaDescriptor_t *) desc_ptr, c_desc, a_desc, b_desc);
+#endif
     }
     return STATUS_BAD_DEVICE;
 };
@@ -59,6 +66,10 @@ __C infiniopStatus_t infiniopSwiGLU(infiniopSwiGLUDescriptor_t desc,
             return bangSwiGLU((SwiGLUBangDescriptor_t) desc, c, a, b, stream);
         }
 #endif
+#ifdef ENABLE_MT_GPU
+        case DevMtGpu:
+            return musaSwiGLU((SwiGLUMusaDescriptor_t) desc, c, a, b, stream);
+#endif
     }
     return STATUS_BAD_DEVICE;
 }
@@ -77,6 +88,10 @@ __C infiniopStatus_t infiniopDestroySwiGLUDescriptor(infiniopSwiGLUDescriptor_t 
         case DevCambriconMlu: {
             return bangDestroySwiGLUDescriptor((SwiGLUBangDescriptor_t) desc);
         }
+#endif
+#ifdef ENABLE_MT_GPU
+        case DevMtGpu:
+            return musaDestroySwiGLUDescriptor((SwiGLUMusaDescriptor_t) desc);
 #endif
     }
     return STATUS_BAD_DEVICE;

@@ -8,7 +8,7 @@
 const int SRC_MAX_SIZE = 1024 * 32;
 __nram__  char nram_buffer[NRAM_MAX_SIZE];
 template <typename T>
-__mlu_global__ void random_sampleX(T *source, int *indices, int *indGdram, T *globalTopk, T *globalSum, float topp, int topk, float temperature, int voc){
+__mlu_global__ void random_sampleX(T const *source, int *indices, int *indGdram, T *globalTopk, T *globalSum, float topp, int topk, float temperature, int voc){
     const int maxNum = SRC_MAX_SIZE/sizeof(T);
     int wSize = 128 / sizeof(T);
     int segNum = maxNum / wSize;
@@ -121,10 +121,12 @@ __mlu_global__ void random_sampleX(T *source, int *indices, int *indGdram, T *gl
     __bang_atomic_add(destSumFinal, globalSum, destSumFinal, 1);//globalSum[0]必须初始化为0
     //__bang_printf("taskId:%d, %.4e\n", taskId, globalSum[0]);
     T globalSumInv = 1.0 / globalSum[0];//计算出全局数值和
+    /***
     if(step){
         __bang_mul_scalar(src, src, globalSumInv, maxNum);
         __memcpy(source + indStart, src, step * sizeof(T), NRAM2GDRAM);
     }
+    ***/
     if(taskId == 0){
         __memcpy(srcGlobal, globalTopk, topk * sizeof(T), GDRAM2NRAM);//前topk个元素就是前k个最大值
         
@@ -165,7 +167,7 @@ __mlu_global__ void random_sampleX(T *source, int *indices, int *indGdram, T *gl
 }
 
 template <typename T>
-__mlu_global__ void random_sampleD(T *source, int *indices, int *indGdram, T *globalTopk, T *globalSum, float topp, int topk, float temperature, int voc){
+__mlu_global__ void random_sampleD(T const *source, int *indices, int *indGdram, T *globalTopk, T *globalSum, float topp, int topk, float temperature, int voc){
     const int maxNum = SRC_MAX_SIZE/sizeof(T);
     
     int wSize = 128 / sizeof(T);
@@ -416,8 +418,8 @@ __mlu_global__ void random_sampleD(T *source, int *indices, int *indGdram, T *gl
 }
 
 template<typename T>
-void random_sampleUnionD(cnrtQueue_t queue, void *source, void *indices, float topp, int topk, float temperature, int voc) {
-    auto logits_ = reinterpret_cast<T *>(source);
+void random_sampleUnionD(cnrtQueue_t queue, void const *source, void *indices, float topp, int topk, float temperature, int voc) {
+    auto logits_ = reinterpret_cast<const T *>(source);
     auto index_ = reinterpret_cast<int *>(indices);
     cnrtDim3_t k_dim;
     cnrtFunctionType_t k_type;

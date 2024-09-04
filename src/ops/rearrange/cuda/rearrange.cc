@@ -3,7 +3,7 @@
 #include "../../utils.h"
 #include <numeric>
 
-infiniopStatus_t cudaCreateRearrangeDescriptor(infiniopHandle_t handle,
+infiniopStatus_t cudaCreateRearrangeDescriptor(CudaHandle_t handle,
                                                RearrangeCudaDescriptor_t *desc_ptr,
                                                infiniopTensorDescriptor_t dst,
                                                infiniopTensorDescriptor_t src) {
@@ -60,7 +60,8 @@ infiniopStatus_t cudaCreateRearrangeDescriptor(infiniopHandle_t handle,
         return STATUS_BAD_PARAM;
     }
     *desc_ptr = new RearrangeCudaDescriptor{
-        DevNvGpu,
+        handle->device,
+		handle->device_id,
         rsa,
         rsb,
         csa,

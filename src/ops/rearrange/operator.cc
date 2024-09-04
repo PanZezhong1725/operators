@@ -7,6 +7,7 @@
 #endif
 #ifdef ENABLE_NV_GPU
 #include "../../devices/cuda/common_cuda.h"
+#include "../../devices/cuda/cuda_handle.h"
 #include "cuda/rearrange.cuh"
 #endif
 #ifdef ENABLE_CAMBRICON_MLU
@@ -26,7 +27,7 @@ __C infiniopStatus_t infiniopCreateRearrangeDescriptor(
 #endif
 #ifdef ENABLE_NV_GPU
         case DevNvGpu: {
-            return cudaCreateRearrangeDescriptor(handle, (RearrangeCudaDescriptor_t *) desc_ptr, dst, src);
+            return cudaCreateRearrangeDescriptor((CudaHandle_t)handle, (RearrangeCudaDescriptor_t *) desc_ptr, dst, src);
         }
 
 #endif

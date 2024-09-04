@@ -61,6 +61,9 @@ void rearrange_nv_gpu(RearrangeCudaDescriptor_t desc, void *y, void *x, void *st
 }
 infiniopStatus_t cudaRearrange(RearrangeCudaDescriptor_t desc,
                                void *dst, void *src, void *stream) {
+	if(cudaSetDevice(desc->device_id) != cudaSuccess){
+        return STATUS_BAD_DEVICE;
+    }	
     rearrange_nv_gpu(desc, dst, src, stream);
     return STATUS_SUCCESS;
 }

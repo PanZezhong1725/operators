@@ -36,6 +36,6 @@ infiniopStatus_t cudaMatmul(MatmulCudaDescriptor_t desc,
 
 infiniopStatus_t cudaDestroyMatmulDescriptor(MatmulCudaDescriptor_t desc);
 
-void matmul_cuda_f16(MatmulCudaDescriptor_t desc, void *c, float beta, void *a, void *b, float alpha, void *stream);
+void matmul_cuda_f16(MatmulCudaDescriptor_t desc, void *c, float beta, void const *a, void const *b, float alpha, void *stream);
 
 #endif// __CUDA_MATMUL_H__

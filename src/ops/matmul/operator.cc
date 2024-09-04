@@ -53,7 +53,7 @@ __C infiniopStatus_t infiniopGetMatmulWorkspaceSize(infiniopMatmulDescriptor_t d
     return STATUS_BAD_DEVICE;
 }
 
-__C infiniopStatus_t infiniopMatmul(infiniopMatmulDescriptor_t desc, void *workspace, uint64_t workspace_size, void *c, void *a, void *b, float alpha, float beta, void *stream) {
+__C infiniopStatus_t infiniopMatmul(infiniopMatmulDescriptor_t desc, void *workspace, uint64_t workspace_size, void *c, void const *a, void const *b, float alpha, float beta, void *stream) {
     switch (desc->device) {
 #ifdef ENABLE_CPU
         case DevCpu:

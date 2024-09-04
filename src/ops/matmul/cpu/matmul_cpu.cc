@@ -32,8 +32,8 @@ infiniopStatus_t cpuMatmul(MatmulCpuDescriptor_t desc,
                            uint64_t workspace_size,
                            void *c,
                            float beta,
-                           void *a,
-                           void *b,
+                           void const *a,
+                           void const *b,
                            float alpha) {
     if (dtype_eq(desc->dtype, F16)) {
         matmul_cpu_f16(desc, c, beta, a, b, alpha);
@@ -53,7 +53,7 @@ infiniopStatus_t cpuDestroyMatmulDescriptor(MatmulCpuDescriptor_t desc) {
     return STATUS_SUCCESS;
 }
 
-void matmul_cpu_f16(MatmulCpuDescriptor_t desc, void *c, float beta, void *a, void *b, float alpha) {
+void matmul_cpu_f16(MatmulCpuDescriptor_t desc, void *c, float beta, void const *a, void const *b, float alpha) {
     auto info = desc->info;
 
     if (info.is_transed) {

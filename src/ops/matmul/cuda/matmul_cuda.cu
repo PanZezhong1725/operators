@@ -5,7 +5,7 @@
 #include <cublas_v2.h>
 #include <cuda_fp16.h>
 
-void matmul_cuda_f16(MatmulCudaDescriptor_t desc, void *c, float beta, void *a, void *b, float alpha, void *stream) {
+void matmul_cuda_f16(MatmulCudaDescriptor_t desc, void *c, float beta, void const *a, void const *b, float alpha, void *stream) {
     auto info = desc->info;
 
     if (info.is_transed) {

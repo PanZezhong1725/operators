@@ -87,7 +87,6 @@ def test(
         lib.infiniopGetMatmulWorkspaceSize(descriptor, ctypes.byref(workspace_size))
     )
     workspace = create_workspace(workspace_size.value, a.device)
-
     check_error(
         lib.infiniopMatmul(
             descriptor,
@@ -101,6 +100,12 @@ def test(
             None,
         )
     )
+
+    print(c)
+    print(c.shape)
+
+    print(ans)
+    print(ans.shape)
 
     assert torch.allclose(c, ans, atol=0, rtol=1e-2)
 
@@ -206,6 +211,40 @@ def test_bang(lib, test_cases):
 
     destroy_handle(lib, handle)
 
+def test_musa(lib, test_cases):
+    import torch_musa
+
+    device = DeviceEnum.DEVICE_MUSA
+    handle = create_handle(lib, device)
+
+    for (
+        alpha,
+        beta,
+        a_shape,
+        b_shape,
+        c_shape,
+        a_stride,
+        b_stride,
+        c_stride,
+        dtype,
+    ) in test_cases:
+        test(
+            lib,
+            handle,
+            "musa",
+            alpha,
+            beta,
+            a_shape,
+            b_shape,
+            c_shape,
+            a_stride,
+            b_stride,
+            c_stride,
+            dtype,
+        )
+
+    destroy_handle(lib, handle)
+
 
 if __name__ == "__main__":
     test_cases = [
@@ -265,6 +304,8 @@ if __name__ == "__main__":
         test_cuda(lib, test_cases)
     if args.bang:
         test_bang(lib, test_cases)
+    if args.musa:
+        test_musa(lib, test_cases)
     if not (args.cpu or args.cuda or args.bang):
         test_cpu(lib, test_cases)
     print("Test passed!")

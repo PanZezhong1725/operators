@@ -11,6 +11,9 @@
 #ifdef ENABLE_CAMBRICON_MLU
 #include "bang/matmul_cnnl.h"
 #endif
+#ifdef ENABLE_MT_GPU
+#include "musa/matmul_musa.h"
+#endif
 
 __C infiniopStatus_t infiniopCreateMatmulDescriptor(infiniopHandle_t handle,
                                                     infiniopMatmulDescriptor_t *desc_ptr,
@@ -29,6 +32,12 @@ __C infiniopStatus_t infiniopCreateMatmulDescriptor(infiniopHandle_t handle,
 #endif
 #ifdef ENABLE_CAMBRICON_MLU
         // TODO
+#endif
+#ifdef ENABLE_MT_GPU
+        case DevMtGpu: {
+            printf("aaa");
+            return musaCreateMatmulDescriptor((MusaHandle_t) handle, (MatmulMusaDescriptor_t *) desc_ptr, c_desc, a_desc, b_desc);   
+        }
 #endif
     }
     return STATUS_BAD_DEVICE;
@@ -49,6 +58,11 @@ __C infiniopStatus_t infiniopGetMatmulWorkspaceSize(infiniopMatmulDescriptor_t d
 #ifdef ENABLE_CAMBRICON_MLU
         // TODO
 #endif
+#ifdef ENABLE_MT_GPU
+        case DevMtGpu: {
+            return musaGetMatmulWorkspaceSize((MatmulMusaDescriptor_t) desc, size);
+        }
+#endif
     }
     return STATUS_BAD_DEVICE;
 }
@@ -65,6 +79,11 @@ __C infiniopStatus_t infiniopMatmul(infiniopMatmulDescriptor_t desc, void *works
 #endif
 #ifdef ENABLE_CAMBRICON_MLU
             // TODO
+#endif
+#ifdef ENABLE_MT_GPU
+        case DevMtGpu: {
+            return musaMatmul((MatmulMusaDescriptor_t) desc, workspace, workspace_size, c, beta, a, b, alpha, stream);
+        }
 #endif
     }
     return STATUS_BAD_DEVICE;
@@ -84,6 +103,11 @@ infiniopStatus_t infiniopDestroyMatmulDescriptor(infiniopMatmulDescriptor_t desc
 #endif
 #ifdef ENABLE_CAMBRICON_MLU
         // TODO
+#endif
+#ifdef ENABLE_MT_GPU
+        case DevMtGpu: {
+            return musaDestroyMatmulDescriptor((MatmulMusaDescriptor_t) desc);
+        }
 #endif
     }
     return STATUS_BAD_DEVICE;

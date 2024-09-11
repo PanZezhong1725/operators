@@ -26,8 +26,8 @@ infiniopStatus_t cpuMatmul(MatmulCpuDescriptor_t desc,
                            uint64_t workspace_size,
                            void *c,
                            float beta,
-                           void *a,
-                           void *b,
+                           void const *a,
+                           void const *b,
                            float alpha);
 
 infiniopStatus_t cpuDestroyMatmulDescriptor(MatmulCpuDescriptor_t desc);

@@ -91,7 +91,7 @@ def test(
     check_error(
         lib.infiniopMatmul(
             descriptor,
-            workspace.data if workspace is not None else None,
+            workspace.data_ptr() if workspace is not None else None,
             workspace_size.value,
             c_tensor.data,
             a_tensor.data,

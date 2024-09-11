@@ -18,6 +18,8 @@ typedef struct CudaContext *CudaHandle_t;
 
 infiniopStatus_t createCudaHandle(CudaHandle_t *handle_ptr, int device_id);
 
+infiniopStatus_t deleteCudaHandle(CudaHandle_t handle_ptr);
+
 template<typename T>
 void use_cublas(std::shared_ptr<Pool<cublasHandle_t>> cublas_handles_t, int device_id, cudaStream_t stream, T const &f) {
     auto handle = cublas_handles_t->pop();

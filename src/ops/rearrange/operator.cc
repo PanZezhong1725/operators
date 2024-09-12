@@ -14,6 +14,9 @@
 #include "bang/rearrange_bang.h"
 #include "bang/rearrange_cnnl.h"
 #endif
+#ifdef ENABLE_MT_GPU
+#include "musa/rearrange_musa.h"
+#endif
 
 __C infiniopStatus_t infiniopCreateRearrangeDescriptor(
     infiniopHandle_t handle,
@@ -34,6 +37,11 @@ __C infiniopStatus_t infiniopCreateRearrangeDescriptor(
 #ifdef ENABLE_CAMBRICON_MLU
         // TODO
 #endif
+#ifdef ENABLE_MT_GPU
+        case DevMtGpu: {
+            return musaCreateRearrangeDescriptor((MusaHandle_t)handle, (RearrangeMusaDescriptor_t *) desc_ptr, dst, src);
+        }
+#endif
     }
     return STATUS_BAD_DEVICE;
 }
@@ -53,6 +61,11 @@ __C infiniopStatus_t infiniopRearrange(infiniopRearrangeDescriptor_t desc, void 
 #ifdef ENABLE_CAMBRICON_MLU
         // TODO
 #endif
+#ifdef ENABLE_MT_GPU
+        case DevMtGpu: {
+            return musaRearrange((RearrangeMusaDescriptor_t) desc, dst, src, stream);
+        }
+#endif
     }
     return STATUS_BAD_DEVICE;
 }
@@ -71,6 +84,11 @@ __C infiniopStatus_t infiniopDestroyRearrangeDescriptor(infiniopRearrangeDescrip
 #endif
 #ifdef ENABLE_CAMBRICON_MLU
         // TODO
+#endif
+#ifdef ENABLE_MT_GPU
+        case DevMtGpu: {
+            return musaDestroyRearrangeDescriptor((RearrangeMusaDescriptor_t) desc);
+        }
 #endif
     }
     return STATUS_BAD_DEVICE;

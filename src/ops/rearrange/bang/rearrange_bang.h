@@ -23,7 +23,7 @@ infiniopStatus_t bangCreateRearrangeDescriptor(BangHandle_t handle,
 
 infiniopStatus_t bangRearrange(RearrangeBangDescriptor_t desc,
                                void *dst,
-                               void *src,
+                               void const *src,
                                void *stream);
 
 infiniopStatus_t bangDestroyRearrangeDescriptor(RearrangeBangDescriptor_t desc);

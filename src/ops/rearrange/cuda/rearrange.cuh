@@ -1,8 +1,8 @@
 #ifndef __CUDA_REARRANGE_H__
 #define __CUDA_REARRANGE_H__
 
-#include "operators.h"
 #include "../../../devices/cuda/cuda_handle.h"
+#include "operators.h"
 
 struct RearrangeCudaDescriptor {
     Device device;
@@ -29,5 +29,5 @@ infiniopStatus_t cudaRearrange(RearrangeCudaDescriptor_t desc,
 
 infiniopStatus_t cudaDestroyRearrangeDescriptor(RearrangeCudaDescriptor_t desc);
 
-void rearrange_nv_gpu(RearrangeCudaDescriptor *, void *y, void *x, void *stream);
+void rearrange_nv_gpu(RearrangeCudaDescriptor *, void *y, void const *x, void *stream);
 #endif// __CUDA_REARRANGE_H__

@@ -40,7 +40,7 @@ __C infiniopStatus_t infiniopCreateRearrangeDescriptor(
     return STATUS_BAD_DEVICE;
 }
 
-__C infiniopStatus_t infiniopRearrange(infiniopRearrangeDescriptor_t desc, void *dst, void *src, void *stream) {
+__C infiniopStatus_t infiniopRearrange(infiniopRearrangeDescriptor_t desc, void *dst, void const *src, void *stream) {
     switch (desc->device) {
 #ifdef ENABLE_CPU
         case DevCpu:

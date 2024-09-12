@@ -59,9 +59,9 @@ inline int indices(uint64_t i, uint64_t ndim, int64_t *strides, uint64_t *shape)
     return ans;
 }
 
-void reform_cpu(RearrangeCpuDescriptor_t desc, void *dst, void *src) {
+void reform_cpu(RearrangeCpuDescriptor_t desc, void *dst, void const *src) {
     auto dst_ptr = reinterpret_cast<uint8_t *>(dst);
-    auto src_ptr = reinterpret_cast<uint8_t *>(src);
+    auto src_ptr = reinterpret_cast<const uint8_t *>(src);
     int bytes_size = desc->shape_dst[desc->ndim - 1] * desc->dt.size;
 #pragma omp parallel for
     for (uint64_t i = 0; i < desc->r; ++i) {
@@ -73,7 +73,7 @@ void reform_cpu(RearrangeCpuDescriptor_t desc, void *dst, void *src) {
 
 infiniopStatus_t cpuRearrange(RearrangeCpuDescriptor_t desc,
                               void *dst,
-                              void *src,
+                              void const *src,
                               void *stream) {
     reform_cpu(desc, dst, src);
     return STATUS_SUCCESS;

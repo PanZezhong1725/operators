@@ -83,7 +83,7 @@ void rearrangeUnion(cnrtQueue_t queue, void *destination, void const *source, ui
     cnrtQueueSync(queue);
 }
 void rearrange_bang_f16(RearrangeBangDescriptor_t desc, void *dst,
-                               void *src,
+                               void const *src,
                                void *stream) {
     auto queue = reinterpret_cast<cnrtQueue_t>(stream);
     int r = desc->r;
@@ -93,7 +93,7 @@ void rearrange_bang_f16(RearrangeBangDescriptor_t desc, void *dst,
 }
 infiniopStatus_t bangRearrange(RearrangeBangDescriptor_t desc,
                                void *dst,
-                               void *src,
+                               void const *src,
                                void *stream) {
                               
     if (cnrtSetDevice(desc->device_id) != cnrtSuccess) {

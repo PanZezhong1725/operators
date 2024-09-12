@@ -20,11 +20,11 @@ infiniopStatus_t cpuCreateRearrangeDescriptor(infiniopHandle_t handle,
 
 infiniopStatus_t cpuRearrange(RearrangeCpuDescriptor_t desc,
                               void *dst,
-                              void *src,
+                              void const *src,
                               void *stream);
 
 infiniopStatus_t cpuDestroyRearrangeDescriptor(RearrangeCpuDescriptor_t desc);
 
-void reform_cpu(RearrangeCpuDescriptor_t desc, void *y, void *x);
+void reform_cpu(RearrangeCpuDescriptor_t desc, void *y, void const *x);
 
 #endif

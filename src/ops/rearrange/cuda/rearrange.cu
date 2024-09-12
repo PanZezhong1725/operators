@@ -24,7 +24,7 @@ static __global__ void rearrange(
 }
 
 
-void rearrange_nv_gpu(RearrangeCudaDescriptor_t desc, void *y, void *x, void *stream) {
+void rearrange_nv_gpu(RearrangeCudaDescriptor_t desc, void *y, void const *x, void *stream) {
     unsigned long int rsa = desc->rsa, csa = desc->csa, rsb = desc->rsb, csb = desc->csb;
     unsigned int r = desc->r, c = desc->c, b = desc->b, bytes_per_thread = desc->bytes_per_thread;
     auto dst_ptr = static_cast<void *>(reinterpret_cast<uint8_t *>(y));
@@ -60,10 +60,10 @@ void rearrange_nv_gpu(RearrangeCudaDescriptor_t desc, void *y, void *x, void *st
     }
 }
 infiniopStatus_t cudaRearrange(RearrangeCudaDescriptor_t desc,
-                               void *dst, void *src, void *stream) {
-	if(cudaSetDevice(desc->device_id) != cudaSuccess){
+                               void *dst, void const *src, void *stream) {
+    if (cudaSetDevice(desc->device_id) != cudaSuccess) {
         return STATUS_BAD_DEVICE;
-    }	
+    }
     rearrange_nv_gpu(desc, dst, src, stream);
     return STATUS_SUCCESS;
 }

@@ -15,7 +15,6 @@ infiniopStatus_t musaCreateMatmulDescriptor(MusaHandle_t handle,
                                             infiniopTensorDescriptor_t a_desc,
                                             infiniopTensorDescriptor_t b_desc) {
     DT dtype = c_desc->dt;
-
     if (!dtype_eq(dtype, F16)) {
         return STATUS_BAD_TENSOR_DTYPE;
     }
@@ -30,7 +29,8 @@ infiniopStatus_t musaCreateMatmulDescriptor(MusaHandle_t handle,
         DevMtGpu,
         dtype,
         handle->device_id,
-        info};
+        info,
+        handle->mudnn_handles_t};
     return STATUS_SUCCESS;
 }
 
@@ -50,7 +50,6 @@ infiniopStatus_t musaMatmul(MatmulMusaDescriptor_t desc,
                             float alpha,
                             void *stream) {
     if (dtype_eq(desc->dtype, F16)) {
-        printf("ccc");
         matmul_musa_f16(desc, c, beta, a, b, alpha, stream);
         return STATUS_SUCCESS;
     }
@@ -70,27 +69,20 @@ void matmul_musa_f16(MatmulMusaDescriptor_t desc, void *c, float beta, void cons
     if (info.is_transed) {
         std::swap(a, b);
     }
-
+    
     auto op_a = info.a_matrix.row_stride == 1 ? false : true;
     auto op_b = info.b_matrix.row_stride == 1 ? false : true;
     musa::dnn::Tensor *l = createMudnnTensor(a, info.a_matrix, F16);
     musa::dnn::Tensor *r = createMudnnTensor(b, info.b_matrix, F16);
     musa::dnn::Tensor *out = createMudnnTensor(c, info.c_matrix, F16);
     musa::dnn::BatchMatMul *matmul_operator = createMatMulOperator(alpha, beta, op_a, op_b);
-    
+
     use_mudnn(desc->mudnn_handles_t, desc->device_id, (musaStream_t) stream,
               [&](musa::dnn::Handle* handle) {
         size_t size_in_bytes = 0;
         matmul_operator->GetWorkspaceSize(*handle, size_in_bytes, *out, *l, *r);
         matmul_operator->Run(*handle, *out, *l, *r, nullptr);
-        // matmul_operator->Run(*handle, *out, *l, *r, info.batch, info.m, info.n, info.k, 
-        //     info.a_matrix.ld(), info.b_matrix.ld(), info.c_matrix.ld(), info.a_matrix.stride, 
-        //     info.b_matrix.stride, info.c_matrix.stride, nullptr);
     });
-
-
-
-    std::cout << "gggg" << std::endl;
 }
 
 musa::dnn::Tensor* createMudnnTensor(void const *data, BlasMatrix matrix, DT dtype) {

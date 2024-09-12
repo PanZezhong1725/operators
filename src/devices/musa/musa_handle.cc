@@ -1,7 +1,7 @@
 #include "musa_handle.h"
+#include <iostream>
 
 infiniopStatus_t createMusaHandle(MusaHandle_t* handle_ptr, int device_id) {
-    printf("aaa");
     int device_count;
     musaGetDeviceCount(&device_count);
     if (device_id >= device_count) {
@@ -9,7 +9,10 @@ infiniopStatus_t createMusaHandle(MusaHandle_t* handle_ptr, int device_id) {
     }
 
     auto pool = std::make_shared<Pool<musa::dnn::Handle>>();
-
+    // Pool<Handle> musa_pool;/
+    if (musaSetDevice(device_id) != musaSuccess){
+        return STATUS_BAD_DEVICE;
+    }
     musa::dnn::Handle *handle = new musa::dnn::Handle;
     pool->push(handle);
 
@@ -19,7 +22,7 @@ infiniopStatus_t createMusaHandle(MusaHandle_t* handle_ptr, int device_id) {
 }
 
 infiniopStatus_t deleteMusaHandle(MusaHandle_t handle_ptr) {
-    // handle_ptr->mudnn_handles_t = nullptr;
+    handle_ptr->mudnn_handles_t = nullptr;
     delete handle_ptr;
 
     return STATUS_SUCCESS;

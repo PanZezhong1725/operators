@@ -81,7 +81,6 @@ def test(
             b_tensor.descriptor,
         )
     )
-
     workspace_size = c_uint64(0)
     check_error(
         lib.infiniopGetMatmulWorkspaceSize(descriptor, ctypes.byref(workspace_size))
@@ -100,7 +99,6 @@ def test(
             None,
         )
     )
-
     print(c)
     print(c.shape)
 
@@ -216,7 +214,6 @@ def test_musa(lib, test_cases):
 
     device = DeviceEnum.DEVICE_MUSA
     handle = create_handle(lib, device)
-
     for (
         alpha,
         beta,

@@ -2,9 +2,11 @@
 #define __MUSA_CAUSAL_SOFTMAX_H__
 
 #include "operators.h"
+#include "../../../devices/musa/musa_handle.h"
 
 struct CausalSoftmaxMusaDescriptor {
     Device device;
+    int device_id;
     DT dtype;
     unsigned long int batch_size;
     unsigned long int stride_b;
@@ -12,12 +14,12 @@ struct CausalSoftmaxMusaDescriptor {
     unsigned long int stride_i;
     unsigned long int total_seq_len;
     unsigned long int stride_j;
-    unsigned long int max_items_per_thread;
+    unsigned int max_items_per_thread;
 };
 
 typedef struct CausalSoftmaxMusaDescriptor *CausalSoftmaxMusaDescriptor_t;
 
-infiniopStatus_t musaCreateCausalSoftmaxDescriptor(infiniopHandle_t handle,
+infiniopStatus_t musaCreateCausalSoftmaxDescriptor(MusaHandle_t handle,
                                                    CausalSoftmaxMusaDescriptor_t *desc_ptr,
                                                    infiniopTensorDescriptor_t y_desc);
 

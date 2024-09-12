@@ -2,7 +2,7 @@
 #include "../../utils.h"
 #include "../../../devices/musa/common_musa.h"
 
-infiniopStatus_t musaCreateCausalSoftmaxDescriptor(infiniopHandle_t handle,
+infiniopStatus_t musaCreateCausalSoftmaxDescriptor(MusaHandle_t handle,
                                                    CausalSoftmaxMusaDescriptor_t *desc_ptr,
                                                    infiniopTensorDescriptor_t y) {
     unsigned long int ndim = y->ndim;
@@ -30,7 +30,8 @@ infiniopStatus_t musaCreateCausalSoftmaxDescriptor(infiniopHandle_t handle,
     unsigned int max_items_per_thread = ROUND_UP_DIV(total_seq_len, MAX_THREADS_PER_BLOCK);
 
     *desc_ptr = new CausalSoftmaxMusaDescriptor{
-        DevMtGpu,
+        handle->device,
+        handle->device_id,
         y->dt,
         batch_size,
         stride_b,

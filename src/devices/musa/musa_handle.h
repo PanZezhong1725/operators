@@ -11,12 +11,12 @@
 #include <mudnn.h>
 #include <mudnn_base.h>
 
-using namespace musa::dnn;
+// using namespace musa::dnn;
 
 struct MusaContext {
     Device device;
     int device_id;
-    std::shared_ptr<Pool<Handle>> mudnn_handles_t;
+    std::shared_ptr<Pool<musa::dnn::Handle>> mudnn_handles_t;
 };
 typedef struct MusaContext *MusaHandle_t;
 
@@ -25,11 +25,11 @@ infiniopStatus_t createMusaHandle(MusaHandle_t *handle_ptr, int device_id);
 infiniopStatus_t deleteMusaHandle(MusaHandle_t handle_ptr);
 
 template<typename T>
-void use_mudnn(std::shared_ptr<Pool<Handle>> mudnn_handles_t, int device_id, musaStream_t stream, T const &f) {
+void use_mudnn(std::shared_ptr<Pool<musa::dnn::Handle>> mudnn_handles_t, int device_id, musaStream_t stream, T const &f) {
     auto handle = mudnn_handles_t->pop();
     if (!handle) {
         // musaSetDevice(device_id);
-        handle = new Handle;
+        handle = new musa::dnn::Handle;
     }
     handle->SetStream(stream);
     f(handle);

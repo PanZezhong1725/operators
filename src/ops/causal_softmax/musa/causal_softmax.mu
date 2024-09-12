@@ -246,6 +246,9 @@ infiniopStatus_t musaCausalSoftmax(CausalSoftmaxMusaDescriptor_t desc,
                                    uint64_t workspace_size,
                                    void *data,
                                    void *stream) {
+    if(musaSetDevice(desc->device_id) != musaSuccess){
+        return STATUS_BAD_DEVICE;
+    }                          
     if (dtype_eq(desc->dtype, F16)) {
         causal_softmax_mt_gpu_f16(desc, data, stream);
         return STATUS_SUCCESS;

@@ -36,7 +36,7 @@ def test(
     x_stride,
     y_shape,
     y_stride,
-    x_dtype=torch.float32,
+    x_dtype=torch.float16,
 ):
     print(
         f"Testing Rerrange on {torch_device} with x_shape:{x_shape} x_stride:{x_stride} y_shape:{y_shape} y_stride:{y_stride} x_dtype:{x_dtype}"
@@ -57,6 +57,7 @@ def test(
         )
     )
     lib.infiniopRearrange(descriptor, y_tensor.data, x_tensor.data, None)
+    
     assert torch.allclose(x, y, atol=0, rtol=1e-3)
     print("Test passed!")
     check_error(lib.infiniopDestroyRearrangeDescriptor(descriptor))
@@ -81,6 +82,15 @@ def test_cuda(lib, test_cases):
         test(lib, handle, "cuda", x_shape, x_stride, y_shape, y_stride)
     destroy_handle(lib, handle)
 
+def test_bang(lib, test_cases):
+    import torch_mlu
+    device = DeviceEnum.DEVICE_BANG
+    handle = create_handle(lib, device)
+    for test_case in test_cases:
+        x_shape, x_stride = test_case[0]
+        y_shape, y_stride = test_case[1]
+        test(lib, handle, "mlu", x_shape, x_stride, y_shape, y_stride)
+    destroy_handle(lib, handle)
 
 if __name__ == "__main__":
     args = get_args()
@@ -107,4 +117,4 @@ if __name__ == "__main__":
     if args.cuda:
         test_cuda(lib, test_cases)
     if args.bang:
-        test_bang(lib)
+        test_bang(lib, test_cases)

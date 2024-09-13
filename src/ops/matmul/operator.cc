@@ -35,7 +35,6 @@ __C infiniopStatus_t infiniopCreateMatmulDescriptor(infiniopHandle_t handle,
 #endif
 #ifdef ENABLE_MT_GPU
         case DevMtGpu: {
-            printf("aaa");
             return musaCreateMatmulDescriptor((MusaHandle_t) handle, (MatmulMusaDescriptor_t *) desc_ptr, c_desc, a_desc, b_desc);   
         }
 #endif

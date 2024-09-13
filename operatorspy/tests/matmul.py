@@ -99,11 +99,6 @@ def test(
             None,
         )
     )
-    print(c)
-    print(c.shape)
-
-    print(ans)
-    print(ans.shape)
 
     assert torch.allclose(c, ans, atol=0, rtol=1e-2)
 

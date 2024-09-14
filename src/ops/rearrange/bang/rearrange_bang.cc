@@ -59,6 +59,10 @@ infiniopStatus_t bangCreateRearrangeDescriptor(BangHandle_t handle,
     return STATUS_SUCCESS;
 }
 infiniopStatus_t bangDestroyRearrangeDescriptor(RearrangeBangDescriptor_t desc) {
+    cnrtFree(desc->mlu_shape_dst);
+    cnrtFree(desc->mlu_shape_src);
+    cnrtFree(desc->mlu_strides_dst);
+    cnrtFree(desc->mlu_strides_src);
     delete desc;
     return STATUS_SUCCESS;
 }

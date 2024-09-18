@@ -10,6 +10,7 @@
 #include "cuda/rotary_embedding.cuh"
 #endif
 #ifdef ENABLE_CAMBRICON_MLU
+#include "bang/rotary_embedding_bang.h"
 #include "bang/rotary_embedding_cnnl.h"
 #endif
 
@@ -36,7 +37,9 @@ __C infiniopStatus_t infiniopCreateRoPEDescriptor(infiniopHandle_t handle,
 
 #endif
 #ifdef ENABLE_CAMBRICON_MLU
-        // TODO
+        case DevCambriconMlu: {
+            return bangCreateRoPEDescriptor((BangHandle_t) handle, (RoPEBangDescriptor_t *) desc_ptr, t, pos_ids, sin_table, cos_table);
+        }
 #endif
     }
     return STATUS_BAD_DEVICE;
@@ -55,7 +58,9 @@ __C infiniopStatus_t infiniopGetRoPEWorkspaceSize(infiniopRoPEDescriptor_t desc,
 
 #endif
 #ifdef ENABLE_CAMBRICON_MLU
-        // TODO
+        case DevCambriconMlu: {
+            return bangGetRoPEWorkspaceSize((RoPEBangDescriptor_t) desc, size);
+        }
 #endif
     }
     return STATUS_BAD_DEVICE;
@@ -81,7 +86,9 @@ __C infiniopStatus_t infiniopRoPE(infiniopRoPEDescriptor_t desc,
 
 #endif
 #ifdef ENABLE_CAMBRICON_MLU
-        // TODO
+        case DevCambriconMlu: {
+            return bangRoPE((RoPEBangDescriptor_t) desc, workspace, workspace_size, t, pos_ids, sin_table, cos_table, stream);
+        }
 #endif
     }
     return STATUS_BAD_DEVICE;
@@ -100,7 +107,9 @@ __C infiniopStatus_t infiniopDestroyRoPEDescriptor(infiniopRoPEDescriptor_t desc
 
 #endif
 #ifdef ENABLE_CAMBRICON_MLU
-        // TODO
+        case DevCambriconMlu: {
+            return bangDestroyRoPEDescriptor((RoPEBangDescriptor_t) desc);
+        }
 #endif
     }
     return STATUS_BAD_DEVICE;

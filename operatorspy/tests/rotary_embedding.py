@@ -133,26 +133,11 @@ def test_cuda(lib, test_cases):
 
 def test_bang(lib, test_cases):
     import torch_mlu
-
     device = DeviceEnum.DEVICE_BANG
-    config = None
-    descriptor = lib.createRotaryEmbeddingDescriptor(device, config)
-
-    # Note: BANG does not support complex calculation, compare with cpu results
-    t = torch.rand((1, 32, 128), dtype=torch.float16)
-    pos = torch.ones((1,), dtype=torch.int32)
-    theta = 1e4
-    ans = rotary_embedding(t, pos, theta, "cpu")
-
-    t = t.to("mlu")
-    pos = pos.to("mlu")
-    lib.rotaryEmbedding(
-        descriptor, to_tensor(t, lib), to_tensor(pos, lib), c_float(theta), None
-    )
-    assert torch.allclose(t.cpu(), ans, atol=1e-3, rtol=1e-3)
-    print("Test passed!")
-
-    lib.destroyRotaryEmbeddingDescriptor(descriptor)
+    handle = create_handle(lib, device)
+    for shape, strides, dtype in test_cases:
+        test(lib, handle, "mlu", shape, strides, dtype)
+    destroy_handle(lib, handle)
 
 
 if __name__ == "__main__":

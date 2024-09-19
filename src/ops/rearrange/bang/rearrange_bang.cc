@@ -36,13 +36,14 @@ infiniopStatus_t bangCreateRearrangeDescriptor(BangHandle_t handle,
         }
         r = std::accumulate(dst->shape, dst->shape + ndim - 1, 1, std::multiplies<unsigned int>());
     }
+    char *tmpDevice;
+    CNRT_CHECK(cnrtMalloc((void **) &tmpDevice, 2 * ndim * sizeof(uint64_t) + 2 * ndim * sizeof(int64_t)));
+    char *mlu_stride = tmpDevice + 2 * ndim * sizeof(uint64_t);
+    uint64_t *mlu_shape_dst = (uint64_t *) tmpDevice;
+    uint64_t *mlu_shape_src = mlu_shape_dst + ndim;
+    int64_t *mlu_strides_dst = (int64_t *) mlu_stride;
+    int64_t *mlu_strides_src = mlu_strides_dst + ndim;
 
-    uint64_t *mlu_shape_dst, *mlu_shape_src;
-    int64_t *mlu_strides_dst, *mlu_strides_src;
-    CNRT_CHECK(cnrtMalloc((void **) &mlu_shape_dst, ndim * sizeof(uint64_t)));
-    CNRT_CHECK(cnrtMalloc((void **) &mlu_shape_src, ndim * sizeof(uint64_t)));
-    CNRT_CHECK(cnrtMalloc((void **) &mlu_strides_dst, ndim * sizeof(int64_t)));
-    CNRT_CHECK(cnrtMalloc((void **) &mlu_strides_src, ndim * sizeof(int64_t)));
 
     CNRT_CHECK(cnrtMemcpy(mlu_shape_dst, dst->shape, ndim * sizeof(uint64_t), cnrtMemcpyHostToDev));
     CNRT_CHECK(cnrtMemcpy(mlu_shape_src, src->shape, ndim * sizeof(uint64_t), cnrtMemcpyHostToDev));
@@ -60,9 +61,7 @@ infiniopStatus_t bangCreateRearrangeDescriptor(BangHandle_t handle,
 }
 infiniopStatus_t bangDestroyRearrangeDescriptor(RearrangeBangDescriptor_t desc) {
     cnrtFree(desc->mlu_shape_dst);
-    cnrtFree(desc->mlu_shape_src);
-    cnrtFree(desc->mlu_strides_dst);
-    cnrtFree(desc->mlu_strides_src);
+
     delete desc;
     return STATUS_SUCCESS;
 }

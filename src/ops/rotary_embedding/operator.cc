@@ -12,6 +12,9 @@
 #ifdef ENABLE_CAMBRICON_MLU
 #include "bang/rotary_embedding_cnnl.h"
 #endif
+#ifdef ENABLE_MT_GPU
+#include "musa/rotary_embedding_musa.h"
+#endif
 
 struct RoPEDescriptor {
     Device device;
@@ -38,6 +41,11 @@ __C infiniopStatus_t infiniopCreateRoPEDescriptor(infiniopHandle_t handle,
 #ifdef ENABLE_CAMBRICON_MLU
         // TODO
 #endif
+#ifdef ENABLE_MT_GPU
+        case DevMtGpu: {
+            return musaCreateRoPEDescriptor((MusaHandle_t) handle, (RoPEMusaDescriptor_t *) desc_ptr, t, pos_ids, sin_table, cos_table);
+        }
+#endif
     }
     return STATUS_BAD_DEVICE;
 }
@@ -56,6 +64,11 @@ __C infiniopStatus_t infiniopGetRoPEWorkspaceSize(infiniopRoPEDescriptor_t desc,
 #endif
 #ifdef ENABLE_CAMBRICON_MLU
         // TODO
+#endif
+#ifdef ENABLE_MT_GPU
+        case DevMtGpu: {
+            return musaGetRoPEWorkspaceSize((RoPEMusaDescriptor_t) desc, size);
+        }
 #endif
     }
     return STATUS_BAD_DEVICE;
@@ -83,6 +96,11 @@ __C infiniopStatus_t infiniopRoPE(infiniopRoPEDescriptor_t desc,
 #ifdef ENABLE_CAMBRICON_MLU
         // TODO
 #endif
+#ifdef ENABLE_MT_GPU
+        case DevMtGpu: {
+            return musaRoPE((RoPEMusaDescriptor_t) desc, workspace, workspace_size, t, pos_ids, sin_table, cos_table, stream);
+        }
+#endif
     }
     return STATUS_BAD_DEVICE;
 }
@@ -101,6 +119,11 @@ __C infiniopStatus_t infiniopDestroyRoPEDescriptor(infiniopRoPEDescriptor_t desc
 #endif
 #ifdef ENABLE_CAMBRICON_MLU
         // TODO
+#endif
+#ifdef ENABLE_MT_GPU
+        case DevMtGpu: {
+            return musaDestroyRoPEDescriptor((RoPEMusaDescriptor_t) desc);
+        }
 #endif
     }
     return STATUS_BAD_DEVICE;

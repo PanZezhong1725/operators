@@ -74,7 +74,7 @@ def test(lib, handle, torch_device, shape, strides=None, dtype=torch.float16):
     pos = torch.arange(0, t.shape[0], device=torch.device(torch_device))
     theta = 1e4
     ans = rotary_embedding(t, pos, theta, torch_device)
-    pos = pos.to(torch.uint64)
+    # pos = pos.to(torch.uint64)
     descriptor = infiniopRoPEDescriptor_t()
     # 2x table length for test
     sin_table, cos_table = sin_cos_table(t.shape[0] * 2, t.shape[2], t.device, theta)
@@ -154,6 +154,62 @@ def test_bang(lib, test_cases):
 
     lib.destroyRotaryEmbeddingDescriptor(descriptor)
 
+def test_musa(lib, test_cases):
+    import torch_musa
+    device = DeviceEnum.DEVICE_MUSA
+    # Musa do not support computing complex number,
+    # as a result, ans is computed on cpu.
+    # Musa support Torch 2.0.0, which does not contain type uint64
+    # so int64 is used here. 
+    handle = create_handle(lib, device)
+    for shape, strides, dtype in test_cases:
+        t = torch.rand(shape, dtype=dtype, device=torch.device("cpu"))
+        if strides is not None:
+            t = rearrange_tensor(t, strides)
+        pos = torch.arange(0, t.shape[0], device=torch.device("cpu"))
+        theta = 1e4
+        ans = rotary_embedding(t, pos, theta, "cpu")
+        pos = pos.to(torch.int64).to("musa")
+        t = t.to("musa")
+        descriptor = infiniopRoPEDescriptor_t()
+        sin_table, cos_table = sin_cos_table(t.shape[0] * 2, t.shape[2], t.device, theta)
+        t_tensor = to_tensor(t, lib)
+        pos_tensor = to_tensor(pos, lib)
+        sin_table_tensor = to_tensor(sin_table, lib)
+        cos_table_tensor = to_tensor(cos_table, lib)
+        check_error(
+            lib.infiniopCreateRoPEDescriptor(
+                handle,
+                byref(descriptor),
+                t_tensor.descriptor,
+                pos_tensor.descriptor,
+                sin_table_tensor.descriptor,
+                cos_table_tensor.descriptor,
+            )
+        )
+        workspace_size = c_uint64(0)
+        check_error(
+            lib.infiniopGetRoPEWorkspaceSize(descriptor, ctypes.byref(workspace_size))
+        )
+        workspace = create_workspace(workspace_size.value, t.device)
+        check_error(
+            lib.infiniopRoPE(
+                descriptor,
+                workspace.data_ptr() if workspace is not None else None,
+                workspace_size.value,
+                t_tensor.data,
+                pos_tensor.data,
+                sin_table_tensor.data,
+                cos_table_tensor.data,
+                None,
+            )
+        )
+
+        assert torch.allclose(t.to("cpu"), ans, atol=1e-4, rtol=1e-2)
+        check_error(lib.infiniopDestroyRoPEDescriptor(descriptor))
+        print("Test passed!")
+    destroy_handle(lib, handle)
+
 
 if __name__ == "__main__":
     test_cases = [
@@ -198,3 +254,5 @@ if __name__ == "__main__":
         test_cuda(lib, test_cases)
     if args.bang:
         test_bang(lib, test_cases)
+    if args.musa:
+        test_musa(lib, test_cases)

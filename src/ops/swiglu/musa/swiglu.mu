@@ -32,7 +32,7 @@ static __global__ void swiglu(
     c[k] = Tdata(silu(x) * y);
 }
 
-void swiglu_mt_gpu_f16(SwiGLUMusaDescriptor_t desc, void *c, void *a, void *b, void *stream) {
+void swiglu_mt_gpu_f16(SwiGLUMusaDescriptor_t desc, void *c, void const *a, void const *b, void *stream) {
 
     auto seq_len = desc->seq_len,
          di = desc->di;
@@ -44,8 +44,8 @@ void swiglu_mt_gpu_f16(SwiGLUMusaDescriptor_t desc, void *c, void *a, void *b, v
     dim3 block_dims = gcd(MAX_THREADS_PER_BLOCK, di);
     dim3 grid_dims = dim3(di / block_dims.x, seq_len);
 
-    auto a_ptr = reinterpret_cast<half *>(a);
-    auto b_ptr = reinterpret_cast<half *>(b);
+    auto a_ptr = reinterpret_cast<const half *>(a);
+    auto b_ptr = reinterpret_cast<const half *>(b);
     auto c_ptr = reinterpret_cast<half *>(c);
 
     auto musa_stream = reinterpret_cast<musaStream_t>(stream);
@@ -56,8 +56,8 @@ void swiglu_mt_gpu_f16(SwiGLUMusaDescriptor_t desc, void *c, void *a, void *b, v
 
 infiniopStatus_t musaSwiGLU(SwiGLUMusaDescriptor_t desc,
                             void *c,
-                            void *a,
-                            void *b,
+                            void const *a,
+                            void const *b,
                             void *stream) {
     if (dtype_eq(desc->dtype, F16)) {
         swiglu_mt_gpu_f16(desc, c, a, b, stream);

@@ -23,12 +23,12 @@ infiniopStatus_t musaCreateSwiGLUDescriptor(infiniopHandle_t handle,
 
 infiniopStatus_t musaSwiGLU(SwiGLUMusaDescriptor_t desc,
                             void *c,
-                            void *a,
-                            void *b,
+                            void const *a,
+                            void const *b,
                             void *stream);
 
 infiniopStatus_t musaDestroySwiGLUDescriptor(SwiGLUMusaDescriptor_t desc);
 
-void swiglu_mt_gpu_f16(SwiGLUMusaDescriptor_t desc, void *c, void *a, void *b, void *stream);
+void swiglu_mt_gpu_f16(SwiGLUMusaDescriptor_t desc, void *c, void const *a, void const *b, void *stream);
 
 #endif// __MUSA_GPU_SWIGLU_H__

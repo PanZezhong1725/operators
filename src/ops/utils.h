@@ -86,7 +86,7 @@ inline bool getBroadcastShape(const uint64_t *shape1, uint64_t ndim1,
     std::copy(shape2, shape2 + ndim2, padded_shape2 + max_rank - ndim2);
 
     // compute broadcasted shape
-    for (int i = 0; i < max_rank; ++i) {
+    for (int i = 0; i < (int) max_rank; ++i) {
         if (padded_shape1[i] == padded_shape2[i] || padded_shape1[i] == 1 || padded_shape2[i] == 1) {
             broadcast_shape[i] = std::max(padded_shape1[i], padded_shape2[i]);
         } else {

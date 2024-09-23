@@ -15,6 +15,9 @@
 #include "bang/rms_norm_cnnl.h"
 #include "bang/rms_norm_bang.h"
 #endif
+#ifdef ENABLE_MT_GPU
+#include "musa/rms_norm_musa.h"
+#endif
 
 __C infiniopStatus_t infiniopCreateRMSNormDescriptor(
     infiniopHandle_t handle,
@@ -36,6 +39,11 @@ __C infiniopStatus_t infiniopCreateRMSNormDescriptor(
 #ifdef ENABLE_CAMBRICON_MLU
         case DevCambriconMlu: {
             return bangCreateRMSNormDescriptor((BangHandle_t) handle, (RMSNormBangDescriptor_t *) desc_ptr, y_desc);
+        }
+#endif
+#ifdef ENABLE_MT_GPU
+        case DevMtGpu: {
+            return musaCreateRMSNormDescriptor((MusaHandle_t) handle, (RMSNormMusaDescriptor_t *) desc_ptr, y_desc, x_desc, w_desc, epsilon);
         }
 #endif
     }
@@ -60,6 +68,11 @@ __C infiniopStatus_t infiniopGetRMSNormWorkspaceSize(infiniopRMSNormDescriptor_t
         }
 
 #endif
+#ifdef ENABLE_MT_GPU
+        case DevMtGpu: {
+            return musaGetRMSNormWorkspaceSize((RMSNormMusaDescriptor_t) desc, size);
+        }
+#endif
     }
     return STATUS_BAD_DEVICE;
 }
@@ -83,6 +96,11 @@ __C infiniopStatus_t infiniopRMSNorm(infiniopRMSNormDescriptor_t desc, void *wor
         }
 
 #endif
+#ifdef ENABLE_MT_GPU
+        case DevMtGpu: {
+            return musaRMSNorm((RMSNormMusaDescriptor_t) desc, workspace, workspace_size, y, x, w, stream);
+        }
+#endif
     }
     return STATUS_BAD_DEVICE;
 }
@@ -104,6 +122,11 @@ __C infiniopStatus_t infiniopDestroyRMSNormDescriptor(infiniopRMSNormDescriptor_
             return bangDestroyRMSNormDescriptor((RMSNormBangDescriptor_t) desc);
         }
 
+#endif
+#ifdef ENABLE_MT_GPU
+        case DevMtGpu: {
+            return musaDestroyRMSNormDescriptor((RMSNormMusaDescriptor_t) desc);
+        }
 #endif
     }
     return STATUS_BAD_DEVICE;

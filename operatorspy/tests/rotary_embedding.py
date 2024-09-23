@@ -44,7 +44,7 @@ def rotary_embedding(t, pos, theta, torch_device):
     )
     freqs = torch.outer(pos, freqs)
     freqs_cis = torch.polar(torch.ones_like(freqs), freqs)
-
+    
     t_ = torch.view_as_complex(t.reshape(*t.shape[:-1], -1, 2))
     freqs_cis = reshape_for_broadcast(freqs_cis, t_)
     t_out = torch.view_as_real(t_ * freqs_cis).flatten(2).to(t.dtype)
@@ -68,13 +68,19 @@ def test(lib, handle, torch_device, shape, strides=None, dtype=torch.float16):
     print(
         f"Testing Rotary Positional Embedding on {torch_device} with shape:{shape} strides:{strides} and dtype:{dtype}"
     )
-    t = torch.rand(shape, dtype=dtype, device=torch.device(torch_device))
+    
+    t = torch.rand(shape, dtype=dtype)
     if strides is not None:
         t = rearrange_tensor(t, strides)
-    pos = torch.arange(0, t.shape[0], device=torch.device(torch_device))
+    pos = torch.arange(0, t.shape[0])
     theta = 1e4
-    ans = rotary_embedding(t, pos, theta, torch_device)
-    pos = pos.to(torch.uint64)
+    ans = rotary_embedding(t, pos, theta, "cpu")
+    t = t.to(torch_device)
+    pos = pos.to(torch_device)
+    if(torch_device == 'mlu'):
+        pos = pos.to(torch.int64)
+    else:
+        pos = pos.to(torch.uint64)
     descriptor = infiniopRoPEDescriptor_t()
     # 2x table length for test
     sin_table, cos_table = sin_cos_table(t.shape[0] * 2, t.shape[2], t.device, theta)
@@ -109,8 +115,8 @@ def test(lib, handle, torch_device, shape, strides=None, dtype=torch.float16):
             None,
         )
     )
-
-    assert torch.allclose(t, ans, atol=1e-4, rtol=1e-2)
+    
+    assert torch.allclose(t.to('cpu'), ans, atol=1e-4, rtol=1e-2)
     check_error(lib.infiniopDestroyRoPEDescriptor(descriptor))
     print("Test passed!")
 
@@ -142,8 +148,9 @@ def test_bang(lib, test_cases):
 
 if __name__ == "__main__":
     test_cases = [
-        ((1, 32, 128), None, torch.float16),
         ((4, 1, 32), None, torch.float16),
+        ((1, 32, 128), None, torch.float16),
+        
         ((3, 32, 128), (8000, 200, 1), torch.float16),
     ]
     args = get_args()

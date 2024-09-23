@@ -44,9 +44,10 @@ infiniopStatus_t bangCreateRoPEDescriptor(BangHandle_t handle,
     if (!dtype_eq(sin_table->dt, F32) || !dtype_eq(cos_table->dt, F32))
         return STATUS_BAD_TENSOR_DTYPE;
 
-    if (!dtype_eq(pos_ids->dt, U64))
+    if (!dtype_eq(pos_ids->dt, I64))
         return STATUS_BAD_TENSOR_DTYPE;
-
+    int stride_0 = static_cast<int>(t->strides[0]);
+    int stride_1 = static_cast<int>(t->strides[1]);
     *desc_ptr = new RoPEBangDescriptor{
         handle->device,
         t->dt,
@@ -54,7 +55,7 @@ infiniopStatus_t bangCreateRoPEDescriptor(BangHandle_t handle,
         nhead,
         dim,
         total_seq_len,
-        {t->strides[0], t->strides[1]}};
+        stride_0, stride_1};
 
     return STATUS_SUCCESS;
 }

@@ -12,7 +12,8 @@ struct RoPEBangDescriptor {
     uint64_t nhead;
     uint64_t dim;
     uint64_t total_seq_len;
-    int64_t strides[2];
+    int stride_0;
+    int stride_1;
 };
 
 

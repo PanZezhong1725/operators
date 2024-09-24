@@ -61,10 +61,12 @@ def test(
     alpha,
     residual,
     dtype=torch.float16,
+    x_stride=None,
+    y_stride=None,
 ):
     print(
         f"Testing MLP on {torch_device} with num_tokens:{num_tokens} hidden_size:{hidden_size} intermediate_size:{intermediate_size}"
-        f" alpha:{alpha} residual:{residual} dtype:{dtype}"
+        f" alpha:{alpha} residual:{residual} dtype:{dtype} x_stride:{x_stride} y_stride:{y_stride}"
     )
 
     y = torch.rand([num_tokens, hidden_size], dtype=dtype).to(torch_device) * 0.01
@@ -79,6 +81,11 @@ def test(
     )
 
     ans = mlp(y, x, w12, w3, alpha, residual)
+
+    if x_stride is not None:
+        x = rearrange_tensor(x, x_stride)
+    if y_stride is not None:
+        y = rearrange_tensor(y, y_stride)
 
     y_tensor = to_tensor(y, lib)
     x_tensor = to_tensor(x, lib)
@@ -133,6 +140,8 @@ def test_cpu(lib, test_cases):
         alpha,
         residual,
         dtype,
+        x_stride,
+        y_stride,
     ) in test_cases:
         test(
             lib,
@@ -144,6 +153,8 @@ def test_cpu(lib, test_cases):
             alpha,
             residual,
             dtype,
+            x_stride,
+            y_stride,
         )
 
     destroy_handle(lib, handle)
@@ -160,6 +171,8 @@ def test_cuda(lib, test_cases):
         alpha,
         residual,
         dtype,
+        x_stride,
+        y_stride,
     ) in test_cases:
         test(
             lib,
@@ -171,6 +184,8 @@ def test_cuda(lib, test_cases):
             alpha,
             residual,
             dtype,
+            x_stride,
+            y_stride,
         )
 
     destroy_handle(lib, handle)
@@ -189,6 +204,8 @@ def test_bang(lib, test_cases):
         alpha,
         residual,
         dtype,
+        x_stride,
+        y_stride,
     ) in test_cases:
         test(
             lib,
@@ -200,6 +217,8 @@ def test_bang(lib, test_cases):
             alpha,
             residual,
             dtype,
+            x_stride,
+            y_stride,
         )
 
     destroy_handle(lib, handle)
@@ -207,8 +226,9 @@ def test_bang(lib, test_cases):
 
 if __name__ == "__main__":
     test_cases = [
-        # num_tokens, hidden_size, intermediate_size, alpha, residual, dtype
-        (4, 4096, 11008, 1.0, True, torch.float16),
+        # num_tokens, hidden_size, intermediate_size, alpha, residual, dtype, x_stride, y_stride
+        (4, 4096, 11008, 1.0, True, torch.float16, None, None),
+        (4, 4096, 11008, 1.0, True, torch.float16, [8192, 1], [8192, 1]),
     ]
     args = get_args()
     lib = open_lib()

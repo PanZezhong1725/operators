@@ -31,7 +31,7 @@ infiniopStatus_t bangGetRMSNormWorkspaceSize(RMSNormBangDescriptor_t desc, unsig
 infiniopStatus_t bangRMSNorm(RMSNormBangDescriptor_t desc,
                              void *workspace,
                              unsigned long int workspace_size,
-                             void *y, void *x, void *w,
+                             void *y, void const *x, void const *w,
                              void *stream);
 
 infiniopStatus_t bangDestroyRMSNormDescriptor(RMSNormBangDescriptor_t desc);

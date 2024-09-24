@@ -4,7 +4,7 @@
 #include <cmath>
 
 infiniopStatus_t cpuCreateRMSNormDescriptor(infiniopHandle_t, RMSNormCpuDescriptor_t *desc_ptr,
-    infiniopTensorDescriptor_t y_desc, infiniopTensorDescriptor_t x_desc, infiniopTensorDescriptor_t w_desc, float epsilon) {
+                                            infiniopTensorDescriptor_t y_desc, infiniopTensorDescriptor_t x_desc, infiniopTensorDescriptor_t w_desc, float epsilon) {
     if (y_desc->ndim != 2 || x_desc->ndim != 2 || w_desc->ndim != 1) {
         return STATUS_BAD_TENSOR_SHAPE;
     }
@@ -43,14 +43,14 @@ infiniopStatus_t cpuDestroyRMSNormDescriptor(RMSNormCpuDescriptor_t desc) {
     return STATUS_SUCCESS;
 }
 
-void rms_norm_cpu_f16(RMSNormCpuDescriptor_t desc, void *y, void *x, void *w) {
+void rms_norm_cpu_f16(RMSNormCpuDescriptor_t desc, void *y, void const *x, void const *w) {
     auto n = desc->n, d = desc->d;
     auto stride_y = desc->stride_y;
     auto stride_x = desc->stride_x;
     auto epsilon = desc->epsilon;
 
     auto y_ptr = reinterpret_cast<uint16_t *>(y);
-    auto x_ptr = reinterpret_cast<uint16_t *>(x);
+    auto x_ptr = reinterpret_cast<uint16_t const *>(x);
     void const *w_ptr = w;
     void const *w_ = nullptr;
     auto w_datatype = desc->w_datatype;
@@ -86,14 +86,14 @@ void rms_norm_cpu_f16(RMSNormCpuDescriptor_t desc, void *y, void *x, void *w) {
 }
 
 infiniopStatus_t cpuRMSNorm(RMSNormCpuDescriptor_t desc,
-                                  void *workspace,
-                                  uint64_t workspace_size,
-                                  void *y, void *x, void *w, 
-                                  void *stream) {
-    if(dtype_eq(desc->dtype, F16)) {
+                            void *workspace,
+                            uint64_t workspace_size,
+                            void *y, void const *x, void const *w,
+                            void *stream) {
+    if (dtype_eq(desc->dtype, F16)) {
         rms_norm_cpu_f16(desc, y, x, w);
         return STATUS_SUCCESS;
     }
 
-    return STATUS_BAD_TENSOR_DTYPE;                                
+    return STATUS_BAD_TENSOR_DTYPE;
 }

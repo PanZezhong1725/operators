@@ -302,7 +302,7 @@ void rms_normUnion(cnrtQueue_t queue, T *y, T const *x, Tw const *w, int stride_
     cnrtQueueSync(queue);
 
 }
-void rms_norm_bang_f16(RMSNormBangDescriptor_t desc, void *y, void *x, void *w,
+void rms_norm_bang_f16(RMSNormBangDescriptor_t desc, void *y, void const *x, void const *w,
                              void *stream){
     auto queue = reinterpret_cast<cnrtQueue_t>(stream);                            
     int n = static_cast<int>(desc->n);
@@ -328,7 +328,7 @@ void rms_norm_bang_f16(RMSNormBangDescriptor_t desc, void *y, void *x, void *w,
 infiniopStatus_t bangRMSNorm(RMSNormBangDescriptor_t desc,
                              void *workspace,
                              unsigned long int workspace_size,
-                             void *y, void *x, void *w,
+                             void *y, void const *x, void const *w,
                              void *stream){
     if (cnrtSetDevice(desc->device_id) != cnrtSuccess) {
         return STATUS_BAD_DEVICE;

@@ -76,7 +76,6 @@ def test(lib, handle, torch_device, y_shape, x_shape, w_shape, dtype=torch.float
             None,
         )
     )
-
     # print(ans)
     # print("=======================================================")
     # print(y)

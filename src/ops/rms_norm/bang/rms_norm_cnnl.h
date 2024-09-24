@@ -5,9 +5,9 @@
 #include "cnnl_extra.h"
 #include "operators.h"
 
-struct RMSNormBangDescriptor {
+struct RMSNormCnnlDescriptor {
     Device device;
-    RMSNormBangDescriptor(Device device);
+    RMSNormCnnlDescriptor(Device device);
 };
 
 void rms_norm_cnnl_f16(Tensor y, Tensor x, Tensor w, float epsilon, void *stream);

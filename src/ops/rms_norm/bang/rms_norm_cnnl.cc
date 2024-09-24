@@ -4,7 +4,7 @@
 #include "../../utils.h"
 #include "cnrt.h"
 
-RMSNormBangDescriptor::RMSNormBangDescriptor(Device device) {
+RMSNormCnnlDescriptor::RMSNormCnnlDescriptor(Device device) {
     this->device = device;
     get_cnnl_pool();
 }
@@ -36,7 +36,7 @@ void rms_norm_cnnl_f16(Tensor y, Tensor x, Tensor w, float epsilon, void *stream
                               CNNL_DTYPE_HALF, CNNL_TRANSFORMER_RMSNORM);
 
     void *workspace;
-    
+
     use_cnnl((cnrtQueue_t) stream,
              [&](cnnlHandle_t handle) {
                  size_t wsSize;

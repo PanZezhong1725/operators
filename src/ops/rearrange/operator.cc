@@ -12,7 +12,7 @@
 #endif
 #ifdef ENABLE_CAMBRICON_MLU
 #include "bang/rearrange_bang.h"
-#include "bang/rearrange_cnnl.h"
+//#include "bang/rearrange_cnnl.h"
 #endif
 
 __C infiniopStatus_t infiniopCreateRearrangeDescriptor(
@@ -27,18 +27,20 @@ __C infiniopStatus_t infiniopCreateRearrangeDescriptor(
 #endif
 #ifdef ENABLE_NV_GPU
         case DevNvGpu: {
-            return cudaCreateRearrangeDescriptor((CudaHandle_t)handle, (RearrangeCudaDescriptor_t *) desc_ptr, dst, src);
+            return cudaCreateRearrangeDescriptor((CudaHandle_t) handle, (RearrangeCudaDescriptor_t *) desc_ptr, dst, src);
         }
 
 #endif
 #ifdef ENABLE_CAMBRICON_MLU
-        // TODO
+        case DevCambriconMlu: {
+            return bangCreateRearrangeDescriptor((BangHandle_t) handle, (RearrangeBangDescriptor_t *) desc_ptr, dst, src);
+        }
 #endif
     }
     return STATUS_BAD_DEVICE;
 }
 
-__C infiniopStatus_t infiniopRearrange(infiniopRearrangeDescriptor_t desc, void *dst, void *src, void *stream) {
+__C infiniopStatus_t infiniopRearrange(infiniopRearrangeDescriptor_t desc, void *dst, void const *src, void *stream) {
     switch (desc->device) {
 #ifdef ENABLE_CPU
         case DevCpu:
@@ -51,7 +53,9 @@ __C infiniopStatus_t infiniopRearrange(infiniopRearrangeDescriptor_t desc, void 
 
 #endif
 #ifdef ENABLE_CAMBRICON_MLU
-        // TODO
+        case DevCambriconMlu: {
+            return bangRearrange((RearrangeBangDescriptor_t) desc, dst, src, stream);
+        }
 #endif
     }
     return STATUS_BAD_DEVICE;
@@ -70,7 +74,9 @@ __C infiniopStatus_t infiniopDestroyRearrangeDescriptor(infiniopRearrangeDescrip
 
 #endif
 #ifdef ENABLE_CAMBRICON_MLU
-        // TODO
+        case DevCambriconMlu: {
+            return bangDestroyRearrangeDescriptor((RearrangeBangDescriptor_t) desc);
+        }
 #endif
     }
     return STATUS_BAD_DEVICE;

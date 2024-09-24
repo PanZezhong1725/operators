@@ -29,22 +29,20 @@ __C __export infiniopStatus_t infiniopCreateMLPDescriptor(infiniopHandle_t handl
         return STATUS_BAD_TENSOR_SHAPE;
     }
 
+    // matmul1 desc
     infiniopTensorDescriptor_t desc1 = new TensorDescriptor;
-    // [num_tokens, 2 * intermediate_size]
-    uint64_t shape1[2] = {x_desc->shape[0], w12_desc->shape[1]};
+    uint64_t shape1[2] = {x_desc->shape[0], w12_desc->shape[1]};// [num_tokens, 2 * intermediate_size]
     infiniopCreateTensorDescriptor(&desc1, 2, shape1, nullptr, x_desc->dt);
-
     infiniopMatmulDescriptor_t matmul_desc1 = new MatmulDescriptor{handle->device};
-    infiniopMatmulDescriptor_t matmul_desc2 = new MatmulDescriptor{handle->device};
     infiniopCreateMatmulDescriptor(handle, &matmul_desc1, desc1, x_desc, w12_desc);
-    infiniopCreateMatmulDescriptor(handle, &matmul_desc2, y_desc, w12_desc, w3_desc);
-
     uint64_t matmul1_tensor_size = get_byte_size(desc1);
+    uint64_t matmul1_workspace_size = 0;
+    infiniopGetMatmulWorkspaceSize(matmul_desc1, &matmul1_workspace_size);
 
+    // swiglu desc
     infiniopTensorDescriptor_t desc2 = new TensorDescriptor;
     uint64_t w2_offset_by_bytes = w12_desc->shape[1] / 2 * w12_desc->dt.size;
-    // [num_tokens, itermediate_size]
-    uint64_t shape2[2] = {x_desc->shape[0], w12_desc->shape[1] / 2};
+    uint64_t shape2[2] = {x_desc->shape[0], w12_desc->shape[1] / 2};// [num_tokens, itermediate_size]
     infiniopCreateTensorDescriptor(&desc2, 2, shape2, nullptr, x_desc->dt);
     infiniopTensorDescriptor_t desc3 = new TensorDescriptor;
     int64_t strides3[2] = {w12_desc->strides[0], w12_desc->strides[1]};
@@ -53,15 +51,18 @@ __C __export infiniopStatus_t infiniopCreateMLPDescriptor(infiniopHandle_t handl
     infiniopCreateSwiGLUDescriptor(handle, &swiglu_desc, desc2, desc3, desc3);
     uint64_t swiglu_tensor_size = get_byte_size(desc2);
 
-    uint64_t matmul1_workspace_size = 0;
+    // matmul2 desc
+    infiniopMatmulDescriptor_t matmul_desc2 = new MatmulDescriptor{handle->device};
+    infiniopCreateMatmulDescriptor(handle, &matmul_desc2, y_desc, desc2, w3_desc);
     uint64_t matmul2_workspace_size = 0;
-    infiniopGetMatmulWorkspaceSize(matmul_desc1, &matmul1_workspace_size);
     infiniopGetMatmulWorkspaceSize(matmul_desc2, &matmul2_workspace_size);
+
+    // calculate workspace size
     uint64_t workspace_size = std::max(std::max(matmul1_workspace_size + matmul1_tensor_size,
                                                 matmul1_tensor_size + swiglu_tensor_size),
                                        swiglu_tensor_size + matmul2_workspace_size);
 
-
+    // create descriptor
     *(_MLPDescriptor_t *) desc_ptr = new _MLPDescriptor{
         handle->device,
         matmul_desc1,

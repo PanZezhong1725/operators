@@ -1,0 +1,259 @@
+from ctypes import POINTER, Structure, c_int32, c_uint64, c_void_p, c_float, c_bool
+import ctypes
+import sys
+import os
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
+from operatorspy import (
+    open_lib,
+    to_tensor,
+    CTensor,
+    DeviceEnum,
+    infiniopHandle_t,
+    infiniopTensorDescriptor_t,
+    create_handle,
+    destroy_handle,
+    check_error,
+    rearrange_tensor,
+    create_workspace,
+)
+
+from operatorspy.tests.test_utils import get_args
+import torch
+import torch.nn as nn
+
+
+class MLPDescriptor(Structure):
+    _fields_ = [("device", c_int32)]
+
+
+infiniopMLPDescriptor_t = POINTER(MLPDescriptor)
+
+
+def swiglu(a, b):
+    return a * b / (1 + torch.exp(-b.float()).to(b.dtype))
+
+
+def mlp(y, x, w12, w3, alpha, residual):
+    input_dtype = x.dtype
+
+    intermediate_size = w3.shape[0]
+
+    a = torch.matmul(
+        x.to(torch.float32), w12[:, intermediate_size:].to(torch.float32)
+    ).to(input_dtype)
+    b = torch.matmul(
+        x.to(torch.float32), w12[:, 0:intermediate_size].to(torch.float32)
+    ).to(input_dtype)
+    c = swiglu(a, b)
+    d = torch.matmul(c.to(torch.float32), alpha * w3.to(torch.float32)).to(input_dtype)
+    out = d + y if residual else d
+    return out
+
+
+def test(
+    lib,
+    handle,
+    torch_device,
+    num_tokens,
+    hidden_size,
+    intermediate_size,
+    alpha,
+    residual,
+    dtype=torch.float16,
+):
+    print(
+        f"Testing MLP on {torch_device} with num_tokens:{num_tokens} hidden_size:{hidden_size} intermediate_size:{intermediate_size}"
+        f" alpha:{alpha} residual:{residual} dtype:{dtype}"
+    )
+
+    y = torch.rand([num_tokens, hidden_size], dtype=dtype).to(torch_device) * 0.01
+    x = torch.rand([num_tokens, hidden_size], dtype=dtype).to(torch_device) * 0.01
+    w12 = (
+        torch.rand([hidden_size, 2 * intermediate_size], dtype=dtype).to(torch_device)
+        * 0.01
+    )
+    w3 = (
+        torch.rand([intermediate_size, hidden_size], dtype=dtype).to(torch_device)
+        * 0.01
+    )
+
+    ans = mlp(y, x, w12, w3, alpha, residual)
+
+    y_tensor = to_tensor(y, lib)
+    x_tensor = to_tensor(x, lib)
+    w12_tensor = to_tensor(w12, lib)
+    w3_tensor = to_tensor(w3, lib)
+    descriptor = infiniopMLPDescriptor_t()
+    check_error(
+        lib.infiniopCreateMLPDescriptor(
+            handle,
+            ctypes.byref(descriptor),
+            y_tensor.descriptor,
+            x_tensor.descriptor,
+            w12_tensor.descriptor,
+            w3_tensor.descriptor,
+        )
+    )
+
+    workspace_size = c_uint64(0)
+    check_error(
+        lib.infiniopGetMLPWorkspaceSize(descriptor, ctypes.byref(workspace_size))
+    )
+    workspace = create_workspace(workspace_size.value, x.device)
+
+    check_error(
+        lib.infiniopMLP(
+            descriptor,
+            workspace.data_ptr() if workspace is not None else None,
+            workspace_size.value,
+            y_tensor.data,
+            x_tensor.data,
+            w12_tensor.data,
+            w3_tensor.data,
+            alpha,
+            residual,
+            None,
+        )
+    )
+
+    assert torch.allclose(y, ans, atol=0, rtol=1e-2)
+
+    check_error(lib.infiniopDestroyMLPDescriptor(descriptor))
+
+
+def test_cpu(lib, test_cases):
+    device = DeviceEnum.DEVICE_CPU
+    handle = create_handle(lib, device)
+
+    for (
+        num_tokens,
+        hidden_size,
+        intermediate_size,
+        alpha,
+        residual,
+        dtype,
+    ) in test_cases:
+        test(
+            lib,
+            handle,
+            "cpu",
+            num_tokens,
+            hidden_size,
+            intermediate_size,
+            alpha,
+            residual,
+            dtype,
+        )
+
+    destroy_handle(lib, handle)
+
+
+def test_cuda(lib, test_cases):
+    device = DeviceEnum.DEVICE_CUDA
+    handle = create_handle(lib, device)
+
+    for (
+        num_tokens,
+        hidden_size,
+        intermediate_size,
+        alpha,
+        residual,
+        dtype,
+    ) in test_cases:
+        test(
+            lib,
+            handle,
+            "cuda",
+            num_tokens,
+            hidden_size,
+            intermediate_size,
+            alpha,
+            residual,
+            dtype,
+        )
+
+    destroy_handle(lib, handle)
+
+
+def test_bang(lib, test_cases):
+    import torch_mlu
+
+    device = DeviceEnum.DEVICE_BANG
+    handle = create_handle(lib, device)
+
+    for (
+        num_tokens,
+        hidden_size,
+        intermediate_size,
+        alpha,
+        residual,
+        dtype,
+    ) in test_cases:
+        test(
+            lib,
+            handle,
+            "mlu",
+            num_tokens,
+            hidden_size,
+            intermediate_size,
+            alpha,
+            residual,
+            dtype,
+        )
+
+    destroy_handle(lib, handle)
+
+
+if __name__ == "__main__":
+    test_cases = [
+        # num_tokens, hidden_size, intermediate_size, alpha, residual, dtype
+        (4, 4096, 11008, 1.0, True, torch.float16),
+    ]
+    args = get_args()
+    lib = open_lib()
+
+    lib.infiniopCreateMLPDescriptor.restype = c_int32
+    lib.infiniopCreateMLPDescriptor.argtypes = [
+        infiniopHandle_t,
+        POINTER(infiniopMLPDescriptor_t),
+        infiniopTensorDescriptor_t,
+        infiniopTensorDescriptor_t,
+        infiniopTensorDescriptor_t,
+        infiniopTensorDescriptor_t,
+    ]
+
+    lib.infiniopGetMLPWorkspaceSize.restype = c_int32
+    lib.infiniopGetMLPWorkspaceSize.argtypes = [
+        infiniopMLPDescriptor_t,
+        POINTER(c_uint64),
+    ]
+
+    lib.infiniopMLP.restype = c_int32
+    lib.infiniopMLP.argtypes = [
+        infiniopMLPDescriptor_t,
+        c_void_p,
+        c_uint64,
+        c_void_p,
+        c_void_p,
+        c_void_p,
+        c_void_p,
+        c_float,
+        c_bool,
+        c_void_p,
+    ]
+
+    lib.infiniopDestroyMLPDescriptor.restype = c_int32
+    lib.infiniopDestroyMLPDescriptor.argtypes = [
+        infiniopMLPDescriptor_t,
+    ]
+
+    if args.cpu:
+        test_cpu(lib, test_cases)
+    if args.cuda:
+        test_cuda(lib, test_cases)
+    if args.bang:
+        test_bang(lib, test_cases)
+    if not (args.cpu or args.cuda or args.bang):
+        test_cpu(lib, test_cases)
+    print("Test passed!")

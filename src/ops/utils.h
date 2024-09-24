@@ -27,15 +27,12 @@ inline void assert_true(int expr, const char *msg, const char *file, int line) {
 
 #define ROUND_UP_DIV(x, y) ((x + y - 1) / y)
 
-#define CHECK_ERROR(call, target, errCode)            \
+#define CHECK_STATUS(call, target)                    \
     do {                                              \
-        if (auto value = (call); value == (target)) { \
-            return (errCode);                         \
+        if (auto value = (call); value != (target)) { \
+            return value;                             \
         }                                             \
     } while (0)
-#define CREATE_CHECK_ERROR(expr, value, target, errCode) \
-    expr;                                                \
-    CHECK_ERROR(value, target, errCode)
 
 // check if two data layouts (types) are equal
 inline bool dtype_eq(DataLayout a, DataLayout b) {

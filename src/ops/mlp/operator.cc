@@ -32,30 +32,30 @@ __C __export infiniopStatus_t infiniopCreateMLPDescriptor(infiniopHandle_t handl
     // matmul1 desc
     infiniopTensorDescriptor_t desc1 = new TensorDescriptor;
     uint64_t shape1[2] = {x_desc->shape[0], w12_desc->shape[1]};// [num_tokens, 2 * intermediate_size]
-    infiniopCreateTensorDescriptor(&desc1, 2, shape1, nullptr, x_desc->dt);
+    CHECK_STATUS(infiniopCreateTensorDescriptor(&desc1, 2, shape1, nullptr, x_desc->dt), STATUS_SUCCESS);
     infiniopMatmulDescriptor_t matmul_desc1 = new MatmulDescriptor{handle->device};
-    infiniopCreateMatmulDescriptor(handle, &matmul_desc1, desc1, x_desc, w12_desc);
+    CHECK_STATUS(infiniopCreateMatmulDescriptor(handle, &matmul_desc1, desc1, x_desc, w12_desc), STATUS_SUCCESS);
     uint64_t matmul1_tensor_size = get_byte_size(desc1);
     uint64_t matmul1_workspace_size = 0;
-    infiniopGetMatmulWorkspaceSize(matmul_desc1, &matmul1_workspace_size);
+    CHECK_STATUS(infiniopGetMatmulWorkspaceSize(matmul_desc1, &matmul1_workspace_size), STATUS_SUCCESS);
 
     // swiglu desc
     infiniopTensorDescriptor_t desc2 = new TensorDescriptor;
     uint64_t w2_offset_by_bytes = w12_desc->shape[1] / 2 * w12_desc->dt.size;
     uint64_t shape2[2] = {x_desc->shape[0], w12_desc->shape[1] / 2};// [num_tokens, itermediate_size]
-    infiniopCreateTensorDescriptor(&desc2, 2, shape2, nullptr, x_desc->dt);
+    CHECK_STATUS(infiniopCreateTensorDescriptor(&desc2, 2, shape2, nullptr, x_desc->dt), STATUS_SUCCESS);
     infiniopTensorDescriptor_t desc3 = new TensorDescriptor;
     int64_t strides3[2] = {w12_desc->strides[0], w12_desc->strides[1]};
-    infiniopCreateTensorDescriptor(&desc3, 2, shape2, strides3, x_desc->dt);
+    CHECK_STATUS(infiniopCreateTensorDescriptor(&desc3, 2, shape2, strides3, x_desc->dt), STATUS_SUCCESS);
     infiniopSwiGLUDescriptor_t swiglu_desc = new SwiGLUDescriptor{handle->device};
-    infiniopCreateSwiGLUDescriptor(handle, &swiglu_desc, desc2, desc3, desc3);
+    CHECK_STATUS(infiniopCreateSwiGLUDescriptor(handle, &swiglu_desc, desc2, desc3, desc3), STATUS_SUCCESS);
     uint64_t swiglu_tensor_size = get_byte_size(desc2);
 
     // matmul2 desc
     infiniopMatmulDescriptor_t matmul_desc2 = new MatmulDescriptor{handle->device};
-    infiniopCreateMatmulDescriptor(handle, &matmul_desc2, y_desc, desc2, w3_desc);
+    CHECK_STATUS(infiniopCreateMatmulDescriptor(handle, &matmul_desc2, y_desc, desc2, w3_desc), STATUS_SUCCESS);
     uint64_t matmul2_workspace_size = 0;
-    infiniopGetMatmulWorkspaceSize(matmul_desc2, &matmul2_workspace_size);
+    CHECK_STATUS(infiniopGetMatmulWorkspaceSize(matmul_desc2, &matmul2_workspace_size), STATUS_SUCCESS);
 
     // calculate workspace size
     uint64_t workspace_size = std::max(std::max(matmul1_workspace_size + matmul1_tensor_size,
@@ -99,23 +99,28 @@ __C __export infiniopStatus_t infiniopMLP(infiniopMLPDescriptor_t desc,
         return STATUS_MEMORY_NOT_ALLOCATED;
     }
 
-    infiniopMatmul(_desc->matmul_desc1, (char *) workspace + _desc->matmul1_tensor_size, workspace_size - _desc->matmul1_tensor_size, workspace, x, w12, 1, 0, stream);
-    infiniopSwiGLU(_desc->swiglu_desc,
-                   (char *) workspace + _desc->matmul1_tensor_size,
-                   (char *) workspace + _desc->w2_offset_by_bytes,
-                   workspace,
-                   stream);
-    infiniopMatmul(_desc->matmul_desc2, (char *) workspace + _desc->matmul1_tensor_size + _desc->swiglu_tensor_size,
-                   workspace_size - _desc->matmul1_tensor_size - _desc->swiglu_tensor_size,
-                   y, (char *) workspace + _desc->matmul1_tensor_size, w3, alpha, residual ? 1 : 0, stream);
+    CHECK_STATUS(infiniopMatmul(_desc->matmul_desc1,
+                                (char *) workspace + _desc->matmul1_tensor_size,
+                                workspace_size - _desc->matmul1_tensor_size,
+                                workspace, x, w12, 1, 0, stream),
+                 STATUS_SUCCESS);
+    CHECK_STATUS(infiniopSwiGLU(_desc->swiglu_desc,
+                                (char *) workspace + _desc->matmul1_tensor_size,
+                                (char *) workspace + _desc->w2_offset_by_bytes,
+                                workspace, stream),
+                 STATUS_SUCCESS);
+    CHECK_STATUS(infiniopMatmul(_desc->matmul_desc2, (char *) workspace + _desc->matmul1_tensor_size + _desc->swiglu_tensor_size,
+                                workspace_size - _desc->matmul1_tensor_size - _desc->swiglu_tensor_size,
+                                y, (char *) workspace + _desc->matmul1_tensor_size, w3, alpha, residual ? 1 : 0, stream),
+                 STATUS_SUCCESS);
 
     return STATUS_SUCCESS;
 }
 
 __C __export infiniopStatus_t infiniopDestroyMLPDescriptor(infiniopMLPDescriptor_t desc) {
-    infiniopDestroyMatmulDescriptor(((_MLPDescriptor_t) desc)->matmul_desc1);
-    infiniopDestroyMatmulDescriptor(((_MLPDescriptor_t) desc)->matmul_desc2);
-    infiniopDestroySwiGLUDescriptor(((_MLPDescriptor_t) desc)->swiglu_desc);
+    CHECK_STATUS(infiniopDestroyMatmulDescriptor(((_MLPDescriptor_t) desc)->matmul_desc1), STATUS_SUCCESS);
+    CHECK_STATUS(infiniopDestroyMatmulDescriptor(((_MLPDescriptor_t) desc)->matmul_desc2), STATUS_SUCCESS);
+    CHECK_STATUS(infiniopDestroySwiGLUDescriptor(((_MLPDescriptor_t) desc)->swiglu_desc), STATUS_SUCCESS);
 
     return STATUS_SUCCESS;
 }

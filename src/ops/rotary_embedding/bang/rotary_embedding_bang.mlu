@@ -427,6 +427,9 @@ infiniopStatus_t bangRoPE(RoPEBangDescriptor_t desc,
                           void const *sin_table,
                           void const *cos_table,
                           void *stream) {
+    if (cnrtSetDevice(desc->device_id) != cnrtSuccess) {
+        return STATUS_BAD_DEVICE;
+    }   
     if (t == nullptr || pos_ids == nullptr || sin_table == nullptr || cos_table == nullptr)
         return STATUS_BAD_PARAM;
 

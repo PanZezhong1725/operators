@@ -50,6 +50,7 @@ infiniopStatus_t bangCreateRoPEDescriptor(BangHandle_t handle,
     int stride_1 = static_cast<int>(t->strides[1]);
     *desc_ptr = new RoPEBangDescriptor{
         handle->device,
+        handle->device_id,
         t->dt,
         seq_len,
         nhead,

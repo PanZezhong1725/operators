@@ -18,11 +18,14 @@ __mlu_global__ void rms_norm(T *destination, T const *source, float const *weigh
     int indStart = (taskId < remainT ? taskId * stepHard : (taskId - remainT) * stepEasy + remainT * stepHard);
 
     if(dimsize >= maxNum){
-        char *nram_buffer1 = nram_buffer + (2 * maxNum + 2 * wSize) * sizeof(T);
+        
+        char *nram_buffer1 = nram_buffer + (2 * maxNum + 3 * wSize) * sizeof(T);
         T *src = (T *)nram_buffer;//[maxNum]
         T *wet = src + maxNum;//[maxNum]
         T *destSumFinal = wet + maxNum;//[wSize]
         T *destSum = destSumFinal + wSize;//[wSize]
+        T *srcTmp = destSum + wSize;//[wSize]
+        __bang_write_zero(srcTmp, wSize);
         float *wetTmp = (float *)nram_buffer1;
 
         int remain = dimsize % maxNum;
@@ -51,9 +54,9 @@ __mlu_global__ void rms_norm(T *destination, T const *source, float const *weigh
                     __bang_add(destSumFinal, destSumFinal, destSum, wSize);
                 }
                 else{
-                    for(int id = 0; id < maxNum; id++){
-                        destSumFinal[0] += src[id];
-                    }
+                    __memcpy(srcTmp, src, maxNum * sizeof(T), NRAM2NRAM);
+                    __bang_reduce_sum(destSum, srcTmp, wSize);
+                    __bang_add(destSumFinal, destSumFinal, destSum, wSize);
                 }
             }
             if(remain){
@@ -71,9 +74,9 @@ __mlu_global__ void rms_norm(T *destination, T const *source, float const *weigh
                     __bang_add(destSumFinal, destSumFinal, destSum, wSize);
                 }
                 else{
-                    for(int id = 0; id < remain; id++){
-                        destSumFinal[0] += src[id];
-                    }
+                    __memcpy(srcTmp, src, remain * sizeof(T), NRAM2NRAM);
+                    __bang_reduce_sum(destSum, srcTmp, wSize);
+                    __bang_add(destSumFinal, destSumFinal, destSum, wSize);
                 }
             }
             destSumFinal[0] /= dimsize;
@@ -99,11 +102,13 @@ __mlu_global__ void rms_norm(T *destination, T const *source, float const *weigh
         }
     }
     else{
-        char *nram_buffer1 = nram_buffer + (2 * dimsize + wSize + dimS) * sizeof(T);
+        char *nram_buffer1 = nram_buffer + (2 * dimsize + 2 * wSize + dimS) * sizeof(T);
         T *src = (T *)nram_buffer;//[dimsize]
         T *wet = src + dimsize;//[dimsize]
         T *destSumFinal = wet + dimsize;//[wSize]
         T *destSum = destSumFinal + wSize;//[dimS]
+        T *srcTmp = destSum + dimS;
+        __bang_write_zero(srcTmp, wSize);
         float *wetTmp = (float *)nram_buffer1;
 
         
@@ -128,9 +133,8 @@ __mlu_global__ void rms_norm(T *destination, T const *source, float const *weigh
                 __bang_reduce_sum(destSumFinal, destSum, wSize);
             }
             else{
-                for(int id = 0; id < dimsize; id++){
-                    destSumFinal[0] += destSum[id];
-                }
+                __memcpy(srcTmp, destSum, dimsize * sizeof(T), NRAM2NRAM);
+                __bang_reduce_sum(destSumFinal, srcTmp, wSize);
             }
             destSumFinal[0] /= dimsize;
             destSumFinal[0] += eps;
@@ -155,14 +159,15 @@ __mlu_global__ void rms_norm(T *destination, T const *source, T const *weight, i
     int stepHard = stepEasy + 1;
     int step = (taskId < remainT ? stepHard : stepEasy);
     int indStart = (taskId < remainT ? taskId * stepHard : (taskId - remainT) * stepEasy + remainT * stepHard);
-
+    
     if(dimsize >= maxNum){
         
         T *src = (T *)nram_buffer;//[maxNum]
         T *wet = src + maxNum;//[maxNum]
         T *destSumFinal = wet + maxNum;//[wSize]
         T *destSum = destSumFinal + wSize;//[wSize]
-        
+        T *srcTmp = destSum + wSize;//[wSize]
+        __bang_write_zero(srcTmp, wSize);
 
         int remain = dimsize % maxNum;
         int repeat = (dimsize - remain) / maxNum;
@@ -190,9 +195,9 @@ __mlu_global__ void rms_norm(T *destination, T const *source, T const *weight, i
                     __bang_add(destSumFinal, destSumFinal, destSum, wSize);
                 }
                 else{
-                    for(int id = 0; id < maxNum; id++){
-                        destSumFinal[0] += src[id];
-                    }
+                    __memcpy(srcTmp, src, maxNum * sizeof(T), NRAM2NRAM);
+                    __bang_reduce_sum(destSum, srcTmp, wSize);//此时destSum[0]保存的就是当前maxNum长度数据的数值和
+                    __bang_add(destSumFinal, destSumFinal, destSum, wSize);
                 }
             }
             if(remain){
@@ -210,9 +215,9 @@ __mlu_global__ void rms_norm(T *destination, T const *source, T const *weight, i
                     __bang_add(destSumFinal, destSumFinal, destSum, wSize);
                 }
                 else{
-                    for(int id = 0; id < remain; id++){
-                        destSumFinal[0] += src[id];
-                    }
+                    __memcpy(srcTmp, src, remain * sizeof(T), NRAM2NRAM);
+                    __bang_reduce_sum(destSum, srcTmp, wSize);//此时destSum[0]保存的就是当前maxNum长度数据的数值和
+                    __bang_add(destSumFinal, destSumFinal, destSum, wSize);
                 }
             }
             destSumFinal[0] /= dimsize;
@@ -241,7 +246,7 @@ __mlu_global__ void rms_norm(T *destination, T const *source, T const *weight, i
         T *wet = src + dimsize;//[dimsize]
         T *destSumFinal = wet + dimsize;//[wSize]
         T *destSum = destSumFinal + wSize;//[dimS]
-        
+        T *srcTmp = destSum + dimS;//[wSize]
 
         
         int segNum = dimS / wSize;
@@ -265,9 +270,9 @@ __mlu_global__ void rms_norm(T *destination, T const *source, T const *weight, i
                 __bang_reduce_sum(destSumFinal, destSum, wSize);
             }
             else{
-                for(int id = 0; id < dimsize; id++){
-                    destSumFinal[0] += destSum[id];
-                }
+                __memcpy(srcTmp, destSum, dimsize * sizeof(T), NRAM2NRAM);
+                __bang_reduce_sum(destSumFinal, srcTmp, wSize);
+                
             }
             destSumFinal[0] /= dimsize;
             destSumFinal[0] += eps;

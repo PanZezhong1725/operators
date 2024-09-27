@@ -76,11 +76,10 @@ def test(lib, handle, torch_device, y_shape, x_shape, w_shape, dtype=torch.float
             None,
         )
     )
-
     # print(ans)
     # print("=======================================================")
     # print(y)
-
+    
     assert torch.allclose(y.to(dtype), ans.to(dtype), atol=1e-3, rtol=1e-3)
     check_error(lib.infiniopDestroyRMSNormDescriptor(descriptor))
     print("Test passed!")

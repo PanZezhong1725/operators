@@ -27,7 +27,7 @@ static __global__ void rms_norm_padding(
     }
     __syncthreads();
 
-    *y = rms * x * (Tdata)w;
+    *y = rms * x * (Tdata) w;
 }
 
 template<unsigned int BLOCK_SIZE, unsigned int ITEMS_PER_THREAD, class Tdata, class Wdata>
@@ -112,11 +112,11 @@ static __global__ void rms_norm_standard(
     __syncthreads();
 
     for (int i = threadIdx.x; i < d; i += BLOCK_SIZE) {
-        y[i] = rms * x[i] * (Tdata)w[i];
+        y[i] = rms * x[i] * (Tdata) w[i];
     }
 }
 
-void rms_norm_nv_gpu_f16(RMSNormCudaDescriptor_t desc, void *y, void *x, void *w, void *stream) {
+void rms_norm_nv_gpu_f16(RMSNormCudaDescriptor_t desc, void *y, void const *x, void const *w, void *stream) {
     auto n = desc->n, d = desc->d;
     auto y_ = reinterpret_cast<half *>(y);
     auto x_ = reinterpret_cast<half const *>(x);
@@ -157,14 +157,14 @@ void rms_norm_nv_gpu_f16(RMSNormCudaDescriptor_t desc, void *y, void *x, void *w
 }
 
 infiniopStatus_t cudaRMSNorm(RMSNormCudaDescriptor_t desc,
-                                   void *workspace,
-                                   unsigned long int workspace_size,
-                                   void *y, void *x, void *w,
-                                   void *stream){
-    if(cudaSetDevice(desc->device_id) != cudaSuccess){
+                             void *workspace,
+                             unsigned long int workspace_size,
+                             void *y, void const *x, void const *w,
+                             void *stream) {
+    if (cudaSetDevice(desc->device_id) != cudaSuccess) {
         return STATUS_BAD_DEVICE;
     }
-    if (dtype_eq(desc->dtype, F16)){
+    if (dtype_eq(desc->dtype, F16)) {
         rms_norm_nv_gpu_f16(desc, y, x, w, stream);
         return STATUS_SUCCESS;
     }

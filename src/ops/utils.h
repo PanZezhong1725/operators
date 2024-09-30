@@ -3,6 +3,8 @@
 
 #include "data_type.h"
 #include "tensor.h"
+#include <algorithm>
+#include <numeric>
 #include <stdio.h>
 #include <stdlib.h>
 #include <vector>
@@ -26,6 +28,13 @@ inline void assert_true(int expr, const char *msg, const char *file, int line) {
     exit(EXIT_FAILURE)
 
 #define ROUND_UP_DIV(x, y) ((x + y - 1) / y)
+
+#define CHECK_STATUS(call, target)                    \
+    do {                                              \
+        if (auto value = (call); value == (target)) { \
+            return (value);                           \
+        }                                             \
+    } while (0)
 
 #define CHECK_ERROR(call, target, errCode)            \
     do {                                              \
@@ -115,5 +124,95 @@ inline bool isValidBroadcastShape(infiniopTensorDescriptor_t a, infiniopTensorDe
     return isValidBroadcastShape(a, b, c, broadcast_shape, padded_shape1, padded_shape2, broadcast_ndim);
 }
 
+inline uint64_t get_byte_size(infiniopTensorDescriptor_t desc) {
+    uint64_t dsize = desc->dt.size;
+    uint64_t size = 1;
+    for (uint64_t i = 0; i < desc->ndim; i++) {
+        size *= desc->shape[i];
+    }
+    return size * dsize;
+}
+
+// permute the dimensions of a tensor descriptor
+inline void permute(infiniopTensorDescriptor_t desc, const std::vector<uint64_t> &order) {
+    uint64_t ndim = desc->ndim;
+    ASSERT_EQ(order.size(), ndim);
+    uint64_t *shape = new uint64_t[ndim];
+    int64_t *strides = new int64_t[ndim];
+    for (int i = 0; i < ndim; i++) {
+        ASSERT(std::find(order.begin(), order.end(), i) != order.end());
+        shape[i] = desc->shape[order[i]];
+        strides[i] = desc->strides[order[i]];
+    }
+    delete[] desc->shape;
+    delete[] desc->strides;
+    desc->shape = shape;
+    desc->strides = strides;
+}
+
+// merge the dimensions [dim_start, dim_end] of a tensor descriptor
+inline void dim_merge(infiniopTensorDescriptor_t desc, uint64_t dim_start, uint64_t dim_end) {
+    uint64_t ndim = desc->ndim;
+    ASSERT(dim_start <= dim_end && dim_end < ndim);
+    if (dim_start == dim_end)
+        return;
+
+    uint64_t *new_shape = new uint64_t[ndim - (dim_end - dim_start + 1)];
+    int64_t *new_strides = new int64_t[ndim - (dim_end - dim_start + 1)];
+    uint64_t index = 0;
+    for (size_t i = 0; i < dim_start; i++) {
+        new_shape[index] = desc->shape[i];
+        new_strides[index] = desc->strides[i];
+        index++;
+    }
+    for (size_t i = dim_start + 1; i <= dim_end; i++) {
+        ASSERT_EQ(desc->strides[i - 1], desc->shape[i] * desc->strides[i]);
+    }
+    new_shape[index] = 1;
+    for (size_t i = dim_start; i <= dim_end; i++) {
+        new_shape[index] *= desc->shape[i];
+    }
+    new_strides[index] = desc->strides[dim_end];
+    index++;
+    for (size_t i = dim_end + 1; i < ndim; i++) {
+        new_shape[index] = desc->shape[i];
+        new_strides[index] = desc->strides[i];
+        index++;
+    }
+    delete[] desc->shape;
+    delete[] desc->strides;
+    desc->shape = new_shape;
+    desc->strides = new_strides;
+    desc->ndim = ndim - (dim_end - dim_start + 1);
+}
+
+// split the dimension dim of a tensor descriptor into multiple dimensions
+inline void dim_split(infiniopTensorDescriptor_t desc, uint64_t dim, const std::vector<uint64_t> &dims) {
+    uint64_t ndim = desc->ndim;
+    ASSERT_EQ(desc->shape[dim], std::accumulate(dims.begin(), dims.end(), 1, std::multiplies<uint64_t>()));
+    uint64_t *new_shape = new uint64_t[ndim + dims.size()];
+    int64_t *new_strides = new int64_t[ndim + dims.size()];
+    uint64_t index = 0;
+    for (size_t i = 0; i < dim; i++) {
+        new_shape[index] = desc->shape[i];
+        new_strides[index] = desc->strides[i];
+        index++;
+    }
+    for (size_t i = 0; i < dims.size(); i++) {
+        new_shape[index] = dims[i];
+        new_strides[index] = desc->strides[dim] / std::accumulate(dims.begin(), dims.begin() + i, 1, std::multiplies<uint64_t>());
+        index++;
+    }
+    for (size_t i = dim + 1; i < ndim; i++) {
+        new_shape[index] = desc->shape[i];
+        new_strides[index] = desc->strides[i];
+        index++;
+    }
+    delete[] desc->shape;
+    delete[] desc->strides;
+    desc->shape = new_shape;
+    desc->strides = new_strides;
+    desc->ndim = ndim + dims.size();
+}
 
 #endif// __UTILS_H__

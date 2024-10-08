@@ -5,7 +5,15 @@ __C __export infiniopStatus_t infiniopCreateTensorDescriptor(infiniopTensorDescr
     uint64_t *shape = new uint64_t[ndim];
     int64_t *strides = new int64_t[ndim];
     std::memcpy(shape, shape_, ndim * sizeof(uint64_t));
-    std::memcpy(strides, strides_, ndim * sizeof(int64_t));
+    if (strides_) {
+        std::memcpy(strides, strides_, ndim * sizeof(int64_t));
+    } else {
+        int64_t dsize = 1;
+        for (int i = ndim - 1; i >= 0; i--) {
+            strides[i] = dsize;
+            dsize *= shape[i];
+        }
+    }
     *desc_ptr = new TensorDescriptor{datatype, ndim, shape, strides};
     return STATUS_SUCCESS;
 }

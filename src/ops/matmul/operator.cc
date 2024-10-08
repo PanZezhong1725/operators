@@ -70,7 +70,7 @@ __C infiniopStatus_t infiniopMatmul(infiniopMatmulDescriptor_t desc, void *works
     return STATUS_BAD_DEVICE;
 }
 
-infiniopStatus_t infiniopDestroyMatmulDescriptor(infiniopMatmulDescriptor_t desc) {
+__C infiniopStatus_t infiniopDestroyMatmulDescriptor(infiniopMatmulDescriptor_t desc) {
     switch (desc->device) {
 #ifdef ENABLE_CPU
         case DevCpu:

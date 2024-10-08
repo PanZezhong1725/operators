@@ -37,6 +37,13 @@ inline void assert_true(int expr, const char *msg, const char *file, int line) {
     expr;                                                \
     CHECK_ERROR(value, target, errCode)
 
+#define CHECK_STATUS(call, target)                    \
+    do {                                              \
+        if (auto value = (call); value != (target)) { \
+            return value;                             \
+        }                                             \
+    } while (0)
+
 // check if two data layouts (types) are equal
 inline bool dtype_eq(DataLayout a, DataLayout b) {
     union TypePun {
@@ -115,5 +122,14 @@ inline bool isValidBroadcastShape(infiniopTensorDescriptor_t a, infiniopTensorDe
     return isValidBroadcastShape(a, b, c, broadcast_shape, padded_shape1, padded_shape2, broadcast_ndim);
 }
 
+
+inline uint64_t get_byte_size(infiniopTensorDescriptor_t desc) {
+    uint64_t dsize = desc->dt.size;
+    uint64_t size = 1;
+    for (uint64_t i = 0; i < desc->ndim; i++) {
+        size *= desc->shape[i];
+    }
+    return size * dsize;
+}
 
 #endif// __UTILS_H__

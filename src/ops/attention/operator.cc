@@ -49,8 +49,8 @@ __C __export infiniopStatus_t infiniopCreateAttentionDescriptor(infiniopHandle_t
     uint64_t total_seq_len = seq_len + pos;
     uint64_t n_group = n_q_head / n_kv_head;
 
-    // out: [n_q_head, seq_len, head_dim]
-    if (out_desc->shape[0] != n_q_head || out_desc->shape[1] != seq_len || out_desc->shape[2] != head_dim) {
+    // out: [seq_len, n_q_head, head_dim]
+    if (out_desc->shape[0] != seq_len || out_desc->shape[1] != n_q_head || out_desc->shape[2] != head_dim) {
         return STATUS_BAD_PARAM;
     }
 
@@ -70,7 +70,7 @@ __C __export infiniopStatus_t infiniopCreateAttentionDescriptor(infiniopHandle_t
     }
 
     // v_cache: [n_kv_head, _, head_dim]
-    if (v_cache_desc->shape[1] != n_kv_head || v_cache_desc->shape[1] < total_seq_len || v_cache_desc->shape[2] != head_dim) {
+    if (v_cache_desc->shape[0] != n_kv_head || v_cache_desc->shape[1] < total_seq_len || v_cache_desc->shape[2] != head_dim) {
         return STATUS_BAD_PARAM;
     }
 
@@ -103,7 +103,7 @@ __C __export infiniopStatus_t infiniopCreateAttentionDescriptor(infiniopHandle_t
     CHECK_STATUS(infiniopCreateTensorDescriptor(&qk_desc, 3, qk_shape, nullptr, q_desc->dt), STATUS_SUCCESS);
     //      matmul1_desc
     infiniopMatmulDescriptor_t matmul1_desc = new MatmulDescriptor;
-    CHECK_STATUS(infiniopCreateMatmulDescriptor(handle, &matmul1_desc, qk_desc, q_desc, full_k_desc), STATUS_SUCCESS);
+    CHECK_STATUS(infiniopCreateMatmulDescriptor(handle, &matmul1_desc, qk_desc, reshaped_q_desc, full_k_desc), STATUS_SUCCESS);
     //      matmul1 workspace size
     uint64_t matmul1_workspace_size;
     CHECK_STATUS(infiniopGetMatmulWorkspaceSize(matmul1_desc, &matmul1_workspace_size), STATUS_SUCCESS);
@@ -137,10 +137,11 @@ __C __export infiniopStatus_t infiniopCreateAttentionDescriptor(infiniopHandle_t
     uint64_t matmul2_tensor_size = get_byte_size(temp_out_desc);
 
     // Rearrange temp_out into out
-    //      out: [n_q_head, seq_len, head_dim]
-    //      temp_out: [n_kv_head, n_group * seq_len, head_dim]
-    dim_split(temp_out_desc, 0, {n_kv_head, n_group});
-    dim_merge(temp_out_desc, 1, 2);
+    //      out: [seq_len, n_q_head, head_dim]
+    //      temp_out: [n_kv_head, n_group * seq_len, head_dim] -> [n_q_head, seq_len, head_dim] -> [seq_len, n_q_head, head_dim]
+    dim_split(temp_out_desc, 1, {n_group, seq_len});
+    dim_merge(temp_out_desc, 0, 1);
+    permute(temp_out_desc, {1, 0, 2});
     infiniopRearrangeDescriptor_t rearrange_desc_out = new RearrangeDescriptor;
     CHECK_STATUS(infiniopCreateRearrangeDescriptor(handle, &rearrange_desc_out, out_desc, temp_out_desc), STATUS_SUCCESS);
 
@@ -152,13 +153,13 @@ __C __export infiniopStatus_t infiniopCreateAttentionDescriptor(infiniopHandle_t
     // k_cache_offset
     uint64_t k_cache_offset = 0;
     if (pos > 0) {
-        k_cache_offset = pos * k_cache_desc->strides[0] * k_cache_desc->strides[1];
+        k_cache_offset = pos * get_byte_strides(k_cache_desc)[1];
     }
 
     // v_cache_offset
     uint64_t v_cache_offset = 0;
     if (pos > 0) {
-        v_cache_offset = pos * v_cache_desc->strides[0] * v_cache_desc->strides[1];
+        v_cache_offset = pos * get_byte_strides(v_cache_desc)[1];
     }
 
     // qk_alpha
@@ -211,6 +212,7 @@ __C __export infiniopStatus_t infiniopAttention(infiniopAttentionDescriptor_t de
     CHECK_STATUS(infiniopRearrange(_desc->rearrange_desc_k,
                                    (char *) k_cache + _desc->k_cache_offset, k, stream),
                  STATUS_SUCCESS);
+
     CHECK_STATUS(infiniopRearrange(_desc->rearrange_desc_v,
                                    (char *) v_cache + _desc->v_cache_offset, v, stream),
                  STATUS_SUCCESS);
@@ -228,7 +230,7 @@ __C __export infiniopStatus_t infiniopAttention(infiniopAttentionDescriptor_t de
     CHECK_STATUS(infiniopMatmul(_desc->matmul_desc2,
                                 (char *) workspace + _desc->matmul1_tensor_size + _desc->matmul2_tensor_size,
                                 workspace_size - _desc->matmul1_tensor_size - _desc->matmul2_tensor_size,
-                                out, workspace, v_cache, 1, 0, stream),
+                                (char *) workspace + _desc->matmul1_tensor_size, workspace, v_cache, 1, 0, stream),
                  STATUS_SUCCESS);
     // rearrange out
     CHECK_STATUS(infiniopRearrange(_desc->rearrange_desc_out, out, (char *) workspace + _desc->matmul1_tensor_size, stream), STATUS_SUCCESS);

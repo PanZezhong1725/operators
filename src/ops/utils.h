@@ -31,8 +31,8 @@ inline void assert_true(int expr, const char *msg, const char *file, int line) {
 
 #define CHECK_STATUS(call, target)                    \
     do {                                              \
-        if (auto value = (call); value == (target)) { \
-            return (value);                           \
+        if (auto value = (call); value != (target)) { \
+            return value;                             \
         }                                             \
     } while (0)
 
@@ -157,8 +157,9 @@ inline void dim_merge(infiniopTensorDescriptor_t desc, uint64_t dim_start, uint6
     if (dim_start == dim_end)
         return;
 
-    uint64_t *new_shape = new uint64_t[ndim - (dim_end - dim_start + 1)];
-    int64_t *new_strides = new int64_t[ndim - (dim_end - dim_start + 1)];
+    uint64_t new_ndim = ndim - (dim_end - dim_start);
+    uint64_t *new_shape = new uint64_t[new_ndim];
+    int64_t *new_strides = new int64_t[new_ndim];
     uint64_t index = 0;
     for (size_t i = 0; i < dim_start; i++) {
         new_shape[index] = desc->shape[i];
@@ -183,15 +184,16 @@ inline void dim_merge(infiniopTensorDescriptor_t desc, uint64_t dim_start, uint6
     delete[] desc->strides;
     desc->shape = new_shape;
     desc->strides = new_strides;
-    desc->ndim = ndim - (dim_end - dim_start + 1);
+    desc->ndim = new_ndim;
 }
 
 // split the dimension dim of a tensor descriptor into multiple dimensions
 inline void dim_split(infiniopTensorDescriptor_t desc, uint64_t dim, const std::vector<uint64_t> &dims) {
     uint64_t ndim = desc->ndim;
     ASSERT_EQ(desc->shape[dim], std::accumulate(dims.begin(), dims.end(), 1, std::multiplies<uint64_t>()));
-    uint64_t *new_shape = new uint64_t[ndim + dims.size()];
-    int64_t *new_strides = new int64_t[ndim + dims.size()];
+    uint64_t new_ndim = ndim + dims.size() - 1;
+    uint64_t *new_shape = new uint64_t[new_ndim];
+    int64_t *new_strides = new int64_t[new_ndim];
     uint64_t index = 0;
     for (size_t i = 0; i < dim; i++) {
         new_shape[index] = desc->shape[i];
@@ -200,7 +202,7 @@ inline void dim_split(infiniopTensorDescriptor_t desc, uint64_t dim, const std::
     }
     for (size_t i = 0; i < dims.size(); i++) {
         new_shape[index] = dims[i];
-        new_strides[index] = desc->strides[dim] / std::accumulate(dims.begin(), dims.begin() + i, 1, std::multiplies<uint64_t>());
+        new_strides[index] = desc->strides[dim] * desc->shape[dim] / std::accumulate(dims.begin(), dims.begin() + i + 1, 1, std::multiplies<uint64_t>());
         index++;
     }
     for (size_t i = dim + 1; i < ndim; i++) {
@@ -212,7 +214,7 @@ inline void dim_split(infiniopTensorDescriptor_t desc, uint64_t dim, const std::
     delete[] desc->strides;
     desc->shape = new_shape;
     desc->strides = new_strides;
-    desc->ndim = ndim + dims.size();
+    desc->ndim = new_ndim;
 }
 
 #endif// __UTILS_H__

@@ -3,6 +3,7 @@
 
 #include "device.h"
 #include "status.h"
+#include "operators.h"
 
 struct CpuContext {
     Device device;

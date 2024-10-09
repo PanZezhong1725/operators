@@ -13,8 +13,10 @@ typedef MatmulDescriptor *infiniopMatmulDescriptor_t;
 __C __export infiniopStatus_t infiniopCreateMatmulDescriptor(infiniopHandle_t handle,
                                                              infiniopMatmulDescriptor_t *desc_ptr,
                                                              infiniopTensorDescriptor_t c_desc,
+                                                             float alpha,
                                                              infiniopTensorDescriptor_t a_desc,
-                                                             infiniopTensorDescriptor_t b_desc);
+                                                             infiniopTensorDescriptor_t b_desc,
+                                                             float beta);
 
 __C __export infiniopStatus_t infiniopGetMatmulWorkspaceSize(infiniopMatmulDescriptor_t desc, uint64_t *size);
 
@@ -24,8 +26,6 @@ __C __export infiniopStatus_t infiniopMatmul(infiniopMatmulDescriptor_t desc,
                                              void *c,
                                              void const *a,
                                              void const *b,
-                                             float alpha,
-                                             float beta,
                                              void *stream);
 
 __C __export infiniopStatus_t infiniopDestroyMatmulDescriptor(infiniopMatmulDescriptor_t desc);

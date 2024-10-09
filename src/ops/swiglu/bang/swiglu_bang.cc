@@ -1,5 +1,5 @@
 #include "swiglu_bang.h"
-#include "../../utils.h"
+#include "../../../utils.h"
 
 infiniopStatus_t bangCreateSwiGLUDescriptor(BangHandle_t handle,
                                             SwiGLUBangDescriptor_t *desc_ptr,

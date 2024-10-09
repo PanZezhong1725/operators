@@ -1,6 +1,6 @@
 #include "rearrange.cuh"
 #include "../../../devices/cuda/common_cuda.h"
-#include "../../utils.h"
+#include "../../../utils.h"
 #include <numeric>
 
 infiniopStatus_t cudaCreateRearrangeDescriptor(CudaHandle_t handle,

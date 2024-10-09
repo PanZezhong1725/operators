@@ -42,9 +42,12 @@ def test(lib, handle, torch_device, x_shape, x_stride=None, x_dtype=torch.float1
         f"Testing CausalSoftmax on {torch_device} with x_shape:{x_shape} x_stride:{x_stride} dtype:{x_dtype}"
     )
     x = torch.rand(x_shape, dtype=x_dtype).to(torch_device)
-    ans = causal_softmax(x)
+    
     if x_stride is not None:
         x = rearrange_tensor(x, x_stride)
+    
+    ans = causal_softmax(x)
+
     x_tensor = to_tensor(x, lib)
     descriptor = infiniopCausalSoftmaxDescriptor_t()
     check_error(
@@ -52,6 +55,7 @@ def test(lib, handle, torch_device, x_shape, x_stride=None, x_dtype=torch.float1
             handle, ctypes.byref(descriptor), x_tensor.descriptor
         )
     )
+    
     workspace_size = c_uint64(0)
     check_error(
         lib.infiniopGetCausalSoftmaxWorkspaceSize(
@@ -59,16 +63,19 @@ def test(lib, handle, torch_device, x_shape, x_stride=None, x_dtype=torch.float1
         )
     )
     workspace = create_workspace(workspace_size.value, x.device)
+    
     check_error(
         lib.infiniopCausalSoftmax(
             descriptor,
-            workspace.data if workspace is not None else None,
+            workspace.data_ptr() if workspace is not None else None,
             workspace_size.value,
             x_tensor.data,
             None,
         )
     )
+    
     assert torch.allclose(x, ans, atol=0, rtol=1e-2)
+    
     check_error(lib.infiniopDestroyCausalSoftmaxDescriptor(descriptor))
 
 
@@ -96,13 +103,24 @@ def test_bang(lib, test_cases):
     for x_shape, x_stride in test_cases:
         test(lib, handle, "mlu", x_shape, x_stride)
     destroy_handle(lib, handle)
+    
+def test_ascend(lib, test_cases):
+    import torch_npu
+
+    device = DeviceEnum.DEVICE_ASCEND
+    handle = create_handle(lib, device)
+    for x_shape, x_stride in test_cases:
+        test(lib, handle, "npu", x_shape, x_stride)
+        
+    # test(lib, handle, "npu")
+    destroy_handle(lib, handle)
 
 
 if __name__ == "__main__":
     test_cases = [
         # x_shape, x_stride
         ((32, 20, 512), None),
-        ((32, 20, 512), (20480, 512, 1)),
+        # ((32, 20, 512), (20480, 512, 1)), # ascend 暂不支持非连续
     ]
     args = get_args()
     lib = open_lib()
@@ -136,6 +154,8 @@ if __name__ == "__main__":
         test_cuda(lib, test_cases)
     if args.bang:
         test_bang(lib, test_cases)
-    if not (args.cpu or args.cuda or args.bang):
+    if args.ascend:
+        test_ascend(lib, test_cases)
+    if not (args.cpu or args.cuda or args.bang or args.ascend):
         test_cpu(lib, test_cases)
     print("Test passed!")

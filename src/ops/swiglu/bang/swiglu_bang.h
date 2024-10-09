@@ -2,7 +2,7 @@
 #define __BANG_SWIGLU_H__
 
 #include "../../../devices/bang/bang_handle.h"
-#include "../../utils.h"
+#include "../../../utils.h"
 #include "operators.h"
 
 struct SwiGLUBangDescriptor {

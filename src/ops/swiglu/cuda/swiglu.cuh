@@ -1,7 +1,7 @@
 #ifndef __CUDA_SWIGLU_H__
 #define __CUDA_SWIGLU_H__
 #include "../../../devices/cuda/cuda_handle.h"
-#include "../../utils.h"
+#include "../../../utils.h"
 #include "operators.h"
 
 struct SwiGLUCudaDescriptor {

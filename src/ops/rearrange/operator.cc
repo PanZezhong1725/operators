@@ -1,4 +1,4 @@
-#include "../utils.h"
+#include "../../utils.h"
 #include "operators.h"
 #include "ops/rearrange/rearrange.h"
 
@@ -14,6 +14,9 @@
 #include "bang/rearrange_bang.h"
 #include "bang/rearrange_cnnl.h"
 #endif
+#ifdef ENABLE_ASCEND_NPU
+#include "ascend/rearrange_aclnn.h"
+#endif
 
 __C infiniopStatus_t infiniopCreateRearrangeDescriptor(
     infiniopHandle_t handle,
@@ -27,12 +30,20 @@ __C infiniopStatus_t infiniopCreateRearrangeDescriptor(
 #endif
 #ifdef ENABLE_NV_GPU
         case DevNvGpu: {
-            return cudaCreateRearrangeDescriptor((CudaHandle_t)handle, (RearrangeCudaDescriptor_t *) desc_ptr, dst, src);
+            return cudaCreateRearrangeDescriptor((CudaHandle_t) handle, (RearrangeCudaDescriptor_t *) desc_ptr, dst, src);
         }
 
 #endif
 #ifdef ENABLE_CAMBRICON_MLU
         // TODO
+#endif
+#ifdef ENABLE_ASCEND_NPU
+        case DevAscendNpu: {
+            return aclnnCreateRearrangeDescriptor((AscendHandle_t) handle,
+                                                  (RearrangeAclnnDescriptor_t *) desc_ptr,
+                                                  dst,
+                                                  src);
+        }
 #endif
     }
     return STATUS_BAD_DEVICE;
@@ -53,6 +64,14 @@ __C infiniopStatus_t infiniopRearrange(infiniopRearrangeDescriptor_t desc, void 
 #ifdef ENABLE_CAMBRICON_MLU
         // TODO
 #endif
+#ifdef ENABLE_ASCEND_NPU
+        case DevAscendNpu: {
+            return aclnnRearrange((RearrangeAclnnDescriptor_t) desc,
+                                  dst,
+                                  src,
+                                  stream);
+        }
+#endif
     }
     return STATUS_BAD_DEVICE;
 }
@@ -71,6 +90,11 @@ __C infiniopStatus_t infiniopDestroyRearrangeDescriptor(infiniopRearrangeDescrip
 #endif
 #ifdef ENABLE_CAMBRICON_MLU
         // TODO
+#endif
+#ifdef ENABLE_ASCEND_NPU
+        case DevAscendNpu: {
+            return aclnnDestroyRearrangeDescriptor((RearrangeAclnnDescriptor_t) desc);
+        }
 #endif
     }
     return STATUS_BAD_DEVICE;

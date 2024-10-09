@@ -23,6 +23,13 @@ option("cambricon-mlu")
     add_defines("ENABLE_CAMBRICON_MLU")
 option_end()
 
+option("ascend-npu")
+    set_default(false)
+    set_showmenu(true)
+    set_description("Enable or disable Ascend NPU kernel")
+    add_defines("ENABLE_ASCEND_NPU")
+option_end()
+
 if is_mode("debug") then
     add_cxflags("-g -O0")
     add_defines("DEBUG_MODE")
@@ -40,8 +47,8 @@ if has_config("cpu") then
 
         set_languages("cxx17")
         add_files("src/devices/cpu/*.cc", "src/ops/*/cpu/*.cc")
-        add_cxflags("-fopenmp")
-        add_ldflags("-fopenmp")
+        -- add_cxflags("-fopenmp")
+        -- add_ldflags("-fopenmp")
     target_end()
 
 end
@@ -121,7 +128,48 @@ rule_end()
 
 end
 
+
+if has_config("ascend-npu") then
+
+    add_defines("ENABLE_ASCEND_NPU")
+    local ASCEND_HOME = os.getenv("ASCEND_HOME")
+    local SOC_VERSION = os.getenv("SOC_VERSION")
+
+    -- Add include dirs
+    add_includedirs(ASCEND_HOME .. "/include")
+    add_includedirs(ASCEND_HOME .. "/include/aclnn")
+    add_linkdirs(ASCEND_HOME .. "/lib64")
+    add_links("libascendcl.so")
+    add_links("libnnopbase.so")
+    add_links("libopapi.so")
+    add_links("libruntime.so")  
+    add_linkdirs(ASCEND_HOME .. "/../../driver/lib64/driver")
+    add_links("libascend_hal.so")
+    
+    
+    target("ascend-npu")
+        -- Other configs
+        set_kind("static")
+        set_languages("cxx17")
+        -- Add files
+        add_files("src/devices/ascend/*.cc", "src/ops/*/ascend/*.cc")
+        
+        -- Add operator 
+        add_linkdirs("src/ops/swiglu/ascend/build/lib")
+        add_linkdirs("src/ops/rotary_embedding/ascend/build/lib")
+        add_links("libswiglu.so")
+        add_links("librope.so")
+
+        add_rpathdirs("src/ops/swiglu/ascend/build/lib")
+        add_rpathdirs("src/ops/rotary_embedding/ascend/build/lib")
+        
+        add_cxflags("-lstdc++ -Wall -Werror -fPIC")
+
+    target_end()
+end
+
 target("operators")
+
     set_kind("shared")
 
     if has_config("cpu") then
@@ -133,6 +181,10 @@ target("operators")
     if has_config("cambricon-mlu") then
         add_deps("cambricon-mlu")
     end
+    if has_config("ascend-npu") then
+        add_deps("ascend-npu")
+    end
+
     set_languages("cxx17")
     add_files("src/devices/handle.cc")
     add_files("src/ops/*/operator.cc")

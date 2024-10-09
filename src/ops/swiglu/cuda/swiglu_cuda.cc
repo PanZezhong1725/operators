@@ -1,5 +1,5 @@
 #include "../../../devices/cuda/common_cuda.h"
-#include "../../utils.h"
+#include "../../../utils.h"
 #include "swiglu.cuh"
 
 infiniopStatus_t cudaCreateSwiGLUDescriptor(CudaHandle_t handle,

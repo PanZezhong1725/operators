@@ -8,6 +8,9 @@
 #ifdef ENABLE_CAMBRICON_MLU
 #include "./bang/bang_handle.h"
 #endif
+#ifdef ENABLE_ASCEND_NPU
+#include "./ascend/ascend_handle.h"
+#endif
 
 
 __C infiniopStatus_t infiniopCreateHandle(infiniopHandle_t *handle_ptr, Device device, int device_id) {
@@ -33,6 +36,11 @@ __C infiniopStatus_t infiniopCreateHandle(infiniopHandle_t *handle_ptr, Device d
             return createBangHandle((BangHandle_t *) handle_ptr, device_id);
         }
 #endif
+#ifdef ENABLE_ASCEND_NPU
+        case DevAscendNpu: {
+            return createAscendHandle((AscendHandle_t *) handle_ptr, device_id);
+        }
+#endif
     }
     return STATUS_BAD_DEVICE;
 }
@@ -54,6 +62,11 @@ __C infiniopStatus_t infiniopDestroyHandle(infiniopHandle_t handle) {
         case DevCambriconMlu: {
             delete (BangHandle_t) handle;
             return STATUS_SUCCESS;
+        }
+#endif
+#ifdef ENABLE_ASCEND_NPU
+        case DevAscendNpu: {
+            return deleteAscendHandle((AscendHandle_t) handle);
         }
 #endif
     }

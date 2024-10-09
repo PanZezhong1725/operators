@@ -3,6 +3,7 @@ import ctypes
 import sys
 import os
 
+
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 from operatorspy import (
     open_lib,
@@ -26,6 +27,12 @@ class RMSNormDescriptor(Structure):
 
 infiniopRMSNormDescriptor_t = POINTER(RMSNormDescriptor)
 
+class RMSNormDescriptor(Structure):
+    _fields_ = [("device", c_int32)]
+    
+infiniopRMSNormDescriptor_t = POINTER(RMSNormDescriptor)
+
+
 def rms_norm(x, w, eps):
     input_dtype = x.dtype
     hidden_states = x.to(torch.float32)
@@ -41,16 +48,14 @@ def test(lib, handle, torch_device, y_shape, x_shape, w_shape, dtype=torch.float
     y = torch.zeros(y_shape, dtype=dtype).to(torch_device)
     x = torch.rand(x_shape, dtype=dtype).to(torch_device)
     w = torch.ones(w_shape, dtype=w_dtype).to(torch_device)
-
+    eps = 1e-5
+    ans = rms_norm(x, w, eps)
+    
     y_tensor = to_tensor(y, lib)
     x_tensor = to_tensor(x, lib)
     w_tensor = to_tensor(w, lib)
 
-    eps = 1e-5
-    ans = rms_norm(x, w, eps)
-
     descriptor = infiniopRMSNormDescriptor_t()
-    w_dataType = 0 if w_dtype==torch.float16 else 1
 
     check_error(
         lib.infiniopCreateRMSNormDescriptor(
@@ -77,10 +82,6 @@ def test(lib, handle, torch_device, y_shape, x_shape, w_shape, dtype=torch.float
         )
     )
 
-    # print(ans)
-    # print("=======================================================")
-    # print(y)
-
     assert torch.allclose(y.to(dtype), ans.to(dtype), atol=1e-3, rtol=1e-3)
     check_error(lib.infiniopDestroyRMSNormDescriptor(descriptor))
     print("Test passed!")
@@ -106,6 +107,17 @@ def test_bang(lib, test_cases):
     for (y_shape, x_shape, w_shape, dtype, w_dtype) in test_cases:
         test(lib, handle, "mlu", y_shape, x_shape, w_shape, dtype, w_dtype)
     destroy_handle(lib, handle)
+
+
+def test_ascend(lib, test_cases):
+    import torch_npu
+    device = DeviceEnum.DEVICE_ASCEND
+    handle = create_handle(lib, device)
+    for (y_shape, x_shape, w_shape, dtype, w_dtype) in test_cases:
+        test(lib, handle, "npu", y_shape, x_shape, w_shape, dtype, w_dtype)
+    
+    destroy_handle(lib, handle)
+    
 
 
 if __name__ == "__main__":
@@ -142,6 +154,11 @@ if __name__ == "__main__":
         c_void_p,
         c_void_p,
     ]
+    
+    lib.infiniopDestroyRMSNormDescriptor.restype = c_int32
+    lib.infiniopDestroyRMSNormDescriptor.argtypes = [
+        infiniopRMSNormDescriptor_t,
+    ]
     lib.infiniopDestroyRMSNormDescriptor.restype = c_int32
     lib.infiniopDestroyRMSNormDescriptor.argtypes = [
         infiniopRMSNormDescriptor_t,
@@ -153,5 +170,7 @@ if __name__ == "__main__":
         test_cuda(lib, test_cases)
     if args.bang:
         test_bang(lib, test_cases)
-    if not (args.cpu or args.cuda or args.bang):
+    if args.ascend:
+        test_ascend(lib, test_cases)
+    if not (args.cpu or args.cuda or args.bang or args.ascend):
         test_cpu(lib, test_cases)

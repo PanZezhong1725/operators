@@ -1,6 +1,6 @@
 #include "rotary_embedding.cuh"
 #include "../../../devices/cuda/common_cuda.h"
-#include "../../utils.h"
+#include "../../../utils.h"
 
 infiniopStatus_t cudaCreateRoPEDescriptor(CudaHandle_t handle,
                                           RoPECudaDescriptor_t *desc_ptr,

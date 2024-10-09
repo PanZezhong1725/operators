@@ -1,5 +1,5 @@
 #include "causal_softmax.cuh"
-#include "../../utils.h"
+#include "../../../utils.h"
 #include "../../../devices/cuda/common_cuda.h"
 
 infiniopStatus_t cudaCreateCausalSoftmaxDescriptor(CudaHandle_t handle,

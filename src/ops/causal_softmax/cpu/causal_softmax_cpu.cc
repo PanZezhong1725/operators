@@ -1,6 +1,6 @@
 #include "causal_softmax_cpu.h"
 #include "../../../devices/cpu/common_cpu.h"
-#include "../../utils.h"
+#include "../../../utils.h"
 #include <algorithm>
 
 infiniopStatus_t cpuCreateCausalSoftmaxDescriptor(infiniopHandle_t,

@@ -3,7 +3,7 @@
 #include "cnrt.h"
 #include "swiglu_bang.h"
 #include "../../../devices/bang/common_bang.h"
-#include "../../utils.h"
+#include "../../../utils.h"
 
 const int SRC_MAX_SIZE = 1024 * 32;//至少大于等于128字节
 __nram__  char nram_buffer[NRAM_MAX_SIZE];

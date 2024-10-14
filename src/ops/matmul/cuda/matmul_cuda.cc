@@ -1,12 +1,14 @@
 #include "matmul_cuda.h"
 #include "../../../devices/cuda/common_cuda.h"
-#include "../../utils.h"
+#include "../../../utils.h"
 
 infiniopStatus_t cudaCreateMatmulDescriptor(CudaHandle_t handle,
                                             MatmulCudaDescriptor_t *desc_ptr,
                                             infiniopTensorDescriptor_t c_desc,
+                                            float alpha,
                                             infiniopTensorDescriptor_t a_desc,
-                                            infiniopTensorDescriptor_t b_desc) {
+                                            infiniopTensorDescriptor_t b_desc,
+                                            float beta) {
     DT dtype = c_desc->dt;
 
     if (!dtype_eq(dtype, F16)) {
@@ -24,7 +26,10 @@ infiniopStatus_t cudaCreateMatmulDescriptor(CudaHandle_t handle,
         dtype,
         handle->device_id,
         info,
-        handle->cublas_handles_t};
+        alpha,
+        beta,
+        handle->cublas_handles_t,
+        };
     return STATUS_SUCCESS;
 }
 
@@ -32,13 +37,11 @@ infiniopStatus_t cudaMatmul(MatmulCudaDescriptor_t desc,
                             void *workspace,
                             uint64_t workspace_size,
                             void *c,
-                            float beta,
                             void const *a,
                             void const *b,
-                            float alpha,
                             void *stream) {
     if (dtype_eq(desc->dtype, F16)) {
-        matmul_cuda_f16(desc, c, beta, a, b, alpha, stream);
+        matmul_cuda_f16(desc, c, desc->beta, a, b, desc->alpha, stream);
         return STATUS_SUCCESS;
     }
 

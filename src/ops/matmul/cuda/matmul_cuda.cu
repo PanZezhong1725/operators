@@ -1,5 +1,5 @@
 #include "../../../devices/cuda/cuda_handle.h"
-#include "../../utils.h"
+#include "../../../utils.h"
 #include "../blas.h"
 #include "matmul_cuda.h"
 #include <cublas_v2.h>

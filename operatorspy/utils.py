@@ -104,5 +104,6 @@ def rearrange_tensor(tensor, new_strides):
     # Copy the original data to the new tensor
     new_tensor.view(-1).index_add_(0, new_positions, tensor.view(-1))
     new_tensor.set_(new_tensor.untyped_storage(), offset, shape, tuple(new_strides))
+    # new_tensor.set_(new_tensor.storage(), offset, shape, tuple(new_strides))
 
     return new_tensor

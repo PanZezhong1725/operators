@@ -1,7 +1,7 @@
 ﻿#include "rms_norm_cnnl.h"
 #include "../../../devices/bang/common_bang.h"
 #include "../../../devices/bang/handle_pool.h"
-#include "../../utils.h"
+#include "../../../utils.h"
 #include "cnrt.h"
 
 RMSNormBangDescriptor::RMSNormBangDescriptor(Device device) {

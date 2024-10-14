@@ -1,5 +1,5 @@
 #include "causal_softmax_bang.h"
-#include "../../utils.h"
+#include "../../../utils.h"
 
 infiniopStatus_t bangCreateCausalSoftmaxDescriptor(BangHandle_t handle,
                                                    CausalSoftmaxBangDescriptor_t *desc_ptr,

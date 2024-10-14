@@ -1,5 +1,5 @@
 #include "../../../devices/cuda/common_cuda.h"
-#include "../../utils.h"
+#include "../../../utils.h"
 #include "swiglu.cuh"
 #include <cuda_fp16.h>
 

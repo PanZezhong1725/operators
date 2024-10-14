@@ -1,7 +1,7 @@
 #ifndef __BANG_RMS_NORM_H__
 #define __BANG_RMS_NORM_H__
 
-#include "../../utils.h"
+#include "../../../utils.h"
 #include "cnrt.h"
 #include "operators.h"
 

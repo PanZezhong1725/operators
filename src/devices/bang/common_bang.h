@@ -3,7 +3,7 @@
 
 #include "cnnl.h"
 #include "tensor.h"
-#include "../../ops/utils.h"
+#include "../../utils.h"
 #include <vector>
 
 const int NRAM_MAX_SIZE = 1024 * 256;//the maximum NRAM memory is 1024 * 768

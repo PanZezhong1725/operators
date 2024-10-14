@@ -1,4 +1,4 @@
-#include "../utils.h"
+#include "../../utils.h"
 #include "operators.h"
 #include "ops/causal_softmax/causal_softmax.h"
 
@@ -14,6 +14,9 @@
 #include "../../devices/bang/bang_handle.h"
 #include "bang/causal_softmax_bang.h"
 #include "bang/causal_softmax_cnnl.h"
+#endif
+#ifdef ENABLE_ASCEND_NPU
+#include "ascend/causal_softmax_aclnn.h"
 #endif
 
 __C infiniopStatus_t infiniopCreateCausalSoftmaxDescriptor(
@@ -38,11 +41,18 @@ __C infiniopStatus_t infiniopCreateCausalSoftmaxDescriptor(
         }
 
 #endif
+#ifdef ENABLE_ASCEND_NPU
+        case DevAscendNpu: {
+            return aclnnCreateCausalSoftmaxDescriptor((AscendHandle_t) handle, (CausalSoftmaxAclnnDescriptor_t *) desc_ptr, y_desc);
+        }
+#endif
     }
     return STATUS_BAD_DEVICE;
 }
 
-__C infiniopStatus_t infiniopGetCausalSoftmaxWorkspaceSize(infiniopCausalSoftmaxDescriptor_t desc, uint64_t *size) {
+__C infiniopStatus_t infiniopGetCausalSoftmaxWorkspaceSize(
+    infiniopCausalSoftmaxDescriptor_t desc,
+    uint64_t *size) {
     switch (desc->device) {
 #ifdef ENABLE_CPU
         case DevCpu:
@@ -61,11 +71,21 @@ __C infiniopStatus_t infiniopGetCausalSoftmaxWorkspaceSize(infiniopCausalSoftmax
         }
 
 #endif
+#ifdef ENABLE_ASCEND_NPU
+        case DevAscendNpu: {
+            return aclnnGetCausalSoftmaxWorkspaceSize((CausalSoftmaxAclnnDescriptor_t) desc, size);
+        }
+#endif
     }
     return STATUS_BAD_DEVICE;
 }
 
-__C infiniopStatus_t infiniopCausalSoftmax(infiniopCausalSoftmaxDescriptor_t desc, void *workspace, uint64_t workspace_size, void *data, void *stream) {
+__C infiniopStatus_t infiniopCausalSoftmax(
+    infiniopCausalSoftmaxDescriptor_t desc,
+    void *workspace,
+    uint64_t workspace_size,
+    void *data,
+    void *stream) {
     switch (desc->device) {
 #ifdef ENABLE_CPU
         case DevCpu:
@@ -84,11 +104,17 @@ __C infiniopStatus_t infiniopCausalSoftmax(infiniopCausalSoftmaxDescriptor_t des
         }
 
 #endif
+#ifdef ENABLE_ASCEND_NPU
+        case DevAscendNpu: {
+            return aclnnCausalSoftmax((CausalSoftmaxAclnnDescriptor_t) desc, workspace, workspace_size, data, stream);
+        }
+#endif
     }
     return STATUS_BAD_DEVICE;
 }
 
-__C infiniopStatus_t infiniopDestroyCausalSoftmaxDescriptor(infiniopCausalSoftmaxDescriptor_t desc) {
+__C infiniopStatus_t infiniopDestroyCausalSoftmaxDescriptor(
+    infiniopCausalSoftmaxDescriptor_t desc) {
     switch (desc->device) {
 #ifdef ENABLE_CPU
         case DevCpu:
@@ -106,6 +132,11 @@ __C infiniopStatus_t infiniopDestroyCausalSoftmaxDescriptor(infiniopCausalSoftma
             // return cnnlDestroyCausalSoftmaxDescriptor((CausalSoftmaxCnnlDescriptor_t) desc);
         }
 
+#endif
+#ifdef ENABLE_ASCEND_NPU
+        case DevAscendNpu: {
+            return aclnnDestroyCausalSoftmaxDescriptor((CausalSoftmaxAclnnDescriptor_t) desc);
+        }
 #endif
     }
     return STATUS_BAD_DEVICE;

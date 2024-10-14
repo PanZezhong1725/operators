@@ -1,7 +1,7 @@
 ﻿#include "causal_softmax_cnnl.h"
 #include "../../../devices/bang/bang_handle.h"
 #include "../../../devices/bang/common_bang.h"
-#include "../../utils.h"
+#include "../../../utils.h"
 #include "cnnl_extra.h"
 
 infiniopStatus_t cnnlCreateCausalSoftmaxDescriptor(BangHandle_t handle,

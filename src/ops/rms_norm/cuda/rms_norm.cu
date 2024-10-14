@@ -1,5 +1,5 @@
 ﻿#include "../../../devices/cuda/common_cuda.h"
-#include "../../utils.h"
+#include "../../../utils.h"
 #include "rms_norm.cuh"
 #include <cub/block/block_load.cuh>
 #include <cub/block/block_reduce.cuh>

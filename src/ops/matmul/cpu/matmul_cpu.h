@@ -9,6 +9,8 @@ typedef struct MatmulCpuDescriptor {
     Device device;
     DT dtype;
     MatmulInfo info;
+    float alpha;
+    float beta;
 } MatmulCpuDescriptor;
 
 typedef struct MatmulCpuDescriptor *MatmulCpuDescriptor_t;
@@ -16,8 +18,10 @@ typedef struct MatmulCpuDescriptor *MatmulCpuDescriptor_t;
 infiniopStatus_t cpuCreateMatmulDescriptor(CpuHandle_t handle,
                                            MatmulCpuDescriptor_t *desc_ptr,
                                            infiniopTensorDescriptor_t c_desc,
+                                           float alpha,
                                            infiniopTensorDescriptor_t a_desc,
-                                           infiniopTensorDescriptor_t b_desc);
+                                           infiniopTensorDescriptor_t b_desc,
+                                           float beta);
 
 infiniopStatus_t cpuGetMatmulWorkspaceSize(MatmulCpuDescriptor_t desc, uint64_t *size);
 
@@ -25,10 +29,8 @@ infiniopStatus_t cpuMatmul(MatmulCpuDescriptor_t desc,
                            void *workspace,
                            uint64_t workspace_size,
                            void *c,
-                           float beta,
                            void const *a,
-                           void const *b,
-                           float alpha);
+                           void const *b);
 
 infiniopStatus_t cpuDestroyMatmulDescriptor(MatmulCpuDescriptor_t desc);
 

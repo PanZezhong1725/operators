@@ -41,12 +41,15 @@ def test(
     print(
         f"Testing Rerrange on {torch_device} with x_shape:{x_shape} x_stride:{x_stride} y_shape:{y_shape} y_stride:{y_stride} x_dtype:{x_dtype}"
     )
+
     x = torch.rand(x_shape, dtype=x_dtype).to(torch_device)
     y = torch.zeros(y_shape, dtype=x_dtype).to(torch_device)
+
     if x_stride is not None:
         x = rearrange_tensor(x, x_stride)
     if y_stride is not None:
         y = rearrange_tensor(y, y_stride)
+    
     x_tensor = to_tensor(x, lib)
     y_tensor = to_tensor(y, lib)
 
@@ -80,6 +83,17 @@ def test_cuda(lib, test_cases):
         y_shape, y_stride = test_case[1]
         test(lib, handle, "cuda", x_shape, x_stride, y_shape, y_stride)
     destroy_handle(lib, handle)
+    
+def test_ascend(lib, test_cases):
+    import torch_npu
+    
+    device = DeviceEnum.DEVICE_ASCEND
+    handle = create_handle(lib, device)
+    for test_case in test_cases:
+        x_shape, x_stride = test_case[0]
+        y_shape, y_stride = test_case[1]
+        test(lib, handle, "npu", x_shape, x_stride, y_shape, y_stride)
+    destroy_handle(lib, handle) 
 
 
 if __name__ == "__main__":
@@ -108,3 +122,5 @@ if __name__ == "__main__":
         test_cuda(lib, test_cases)
     if args.bang:
         test_bang(lib)
+    if args.ascend:
+        test_ascend(lib, test_cases)

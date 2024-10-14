@@ -1,13 +1,15 @@
 #include "matmul_cpu.h"
 #include "../../../devices/cpu/common_cpu.h"
-#include "../../utils.h"
+#include "../../../utils.h"
 #include <cmath>
 
 infiniopStatus_t cpuCreateMatmulDescriptor(CpuHandle_t handle,
                                            MatmulCpuDescriptor_t *desc_ptr,
                                            infiniopTensorDescriptor_t c_desc,
+                                           float alpha,
                                            infiniopTensorDescriptor_t a_desc,
-                                           infiniopTensorDescriptor_t b_desc) {
+                                           infiniopTensorDescriptor_t b_desc,
+                                           float beta) {
     DT dtype = c_desc->dt;
 
     if (!dtype_eq(dtype, F16)) {
@@ -23,7 +25,9 @@ infiniopStatus_t cpuCreateMatmulDescriptor(CpuHandle_t handle,
     *desc_ptr = new MatmulCpuDescriptor{
         DevCpu,
         dtype,
-        info};
+        info,
+        alpha,
+        beta};
     return STATUS_SUCCESS;
 }
 
@@ -31,12 +35,10 @@ infiniopStatus_t cpuMatmul(MatmulCpuDescriptor_t desc,
                            void *workspace,
                            uint64_t workspace_size,
                            void *c,
-                           float beta,
                            void const *a,
-                           void const *b,
-                           float alpha) {
+                           void const *b) {
     if (dtype_eq(desc->dtype, F16)) {
-        matmul_cpu_f16(desc, c, beta, a, b, alpha);
+        matmul_cpu_f16(desc, c, desc->beta, a, b, desc->alpha);
         return STATUS_SUCCESS;
     }
 

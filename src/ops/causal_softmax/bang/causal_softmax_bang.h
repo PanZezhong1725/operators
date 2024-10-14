@@ -2,7 +2,7 @@
 #define __BANG_CAUSAL_SOFTMAX_H__
 
 #include "../../../devices/bang/bang_handle.h"
-#include "../../utils.h"
+#include "../../../utils.h"
 #include "operators.h"
 
 struct CausalSoftmaxBangDescriptor {

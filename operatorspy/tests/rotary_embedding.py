@@ -79,11 +79,14 @@ def test(lib, handle, torch_device, shape, strides=None, dtype=torch.float16):
     if(torch_device == 'mlu'):
         ans = rotary_embedding(t, pos, theta, "cpu").to(torch_device)
         pos = pos.to(torch.int64)
+        pos = pos.to(torch_device)
+        t = t.to(torch_device)
     else:
+        t = t.to(torch_device)
+        pos = pos.to(torch_device)
         ans = rotary_embedding(t, pos, theta, torch_device)
         pos = pos.to(torch.uint64)
-    t = t.to(torch_device)
-    pos = pos.to(torch_device)
+    
     descriptor = infiniopRoPEDescriptor_t()
     # 2x table length for test
     sin_table, cos_table = sin_cos_table(t.shape[0] * 2, t.shape[2], t.device, theta)

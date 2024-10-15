@@ -27,7 +27,7 @@ __C infiniopStatus_t infiniopCreateRearrangeDescriptor(
 #endif
 #ifdef ENABLE_NV_GPU
         case DevNvGpu: {
-            return cudaCreateRearrangeDescriptor((CudaHandle_t)handle, (RearrangeCudaDescriptor_t *) desc_ptr, dst, src);
+            return cudaCreateRearrangeDescriptor((CudaHandle_t) handle, (RearrangeCudaDescriptor_t *) desc_ptr, dst, src);
         }
 
 #endif

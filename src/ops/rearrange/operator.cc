@@ -11,8 +11,8 @@
 #include "cuda/rearrange.cuh"
 #endif
 #ifdef ENABLE_CAMBRICON_MLU
-// #include "bang/rearrange_bang.h"
-// #include "bang/rearrange_cnnl.h"
+#include "bang/rearrange_bang.h"
+#include "bang/rearrange_cnnl.h"
 #endif
 
 __C infiniopStatus_t infiniopCreateRearrangeDescriptor(

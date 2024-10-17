@@ -1,0 +1,103 @@
+#include "bang.h"
+#include "bang_device_functions.h"
+#include "cnrt.h"
+#include "add_bang.h"
+#include "../../../devices/bang/common_bang.h"
+#include <stdlib.h>
+
+const uint64_t SRC_MAX_SIZE = 1024 * 64;
+__nram__ char nram_buffer[NRAM_MAX_SIZE];
+template<typename T>
+__mlu_global__ void addKernel(T *c, T const *a, T const *b, uint64_t *c_shape, uint64_t *a_strides_d, uint64_t *b_strides_d, uint64_t ndim, uint64_t length){
+    const uint64_t maxNum = SRC_MAX_SIZE/sizeof(T);
+    uint64_t taskSize = taskDim * maxNum;
+
+    uint64_t remain = length % taskSize;
+    
+    uint64_t repeat = (length - remain) / taskSize;
+
+    uint64_t remainT = remain % taskDim;
+    uint64_t stepEasy = (remain - remainT) / taskDim;
+    uint64_t stepHard = stepEasy + 1;
+    uint64_t step = (taskId < remainT ? stepHard : stepEasy);
+    uint64_t indStart = repeat * taskSize + (taskId < remainT ? taskId * stepHard : remainT * stepHard + (taskId - remainT) * stepEasy);
+    //__bang_printf("%ld, %ld, %ld\n", repeat, indStart, step);
+    T *c_src = (T *)nram_buffer;
+    T *a_src = c_src + maxNum;
+    T *b_src = a_src + maxNum;
+    for(uint64_t r = 0; r < repeat; r++){
+        __memcpy(c_src, c + r * taskSize + taskId * maxNum, maxNum * sizeof(T), GDRAM2NRAM);
+        for(uint64_t i = r * taskSize + taskId * maxNum; i < r * taskSize + (taskId + 1) * maxNum; i++){
+            uint64_t a_tid = 0;
+            uint64_t b_tid = 0;
+            uint64_t indi = i;
+            for(uint64_t s = ndim - 1; s >= 0; s -= 1){
+                a_tid += (indi % c_shape[s]) * a_strides_d[s];
+                b_tid += (indi % c_shape[s]) * b_strides_d[s];
+                indi /= c_shape[s];
+            }
+            c_src[i] = a[a_tid] + b[b_tid];
+        }
+        __memcpy(c + r * taskSize + taskId * maxNum, c_src, maxNum * sizeof(T), NRAM2GDRAM);
+    }
+    if(step){
+        
+        __memcpy(c_src, c + indStart, step * sizeof(T), GDRAM2NRAM);
+        for(uint64_t i = indStart; i < indStart + step; i++){
+            uint64_t a_tid = 0;
+            uint64_t b_tid = 0;
+            uint64_t indi = i;
+           
+            for(uint64_t s = ndim - 1; s > 0; s -= 1){
+                a_tid += (indi % c_shape[s]) * a_strides_d[s];
+                b_tid += (indi % c_shape[s]) * b_strides_d[s];
+                indi /= c_shape[s];
+            }
+            
+            __memcpy(a_src, a + a_tid, sizeof(T), GDRAM2NRAM);
+            __memcpy(b_src, b + b_tid, sizeof(T), GDRAM2NRAM);
+            c_src[i] = a_src[0] + b_src[0];
+            __bang_printf("%ld, %ld, %ld, %ld, %.4f, %.4f, %.4f\n", taskId, i, a_tid, b_tid, static_cast<float>(a[a_tid]), static_cast<float>(b[b_tid]), static_cast<float>(c_src[i]));
+        }
+        __memcpy(c + indStart, c_src, step * sizeof(T), NRAM2GDRAM);
+    }
+    
+}
+template<typename T>
+void addUnion(cnrtQueue_t queue, void *c, void const *a, void const *b, uint64_t *c_shape, uint64_t *a_strides_d, uint64_t *b_strides_d, uint64_t ndim, uint64_t length){
+    auto a_ = reinterpret_cast<T const *>(a);
+    auto b_ = reinterpret_cast<T const *>(b);
+    auto c_ = reinterpret_cast<T *>(c);
+    cnrtDim3_t k_dim;
+    cnrtFunctionType_t k_type;
+
+    k_dim.x = 4;
+    k_dim.y = 1;
+    k_dim.z = 1;
+    k_type = CNRT_FUNC_TYPE_UNION1;
+    addKernel<T><<<k_dim, k_type, queue>>>(c_, a_, b_, c_shape, a_strides_d, b_strides_d, ndim, length);
+    //cnrtQueueSync(queue);
+}
+void add_bang_f16(AddBangDescriptor_t desc, void *c, void const *a, void const *b,
+                        void *stream) {
+    auto queue = reinterpret_cast<cnrtQueue_t>(stream);
+    uint64_t ndim = desc->ndim;
+    uint64_t length = desc->c_data_size;
+    addUnion<half>(queue, c, a, b, desc->c_shape, desc->a_strides_d, desc->b_strides_d, ndim, length);
+    
+}
+
+infiniopStatus_t bangAdd(AddBangDescriptor_t desc,
+                        void *c, void const *a, void const *b,
+                        void *stream) {
+    if (cnrtSetDevice(desc->device_id) != cnrtSuccess) {
+        return STATUS_BAD_DEVICE;
+    }
+    if (dtype_eq(desc->dtype, F16)) {
+        add_bang_f16(desc, c, a, b, stream);
+        return STATUS_SUCCESS;
+    }
+    return STATUS_BAD_TENSOR_DTYPE;
+}
+
+

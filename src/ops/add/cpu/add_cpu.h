@@ -3,6 +3,7 @@
 
 #include "operators.h"
 #include <numeric>
+#include <type_traits>
 
 struct AddCpuDescriptor {
     Device device;

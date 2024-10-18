@@ -14,7 +14,10 @@ infiniopStatus_t cudaCreateAddDescriptor(CudaHandle_t handle,
     if (!is_contiguous(a) || !is_contiguous(b) || !is_contiguous(c)) {
         return STATUS_BAD_TENSOR_STRIDES;
     }
-    if (!dtype_eq(c->dt, F16) || c->dt != a->dt || c->dt != b->dt) {
+    if (c->dt != F16 && c->dt != F32) {
+        return STATUS_BAD_TENSOR_DTYPE;
+    }
+    if (c->dt != a->dt || c->dt != b->dt) {
         return STATUS_BAD_TENSOR_DTYPE;
     }
     bool broadcasted = false;

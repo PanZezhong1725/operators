@@ -85,7 +85,8 @@ def test_cpu(lib, test_cases):
     device = DeviceEnum.DEVICE_CPU
     handle = create_handle(lib, device)
     for c_shape, a_shape, b_shape, inplace in test_cases:
-        test(lib, handle, "cpu", c_shape, a_shape, b_shape, inplace=inplace)
+        test(lib, handle, "cpu", c_shape, a_shape, b_shape, tensor_dtype=torch.float16, inplace=inplace)
+        test(lib, handle, "cpu", c_shape, a_shape, b_shape, tensor_dtype=torch.float32, inplace=inplace)
     destroy_handle(lib, handle)
 
 
@@ -93,7 +94,8 @@ def test_cuda(lib, test_cases):
     device = DeviceEnum.DEVICE_CUDA
     handle = create_handle(lib, device)
     for c_shape, a_shape, b_shape, inplace in test_cases:
-        test(lib, handle, "cuda", c_shape, a_shape, b_shape, inplace=inplace)
+        test(lib, handle, "cuda", c_shape, a_shape, b_shape, tensor_dtype=torch.float16, inplace=inplace)
+        test(lib, handle, "cuda", c_shape, a_shape, b_shape, tensor_dtype=torch.float32, inplace=inplace)
     destroy_handle(lib, handle)
 
 
@@ -103,7 +105,8 @@ def test_bang(lib, test_cases):
     device = DeviceEnum.DEVICE_BANG
     handle = create_handle(lib, device)
     for c_shape, a_shape, b_shape, inplace in test_cases:
-        test(lib, handle, "mlu", c_shape, a_shape, b_shape, inplace=inplace)
+        test(lib, handle, "mlu", c_shape, a_shape, b_shape, tensor_dtype=torch.float16, inplace=inplace)
+        test(lib, handle, "mlu", c_shape, a_shape, b_shape, tensor_dtype=torch.float32, inplace=inplace)
     destroy_handle(lib, handle)
 
 

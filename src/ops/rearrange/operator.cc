@@ -14,6 +14,9 @@
 #include "bang/rearrange_bang.h"
 //#include "bang/rearrange_cnnl.h"
 #endif
+#ifdef ENABLE_ASCEND_NPU
+#include "ascend/rearrange_aclnn.h"
+#endif
 
 __C infiniopStatus_t infiniopCreateRearrangeDescriptor(
     infiniopHandle_t handle,
@@ -34,6 +37,14 @@ __C infiniopStatus_t infiniopCreateRearrangeDescriptor(
 #ifdef ENABLE_CAMBRICON_MLU
         case DevCambriconMlu: {
             return bangCreateRearrangeDescriptor((BangHandle_t) handle, (RearrangeBangDescriptor_t *) desc_ptr, dst, src);
+        }
+#endif
+#ifdef ENABLE_ASCEND_NPU
+        case DevAscendNpu: {
+            return aclnnCreateRearrangeDescriptor((AscendHandle_t) handle,
+                                                  (RearrangeAclnnDescriptor_t *) desc_ptr,
+                                                  dst,
+                                                  src);
         }
 #endif
     }
@@ -57,6 +68,14 @@ __C infiniopStatus_t infiniopRearrange(infiniopRearrangeDescriptor_t desc, void 
             return bangRearrange((RearrangeBangDescriptor_t) desc, dst, src, stream);
         }
 #endif
+#ifdef ENABLE_ASCEND_NPU
+        case DevAscendNpu: {
+            return aclnnRearrange((RearrangeAclnnDescriptor_t) desc,
+                                  dst,
+                                  src,
+                                  stream);
+        }
+#endif
     }
     return STATUS_BAD_DEVICE;
 }
@@ -76,6 +95,11 @@ __C infiniopStatus_t infiniopDestroyRearrangeDescriptor(infiniopRearrangeDescrip
 #ifdef ENABLE_CAMBRICON_MLU
         case DevCambriconMlu: {
             return bangDestroyRearrangeDescriptor((RearrangeBangDescriptor_t) desc);
+        }
+#endif
+#ifdef ENABLE_ASCEND_NPU
+        case DevAscendNpu: {
+            return aclnnDestroyRearrangeDescriptor((RearrangeAclnnDescriptor_t) desc);
         }
 #endif
     }

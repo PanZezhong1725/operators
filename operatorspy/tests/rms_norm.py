@@ -42,12 +42,13 @@ def test(lib, handle, torch_device, y_shape, x_shape, w_shape, dtype=torch.float
     x = torch.rand(x_shape, dtype=dtype).to(torch_device)
     w = torch.ones(w_shape, dtype=w_dtype).to(torch_device)
 
+    eps = 1e-5
+    ans = rms_norm(x, w, eps)
+    
     y_tensor = to_tensor(y, lib)
     x_tensor = to_tensor(x, lib)
     w_tensor = to_tensor(w, lib)
 
-    eps = 1e-5
-    ans = rms_norm(x, w, eps)
 
     descriptor = infiniopRMSNormDescriptor_t()
     w_dataType = 0 if w_dtype==torch.float16 else 1
@@ -77,10 +78,6 @@ def test(lib, handle, torch_device, y_shape, x_shape, w_shape, dtype=torch.float
         )
     )
 
-    # print(ans)
-    # print("=======================================================")
-    # print(y)
-
     assert torch.allclose(y.to(dtype), ans.to(dtype), atol=1e-3, rtol=1e-3)
     check_error(lib.infiniopDestroyRMSNormDescriptor(descriptor))
     print("Test passed!")
@@ -107,6 +104,14 @@ def test_bang(lib, test_cases):
         test(lib, handle, "mlu", y_shape, x_shape, w_shape, dtype, w_dtype)
     destroy_handle(lib, handle)
 
+def test_ascend(lib, test_cases):
+    import torch_npu
+    device = DeviceEnum.DEVICE_ASCEND
+    handle = create_handle(lib, device)
+    for (y_shape, x_shape, w_shape, dtype, w_dtype) in test_cases:
+        test(lib, handle, "npu", y_shape, x_shape, w_shape, dtype, w_dtype)
+
+    destroy_handle(lib, handle)
 
 if __name__ == "__main__":
     test_cases = [
@@ -153,5 +158,7 @@ if __name__ == "__main__":
         test_cuda(lib, test_cases)
     if args.bang:
         test_bang(lib, test_cases)
-    if not (args.cpu or args.cuda or args.bang):
+    if args.ascend:
+        test_ascend(lib, test_cases)
+    if not (args.cpu or args.cuda or args.bang or args.ascend):
         test_cpu(lib, test_cases)

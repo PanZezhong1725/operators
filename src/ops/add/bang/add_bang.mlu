@@ -27,11 +27,11 @@ __mlu_global__ void addKernel(T *c, T const *a, T const *b, uint64_t *c_shape, u
     T *b_src = a_src + maxNum;
     for(uint64_t r = 0; r < repeat; r++){
         __memcpy(c_src, c + r * taskSize + taskId * maxNum, maxNum * sizeof(T), GDRAM2NRAM);
-        for(uint64_t i = r * taskSize + taskId * maxNum; i < r * taskSize + (taskId + 1) * maxNum; i++){
+        for(uint64_t i = 0; i < maxNum; i++){
             uint64_t a_tid = 0;
             uint64_t b_tid = 0;
-            uint64_t indi = i;
-            for(uint64_t s = ndim - 1; s >= 0; s -= 1){
+            uint64_t indi = i + r * taskSize + taskId * maxNum;
+            for(int s = ndim - 1; s >= 0; s -= 1){
                 a_tid += (indi % c_shape[s]) * a_strides_d[s];
                 b_tid += (indi % c_shape[s]) * b_strides_d[s];
                 indi /= c_shape[s];
@@ -43,12 +43,12 @@ __mlu_global__ void addKernel(T *c, T const *a, T const *b, uint64_t *c_shape, u
     if(step){
         
         __memcpy(c_src, c + indStart, step * sizeof(T), GDRAM2NRAM);
-        for(uint64_t i = indStart; i < indStart + step; i++){
+        for(uint64_t i = 0; i < step; i++){
             uint64_t a_tid = 0;
             uint64_t b_tid = 0;
-            uint64_t indi = i;
+            uint64_t indi = i + indStart;
            
-            for(uint64_t s = ndim - 1; s > 0; s -= 1){
+            for(int s = ndim - 1; s >= 0; --s){
                 a_tid += (indi % c_shape[s]) * a_strides_d[s];
                 b_tid += (indi % c_shape[s]) * b_strides_d[s];
                 indi /= c_shape[s];
@@ -57,17 +57,17 @@ __mlu_global__ void addKernel(T *c, T const *a, T const *b, uint64_t *c_shape, u
             __memcpy(a_src, a + a_tid, sizeof(T), GDRAM2NRAM);
             __memcpy(b_src, b + b_tid, sizeof(T), GDRAM2NRAM);
             c_src[i] = a_src[0] + b_src[0];
-            __bang_printf("%ld, %ld, %ld, %ld, %.4f, %.4f, %.4f\n", taskId, i, a_tid, b_tid, static_cast<float>(a[a_tid]), static_cast<float>(b[b_tid]), static_cast<float>(c_src[i]));
+            
         }
+        
         __memcpy(c + indStart, c_src, step * sizeof(T), NRAM2GDRAM);
+        
     }
     
 }
 template<typename T>
-void addUnion(cnrtQueue_t queue, void *c, void const *a, void const *b, uint64_t *c_shape, uint64_t *a_strides_d, uint64_t *b_strides_d, uint64_t ndim, uint64_t length){
-    auto a_ = reinterpret_cast<T const *>(a);
-    auto b_ = reinterpret_cast<T const *>(b);
-    auto c_ = reinterpret_cast<T *>(c);
+void addUnion(cnrtQueue_t queue, T *c, T const *a, T const *b, uint64_t *c_shape, uint64_t *a_strides_d, uint64_t *b_strides_d, uint64_t ndim, uint64_t length){
+    
     cnrtDim3_t k_dim;
     cnrtFunctionType_t k_type;
 
@@ -75,15 +75,18 @@ void addUnion(cnrtQueue_t queue, void *c, void const *a, void const *b, uint64_t
     k_dim.y = 1;
     k_dim.z = 1;
     k_type = CNRT_FUNC_TYPE_UNION1;
-    addKernel<T><<<k_dim, k_type, queue>>>(c_, a_, b_, c_shape, a_strides_d, b_strides_d, ndim, length);
-    //cnrtQueueSync(queue);
+    addKernel<T><<<k_dim, k_type, queue>>>(c, a, b, c_shape, a_strides_d, b_strides_d, ndim, length);
+    cnrtQueueSync(queue);
 }
 void add_bang_f16(AddBangDescriptor_t desc, void *c, void const *a, void const *b,
                         void *stream) {
     auto queue = reinterpret_cast<cnrtQueue_t>(stream);
     uint64_t ndim = desc->ndim;
     uint64_t length = desc->c_data_size;
-    addUnion<half>(queue, c, a, b, desc->c_shape, desc->a_strides_d, desc->b_strides_d, ndim, length);
+    auto a_ = reinterpret_cast<half const *>(a);
+    auto b_ = reinterpret_cast<half const *>(b);
+    auto c_ = reinterpret_cast<half *>(c);
+    addUnion<half>(queue, c_, a_, b_, desc->c_shape, desc->a_strides_d, desc->b_strides_d, ndim, length);
     
 }
 

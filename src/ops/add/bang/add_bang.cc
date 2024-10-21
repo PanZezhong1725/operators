@@ -27,7 +27,8 @@ infiniopStatus_t bangCreateAddDescriptor(BangHandle_t handle,
         a_strides[i] = (i < ndim - a->ndim || c->shape[i] != a->shape[i + a->ndim - ndim]) ? 0 : a->strides[i + a->ndim - ndim];
         b_strides[i] = (i < ndim - b->ndim || c->shape[i] != b->shape[i + b->ndim - ndim]) ? 0 : b->strides[i + b->ndim - ndim];
     }
-    uint64_t *c_shape, *a_strides_d, *b_strides_d;
+    uint64_t *c_shape,
+        *a_strides_d, *b_strides_d;
     cnrtMalloc((void **) &c_shape, ndim * sizeof(uint64_t));
     cnrtMalloc((void **) &a_strides_d, ndim * sizeof(uint64_t));
     cnrtMalloc((void **) &b_strides_d, ndim * sizeof(uint64_t));

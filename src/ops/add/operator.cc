@@ -9,6 +9,10 @@
 #include "../../devices/cuda/cuda_handle.h"
 #include "cuda/add.cuh"
 #endif
+#ifdef ENABLE_CAMBRICON_MLU
+#include "../../devices/bang/bang_handle.h"
+#include "bang/add_bang.h"
+#endif
 
 __C infiniopStatus_t infiniopCreateAddDescriptor(
     infiniopHandle_t handle,
@@ -28,7 +32,9 @@ __C infiniopStatus_t infiniopCreateAddDescriptor(
 
 #endif
 #ifdef ENABLE_CAMBRICON_MLU
-        // TODO
+        case DevCambriconMlu: {
+            return bangCreateAddDescriptor((BangHandle_t) handle, (AddBangDescriptor_t *) desc_ptr, c, a, b);
+        }
 #endif
     }
     return STATUS_BAD_DEVICE;
@@ -47,7 +53,9 @@ __C infiniopStatus_t infiniopAdd(infiniopAddDescriptor_t desc, void *c, void con
 
 #endif
 #ifdef ENABLE_CAMBRICON_MLU
-        // TODO
+        case DevCambriconMlu: {
+            return bangAdd((AddBangDescriptor_t) desc, c, a, b, stream);
+        }
 #endif
     }
     return STATUS_BAD_DEVICE;
@@ -66,7 +74,9 @@ __C infiniopStatus_t infiniopDestroyAddDescriptor(infiniopAddDescriptor_t desc) 
 
 #endif
 #ifdef ENABLE_CAMBRICON_MLU
-        // TODO
+        case DevCambriconMlu: {
+            return bangDestroyAddDescriptor((AddBangDescriptor_t) desc);
+        }
 #endif
     }
     return STATUS_BAD_DEVICE;

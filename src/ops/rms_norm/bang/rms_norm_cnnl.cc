@@ -4,7 +4,7 @@
 #include "../../utils.h"
 #include "cnrt.h"
 
-RMSNormBangDescriptor::RMSNormBangDescriptor(Device device) {
+RMSNormCnnlDescriptor::RMSNormCnnlDescriptor(Device device) {
     this->device = device;
     get_cnnl_pool();
 }

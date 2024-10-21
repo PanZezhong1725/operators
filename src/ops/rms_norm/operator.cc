@@ -35,7 +35,7 @@ __C infiniopStatus_t infiniopCreateRMSNormDescriptor(
 #endif
 #ifdef ENABLE_CAMBRICON_MLU
         case DevCambriconMlu: {
-            //return bangCreateRMSNormDescriptor((BangHandle_t) handle, (RMSNormBangDescriptor_t *) desc_ptr, y_desc);
+            return bangCreateRMSNormDescriptor((BangHandle_t) handle, (RMSNormBangDescriptor_t *) desc_ptr, y_desc, x_desc, w_desc, epsilon);
         }
 #endif
     }
@@ -56,7 +56,7 @@ __C infiniopStatus_t infiniopGetRMSNormWorkspaceSize(infiniopRMSNormDescriptor_t
 #endif
 #ifdef ENABLE_CAMBRICON_MLU
         case DevCambriconMlu: {
-            //return bangGetRMSNormWorkspaceSize((RMSNormBangDescriptor_t) desc, size);
+            return bangGetRMSNormWorkspaceSize((RMSNormBangDescriptor_t) desc, size);
         }
 
 #endif
@@ -65,7 +65,7 @@ __C infiniopStatus_t infiniopGetRMSNormWorkspaceSize(infiniopRMSNormDescriptor_t
 }
 
 __C infiniopStatus_t infiniopRMSNorm(infiniopRMSNormDescriptor_t desc, void *workspace, uint64_t workspace_size,
-                                     void *y, void *x, void *w, void *stream) {
+                                     void *y, void const *x, void const *w, void *stream) {
     switch (desc->device) {
 #ifdef ENABLE_CPU
         case DevCpu:
@@ -79,7 +79,7 @@ __C infiniopStatus_t infiniopRMSNorm(infiniopRMSNormDescriptor_t desc, void *wor
 #endif
 #ifdef ENABLE_CAMBRICON_MLU
         case DevCambriconMlu: {
-            //return bangRMSNorm((RMSNormBangDescriptor_t) desc, workspace, workspace_size, data, stream);
+            return bangRMSNorm((RMSNormBangDescriptor_t) desc, workspace, workspace_size, y, x, w, stream);
         }
 
 #endif
@@ -101,7 +101,7 @@ __C infiniopStatus_t infiniopDestroyRMSNormDescriptor(infiniopRMSNormDescriptor_
 #endif
 #ifdef ENABLE_CAMBRICON_MLU
         case DevCambriconMlu: {
-            //return bangDestroyRMSNormDescriptor((RMSNormBangDescriptor_t) desc);
+            return bangDestroyRMSNormDescriptor((RMSNormBangDescriptor_t) desc);
         }
 
 #endif

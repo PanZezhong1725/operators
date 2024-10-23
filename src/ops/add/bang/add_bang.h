@@ -14,6 +14,7 @@ struct AddBangDescriptor {
     uint64_t *c_shape;
     uint64_t *a_strides_d;
     uint64_t *b_strides_d;
+    bool condition;
 };
 
 typedef struct AddBangDescriptor *AddBangDescriptor_t;

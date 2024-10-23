@@ -37,8 +37,10 @@ __mlu_global__ void addKernel(T *c, T const *a, T const *b, uint64_t *c_shape, u
                     b_tid += (indi % c_shape[s]) * b_strides_d[s];
                     indi /= c_shape[s];
                 }
-                c_src[i] = a[a_tid] + b[b_tid];
+                a_src[i] = a[a_tid];
+                b_src[i] = b[b_tid];
             }
+            __bang_add(c_src, a_src, b_src, maxNum);
             __memcpy(c + r * taskSize + taskId * maxNum, c_src, maxNum * sizeof(T), NRAM2GDRAM);
         }
         if(step){
@@ -53,11 +55,10 @@ __mlu_global__ void addKernel(T *c, T const *a, T const *b, uint64_t *c_shape, u
                     b_tid += (indi % c_shape[s]) * b_strides_d[s];
                     indi /= c_shape[s];
                 }
-                __memcpy(a_src, a + a_tid, sizeof(T), GDRAM2NRAM);
-                __memcpy(b_src, b + b_tid, sizeof(T), GDRAM2NRAM);
-                c_src[i] = a[a_tid] + b[b_tid];
-                
+                a_src[i] = a[a_tid];
+                b_src[i] = b[b_tid];  
             }
+            __bang_add(c_src, a_src, b_src, maxNum);
             __memcpy(c + indStart, c_src, step * sizeof(T), NRAM2GDRAM);
         }
     }
@@ -75,8 +76,9 @@ __mlu_global__ void addKernel(T *c, T const *a, T const *b, uint64_t *c_shape, u
                         
                         indi /= c_shape[s];
                     }
-                    c_src[i] = a[a_tid] + b_src[i];
+                    a_src[i] = a[a_tid];
                 }
+                __bang_add(c_src, a_src, b_src, maxNum);
                 __memcpy(c + r * taskSize + taskId * maxNum, c_src, maxNum * sizeof(T), NRAM2GDRAM);
             }
             if(step){
@@ -93,9 +95,9 @@ __mlu_global__ void addKernel(T *c, T const *a, T const *b, uint64_t *c_shape, u
                         indi /= c_shape[s];
                     }
                     
-                    c_src[i] = a[a_tid] + b_src[i];
-                    
+                    a_src[i] = a[a_tid];
                 }
+                __bang_add(c_src, a_src, b_src, maxNum);
                 __memcpy(c + indStart, c_src, step * sizeof(T), NRAM2GDRAM);
             }
         }
@@ -112,8 +114,9 @@ __mlu_global__ void addKernel(T *c, T const *a, T const *b, uint64_t *c_shape, u
                         
                         indi /= c_shape[s];
                     }
-                    c_src[i] = a_src[i] + b[b_tid];
+                    b_src[i] = b[b_tid];
                 }
+                __bang_add(c_src, a_src, b_src, maxNum);
                 __memcpy(c + r * taskSize + taskId * maxNum, c_src, maxNum * sizeof(T), NRAM2GDRAM);
             }
             if(step){
@@ -130,9 +133,10 @@ __mlu_global__ void addKernel(T *c, T const *a, T const *b, uint64_t *c_shape, u
                         indi /= c_shape[s];
                     }
                     
-                    c_src[i] = a_src[i] + b[b_tid];
+                    b_src[i] = b[b_tid];
                     
                 }
+                __bang_add(c_src, a_src, b_src, maxNum);
                 __memcpy(c + indStart, c_src, step * sizeof(T), NRAM2GDRAM);
             }
         }

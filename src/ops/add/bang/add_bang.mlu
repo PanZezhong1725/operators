@@ -8,7 +8,7 @@
 const uint64_t SRC_MAX_SIZE = 1024 * 64;
 __nram__ char nram_buffer[NRAM_MAX_SIZE];
 template<typename T>
-__mlu_global__ void addKernel(T *c, T const *a, T const *b, uint64_t *c_shape, uint64_t *a_strides_d, uint64_t *b_strides_d, uint64_t ndim, uint64_t length, bool condition){
+__mlu_global__ void addKernel(T *c, T const *a, T const *b, uint64_t *c_shape, uint64_t *a_strides_d, uint64_t *b_strides_d, uint64_t ndim, uint64_t length, bool a_condition, bool b_condition){
     const uint64_t maxNum = SRC_MAX_SIZE/sizeof(T);
     uint64_t taskSize = taskDim * maxNum;
 
@@ -25,14 +25,14 @@ __mlu_global__ void addKernel(T *c, T const *a, T const *b, uint64_t *c_shape, u
     T *c_src = (T *)nram_buffer;
     T *a_src = c_src + maxNum;
     T *b_src = a_src + maxNum;
-    if(condition){
+    if(a_condition && b_condition){
         for(uint64_t r = 0; r < repeat; r++){
             __memcpy(c_src, c + r * taskSize + taskId * maxNum, maxNum * sizeof(T), GDRAM2NRAM);
             for(uint64_t i = 0; i < maxNum; i++){
                 uint64_t a_tid = 0;
                 uint64_t b_tid = 0;
                 uint64_t indi = i + r * taskSize + taskId * maxNum;
-                for(int s = ndim - 1; s >= 0; s -= 1){
+                for(int s = ndim - 1; s >= 0; --s){
                     a_tid += (indi % c_shape[s]) * a_strides_d[s];
                     b_tid += (indi % c_shape[s]) * b_strides_d[s];
                     indi /= c_shape[s];
@@ -42,7 +42,6 @@ __mlu_global__ void addKernel(T *c, T const *a, T const *b, uint64_t *c_shape, u
             __memcpy(c + r * taskSize + taskId * maxNum, c_src, maxNum * sizeof(T), NRAM2GDRAM);
         }
         if(step){
-            
             __memcpy(c_src, c + indStart, step * sizeof(T), GDRAM2NRAM);
             for(uint64_t i = 0; i < step; i++){
                 uint64_t a_tid = 0;
@@ -54,39 +53,113 @@ __mlu_global__ void addKernel(T *c, T const *a, T const *b, uint64_t *c_shape, u
                     b_tid += (indi % c_shape[s]) * b_strides_d[s];
                     indi /= c_shape[s];
                 }
-                
                 __memcpy(a_src, a + a_tid, sizeof(T), GDRAM2NRAM);
                 __memcpy(b_src, b + b_tid, sizeof(T), GDRAM2NRAM);
-                c_src[i] = a_src[0] + b_src[0];
+                c_src[i] = a[a_tid] + b[b_tid];
                 
             }
-            
             __memcpy(c + indStart, c_src, step * sizeof(T), NRAM2GDRAM);
-            
         }
     }
     else{
-        for(uint64_t r = 0; r < repeat; r++){
-            __memcpy(c_src, c + r * taskSize + taskId * maxNum, maxNum * sizeof(T), GDRAM2NRAM);
-            __memcpy(a_src, a + r * taskSize + taskId * maxNum, maxNum * sizeof(T), GDRAM2NRAM);
-            __memcpy(b_src, b + r * taskSize + taskId * maxNum, maxNum * sizeof(T), GDRAM2NRAM);
-            __bang_add(c_src, a_src, b_src, maxNum);
-            __memcpy(c + r * taskSize + taskId * maxNum, c_src, maxNum * sizeof(T), NRAM2GDRAM);
+        if(a_condition){
+            for(uint64_t r = 0; r < repeat; r++){
+                __memcpy(c_src, c + r * taskSize + taskId * maxNum, maxNum * sizeof(T), GDRAM2NRAM);
+                __memcpy(b_src, b + r * taskSize + taskId * maxNum, maxNum * sizeof(T), GDRAM2NRAM);
+                for(uint64_t i = 0; i < maxNum; i++){
+                    uint64_t a_tid = 0;
+                    
+                    uint64_t indi = i + r * taskSize + taskId * maxNum;
+                    for(int s = ndim - 1; s >= 0; --s){
+                        a_tid += (indi % c_shape[s]) * a_strides_d[s];
+                        
+                        indi /= c_shape[s];
+                    }
+                    c_src[i] = a[a_tid] + b_src[i];
+                }
+                __memcpy(c + r * taskSize + taskId * maxNum, c_src, maxNum * sizeof(T), NRAM2GDRAM);
+            }
+            if(step){
+                __memcpy(c_src, c + indStart, step * sizeof(T), GDRAM2NRAM);
+                __memcpy(b_src, b + indStart, step * sizeof(T), GDRAM2NRAM);
+                for(uint64_t i = 0; i < step; i++){
+                    uint64_t a_tid = 0;
+                    
+                    uint64_t indi = i + indStart;
+                
+                    for(int s = ndim - 1; s >= 0; --s){
+                        a_tid += (indi % c_shape[s]) * a_strides_d[s];
+                        
+                        indi /= c_shape[s];
+                    }
+                    
+                    c_src[i] = a[a_tid] + b_src[i];
+                    
+                }
+                __memcpy(c + indStart, c_src, step * sizeof(T), NRAM2GDRAM);
+            }
         }
-        if(step){
-            
-            __memcpy(c_src, c + indStart, step * sizeof(T), GDRAM2NRAM);
-            __memcpy(a_src, a + indStart, step * sizeof(T), GDRAM2NRAM);
-            __memcpy(b_src, b + indStart, step * sizeof(T), GDRAM2NRAM);
-            __bang_add(c_src, a_src, b_src, step);
-            __memcpy(c + indStart, c_src, step * sizeof(T), NRAM2GDRAM);
-            
+        else if (b_condition){
+            for(uint64_t r = 0; r < repeat; r++){
+                __memcpy(c_src, c + r * taskSize + taskId * maxNum, maxNum * sizeof(T), GDRAM2NRAM);
+                __memcpy(a_src, a + r * taskSize + taskId * maxNum, maxNum * sizeof(T), GDRAM2NRAM);
+                for(uint64_t i = 0; i < maxNum; i++){
+                    uint64_t b_tid = 0;
+                    
+                    uint64_t indi = i + r * taskSize + taskId * maxNum;
+                    for(int s = ndim - 1; s >= 0; --s){
+                        b_tid += (indi % c_shape[s]) * b_strides_d[s];
+                        
+                        indi /= c_shape[s];
+                    }
+                    c_src[i] = a_src[i] + b[b_tid];
+                }
+                __memcpy(c + r * taskSize + taskId * maxNum, c_src, maxNum * sizeof(T), NRAM2GDRAM);
+            }
+            if(step){
+                __memcpy(c_src, c + indStart, step * sizeof(T), GDRAM2NRAM);
+                __memcpy(b_src, b + indStart, step * sizeof(T), GDRAM2NRAM);
+                for(uint64_t i = 0; i < step; i++){
+                    uint64_t b_tid = 0;
+                    
+                    uint64_t indi = i + indStart;
+                
+                    for(int s = ndim - 1; s >= 0; --s){
+                        b_tid += (indi % c_shape[s]) * b_strides_d[s];
+                        
+                        indi /= c_shape[s];
+                    }
+                    
+                    c_src[i] = a_src[i] + b[b_tid];
+                    
+                }
+                __memcpy(c + indStart, c_src, step * sizeof(T), NRAM2GDRAM);
+            }
         }
+        else{
+            for(uint64_t r = 0; r < repeat; r++){
+                __memcpy(c_src, c + r * taskSize + taskId * maxNum, maxNum * sizeof(T), GDRAM2NRAM);
+                __memcpy(a_src, a + r * taskSize + taskId * maxNum, maxNum * sizeof(T), GDRAM2NRAM);
+                __memcpy(b_src, b + r * taskSize + taskId * maxNum, maxNum * sizeof(T), GDRAM2NRAM);
+                __bang_add(c_src, a_src, b_src, maxNum);
+                __memcpy(c + r * taskSize + taskId * maxNum, c_src, maxNum * sizeof(T), NRAM2GDRAM);
+            }
+            if(step){
+                
+                __memcpy(c_src, c + indStart, step * sizeof(T), GDRAM2NRAM);
+                __memcpy(a_src, a + indStart, step * sizeof(T), GDRAM2NRAM);
+                __memcpy(b_src, b + indStart, step * sizeof(T), GDRAM2NRAM);
+                __bang_add(c_src, a_src, b_src, step);
+                __memcpy(c + indStart, c_src, step * sizeof(T), NRAM2GDRAM);
+                
+            }
+        }
+        
     }
     
 }
 template<typename T>
-void addUnion(cnrtQueue_t queue, T *c, T const *a, T const *b, uint64_t *c_shape, uint64_t *a_strides_d, uint64_t *b_strides_d, uint64_t ndim, uint64_t length, bool condition){
+void addUnion(cnrtQueue_t queue, T *c, T const *a, T const *b, uint64_t *c_shape, uint64_t *a_strides_d, uint64_t *b_strides_d, uint64_t ndim, uint64_t length, bool a_condition, bool b_condition){
     
     cnrtDim3_t k_dim;
     cnrtFunctionType_t k_type;
@@ -95,7 +168,7 @@ void addUnion(cnrtQueue_t queue, T *c, T const *a, T const *b, uint64_t *c_shape
     k_dim.y = 1;
     k_dim.z = 1;
     k_type = CNRT_FUNC_TYPE_UNION1;
-    addKernel<T><<<k_dim, k_type, queue>>>(c, a, b, c_shape, a_strides_d, b_strides_d, ndim, length, condition);
+    addKernel<T><<<k_dim, k_type, queue>>>(c, a, b, c_shape, a_strides_d, b_strides_d, ndim, length, a_condition, b_condition);
     cnrtQueueSync(queue);
 }
 void add_bang_f16(AddBangDescriptor_t desc, void *c, void const *a, void const *b,
@@ -106,7 +179,7 @@ void add_bang_f16(AddBangDescriptor_t desc, void *c, void const *a, void const *
     auto a_ = reinterpret_cast<half const *>(a);
     auto b_ = reinterpret_cast<half const *>(b);
     auto c_ = reinterpret_cast<half *>(c);
-    addUnion<half>(queue, c_, a_, b_, desc->c_shape, desc->a_strides_d, desc->b_strides_d, ndim, length, desc->condition);
+    addUnion<half>(queue, c_, a_, b_, desc->c_shape, desc->a_strides_d, desc->b_strides_d, ndim, length, desc->a_condition, desc->b_condition);
     
 }
 

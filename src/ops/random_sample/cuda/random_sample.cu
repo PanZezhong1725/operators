@@ -84,26 +84,26 @@ void inclusive_sum(
         data, data, voc,
         stream);
 }
-template<class T, class I>
+
 void random_sample_workspace(size_t &size_radix_sort, size_t &size_scan,
-                             int voc, cudaStream_t stream) {
+                             int voc) {
 
 
-    sort_pairs_descending<T, I>(nullptr, size_radix_sort,
-                                nullptr, nullptr,
-                                nullptr, nullptr,
-                                voc, stream);
+    sort_pairs_descending<half, uint64_t>(nullptr, size_radix_sort,
+                                          nullptr, nullptr,
+                                          nullptr, nullptr,
+                                          voc, nullptr);
 
-    inclusive_sum<T>(
+    inclusive_sum<half>(
         nullptr, size_scan,
         nullptr, voc,
-        stream);
+        nullptr);
 }
 __global__ void random_sample_kernel(uint64_t *result,
                                      uint64_t *key_out) {
     result[0] = key_out[0];
 }
-void random_sample_nv_gpu_f16(RandomSampleCudaDescriptor_t desc, void *workspace, void *result,
+void random_sample_nv_gpu_f16(RandomSampleCudaDescriptor_t desc, void *workspace, uint64_t workspace_size, void *result,
                               void const *probs,
                               float random_val,
                               float topp,
@@ -121,14 +121,11 @@ void random_sample_nv_gpu_f16(RandomSampleCudaDescriptor_t desc, void *workspace
 
     index<<<(voc + 1023) / 1024, 1024, 0, (cudaStream_t) stream>>>(key_in, voc);
     //下面开始计算workspace空间
-    size_t size_radix_sort;
-    size_t size_scan;
-    random_sample_workspace<half, uint64_t>(size_radix_sort, size_scan,
-                                            voc, (cudaStream_t) stream);
-    void *workspace_extra;
-    cudaMalloc(&workspace_extra, size_radix_sort + size_scan);
+
+    void *workspace_extra = reinterpret_cast<char *>(workspace) + 2 * voc * sizeof(half) + voc * sizeof(uint64_t);
+    uint64_t workspace_len = workspace_size - 2 * voc * sizeof(half) - voc * sizeof(uint64_t);
     sort_pairs_descending<half, uint64_t>(
-        workspace_extra, size_radix_sort,
+        workspace_extra, workspace_len,
         (half *) probs, val_out,
         key_in, key_out,
         voc, (cudaStream_t) stream);//该函数会把排序结果和对应索引保存在val_out和key_out上
@@ -141,7 +138,7 @@ void random_sample_nv_gpu_f16(RandomSampleCudaDescriptor_t desc, void *workspace
 
 
         inclusive_sum<half>(
-            workspace_extra, size_scan,
+            workspace_extra, workspace_len,
             val_out, voc,
             (cudaStream_t) stream);//该函数会实现scan功能不断累加结果
         random_sample_kernel<half><<<1, 1, 0, (cudaStream_t) stream>>>((uint64_t *) result,
@@ -155,7 +152,6 @@ void random_sample_nv_gpu_f16(RandomSampleCudaDescriptor_t desc, void *workspace
         random_sample_kernel<<<1, 1, 0, (cudaStream_t) stream>>>((uint64_t *) result,
                                                                  key_out);
     }
-    cudaFree(workspace_extra);
 }
 
 infiniopStatus_t cudaRandomSample(RandomSampleCudaDescriptor_t desc,
@@ -172,7 +168,7 @@ infiniopStatus_t cudaRandomSample(RandomSampleCudaDescriptor_t desc,
         return STATUS_BAD_DEVICE;
     }
     if (dtype_eq(desc->dtype, F16)) {
-        random_sample_nv_gpu_f16(desc, workspace, result, probs, random_val, topp, topk, temperature, stream);
+        random_sample_nv_gpu_f16(desc, workspace, workspace_size, result, probs, random_val, topp, topk, temperature, stream);
         return STATUS_SUCCESS;
     }
 

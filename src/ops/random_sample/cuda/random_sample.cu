@@ -86,18 +86,38 @@ void inclusive_sum(
 }
 
 void random_sample_workspace(size_t &size_radix_sort, size_t &size_scan,
-                             int voc) {
+                             int voc, DT dtype) {
+    if (dtype_eq(dtype, F16)) {
+        sort_pairs_descending<half, uint64_t>(nullptr, size_radix_sort,
+                                              nullptr, nullptr,
+                                              nullptr, nullptr,
+                                              voc, nullptr);
 
+        inclusive_sum<half>(
+            nullptr, size_scan,
+            nullptr, voc,
+            nullptr);
+    } else if (dtype_eq(dtype, F32)) {
+        sort_pairs_descending<float, uint64_t>(nullptr, size_radix_sort,
+                                               nullptr, nullptr,
+                                               nullptr, nullptr,
+                                               voc, nullptr);
 
-    sort_pairs_descending<half, uint64_t>(nullptr, size_radix_sort,
-                                          nullptr, nullptr,
-                                          nullptr, nullptr,
-                                          voc, nullptr);
+        inclusive_sum<float>(
+            nullptr, size_scan,
+            nullptr, voc,
+            nullptr);
+    } else if (dtype_eq(dtype, F64)) {
+        sort_pairs_descending<double, uint64_t>(nullptr, size_radix_sort,
+                                                nullptr, nullptr,
+                                                nullptr, nullptr,
+                                                voc, nullptr);
 
-    inclusive_sum<half>(
-        nullptr, size_scan,
-        nullptr, voc,
-        nullptr);
+        inclusive_sum<double>(
+            nullptr, size_scan,
+            nullptr, voc,
+            nullptr);
+    }
 }
 __global__ void random_sample_kernel(uint64_t *result,
                                      uint64_t *key_out) {

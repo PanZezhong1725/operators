@@ -30,7 +30,7 @@ infiniopStatus_t cudaGetRandomSampleWorkspaceSize(RandomSampleCudaDescriptor_t d
     size_t size_radix_sort;
     size_t size_scan;
     random_sample_workspace(size_radix_sort, size_scan,
-                            desc->voc);
+                            desc->voc, desc->dtype);
     *size = desc->voc * (2 * sizeof(uint64_t) + sizeof(desc->dtype)) + std::max(size_radix_sort, size_scan);
     return STATUS_SUCCESS;
 }

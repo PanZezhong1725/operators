@@ -6,9 +6,10 @@ infiniopStatus_t cudaCreateSoftmaxDescriptor(CudaHandle_t handle,
                                              infiniopTensorDescriptor_t input_desc, infiniopTensorDescriptor_t output_desc) {
 
     ASSERT_EQ(input_desc->ndim, output_desc->ndim);
-    if (!dtype_eq(input_desc->dt, F16)) {
+    if (!dtype_eq(input_desc->dt, F16) && !dtype_eq(input_desc->dt, F32)) {
         return STATUS_BAD_TENSOR_DTYPE;
     }
+
     int ndim = input_desc->ndim;
 
     for (int i = 0; i < ndim; i++) {

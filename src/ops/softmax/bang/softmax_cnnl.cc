@@ -7,8 +7,19 @@ infiniopStatus_t cnnlCreateSoftmaxDescriptor(BangHandle_t handle,
                                              SoftmaxCnnlDescriptor_t *desc_ptr,
                                              infiniopTensorDescriptor_t input_desc,
                                              infiniopTensorDescriptor_t output_desc) {
+    ASSERT_EQ(input_desc->ndim, output_desc->ndim);
+    if (!dtype_eq(input_desc->dt, F16) && !dtype_eq(input_desc->dt, F32)) {
+        return STATUS_BAD_TENSOR_DTYPE;
+    }
 
     int ndim = input_desc->ndim;
+
+    for (int i = 0; i < ndim; i++) {
+        if (input_desc->shape[i] != output_desc->shape[i]) {
+            return STATUS_BAD_TENSOR_SHAPE;
+        }
+    }
+
     int *shape = new int[ndim];
     for (int i = 0; i < ndim; i++) {
         shape[i] = static_cast<int>(input_desc->shape[i]);
@@ -33,7 +44,7 @@ infiniopStatus_t cnnlDestroySoftmaxDescriptor(SoftmaxCnnlDescriptor_t desc) {
     return STATUS_SUCCESS;
 }
 
-void softmax_cnnl_f16(SoftmaxCnnlDescriptor_t desc, void const *input, int axis, void *output, void *stream) {
+void softmax_cnnl(SoftmaxCnnlDescriptor_t desc, void const *input, int axis, void *output, void *stream) {
     int ndim = desc->ndim;
     auto shape = desc->shape;
     cnnlSoftmaxMode_t mode;
@@ -91,12 +102,21 @@ void softmax_cnnl_f16(SoftmaxCnnlDescriptor_t desc, void const *input, int axis,
     cnnlTensorDescriptor_t aDesc, cDesc;
     cnnlCreateTensorDescriptor(&aDesc);
     cnnlCreateTensorDescriptor(&cDesc);
-    cnnlSetTensorDescriptor(
-        aDesc, CNNL_LAYOUT_ARRAY, CNNL_DTYPE_HALF,
-        inDim.size(), inDim.data());
-    cnnlSetTensorDescriptor(
-        cDesc, CNNL_LAYOUT_ARRAY, CNNL_DTYPE_HALF,
-        outDim.size(), outDim.data());
+    if (dtype_eq(desc->dtype, F16)) {
+        cnnlSetTensorDescriptor(
+            aDesc, CNNL_LAYOUT_ARRAY, CNNL_DTYPE_HALF,
+            inDim.size(), inDim.data());
+        cnnlSetTensorDescriptor(
+            cDesc, CNNL_LAYOUT_ARRAY, CNNL_DTYPE_HALF,
+            outDim.size(), outDim.data());
+    } else if (dtype_eq(desc->dtype, F32)) {
+        cnnlSetTensorDescriptor(
+            aDesc, CNNL_LAYOUT_ARRAY, CNNL_DTYPE_FLOAT,
+            inDim.size(), inDim.data());
+        cnnlSetTensorDescriptor(
+            cDesc, CNNL_LAYOUT_ARRAY, CNNL_DTYPE_FLOAT,
+            outDim.size(), outDim.data());
+    }
 
     float alpha = 1.0;
     float beta = 0.0;
@@ -112,8 +132,8 @@ infiniopStatus_t cnnlSoftmax(SoftmaxCnnlDescriptor_t desc, void const *input, in
         return STATUS_BAD_DEVICE;
     }
 
-    if (dtype_eq(desc->dtype, F16)) {
-        softmax_cnnl_f16(desc, input, axis, output, stream);
+    if (dtype_eq(desc->dtype, F16) || dtype_eq(desc->dtype, F32)) {
+        softmax_cnnl(desc, input, axis, output, stream);
 
         return STATUS_SUCCESS;
     }

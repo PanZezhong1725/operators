@@ -241,7 +241,8 @@ __global__ void _warpSoftmaxKernel(T *__restrict input, T *__restrict output,
 //-----------------
 
 //------------------
-void softmax_nv_gpu_f16(SoftmaxCudaDescriptor_t desc, void const *input, int axis, void *output, void *stream) {
+template<typename T>
+void softmax_nv_gpu(SoftmaxCudaDescriptor_t desc, void const *input, int axis, void *output, void *stream) {
     int ndim = desc->ndim;
     auto shape = desc->shape;
     int dimsize = shape[axis];
@@ -260,33 +261,33 @@ void softmax_nv_gpu_f16(SoftmaxCudaDescriptor_t desc, void const *input, int axi
     if (dimsize > 1024 * 128) {
 
         int BLOCK_DIM = 1024;
-        _blockSoftmaxKernel<half, 1024>
-            <<<num_blocks, BLOCK_DIM, 0, (cudaStream_t) stream>>>((half *) input, (half *) output, size, dimsize, stride);
+        _blockSoftmaxKernel<T, 1024>
+            <<<num_blocks, BLOCK_DIM, 0, (cudaStream_t) stream>>>((T *) input, (T *) output, size, dimsize, stride);
     } else if (dimsize > 1024 * 64) {
 
         int BLOCK_DIM = 1024;
-        _blockSoftmaxKernel<half, 1024, 128>
-            <<<num_blocks, BLOCK_DIM, 0, (cudaStream_t) stream>>>((half *) input, (half *) output, size, dimsize, stride);
+        _blockSoftmaxKernel<T, 1024, 128>
+            <<<num_blocks, BLOCK_DIM, 0, (cudaStream_t) stream>>>((T *) input, (T *) output, size, dimsize, stride);
     } else if (dimsize > 1024 * 32) {
 
         int BLOCK_DIM = 1024;
-        _blockSoftmaxKernel<half, 1024, 64>
-            <<<num_blocks, BLOCK_DIM, 0, (cudaStream_t) stream>>>((half *) input, (half *) output, size, dimsize, stride);
+        _blockSoftmaxKernel<T, 1024, 64>
+            <<<num_blocks, BLOCK_DIM, 0, (cudaStream_t) stream>>>((T *) input, (T *) output, size, dimsize, stride);
     } else if (dimsize > 1024 * 16) {
 
         int BLOCK_DIM = 1024;
-        _blockSoftmaxKernel<half, 1024, 32>
-            <<<num_blocks, BLOCK_DIM, 0, (cudaStream_t) stream>>>((half *) input, (half *) output, size, dimsize, stride);
+        _blockSoftmaxKernel<T, 1024, 32>
+            <<<num_blocks, BLOCK_DIM, 0, (cudaStream_t) stream>>>((T *) input, (T *) output, size, dimsize, stride);
     } else if (dimsize > 1024 * 4) {
 
         int BLOCK_DIM = 1024;
-        _blockSoftmaxKernel<half, 1024, 16>
-            <<<num_blocks, BLOCK_DIM, 0, (cudaStream_t) stream>>>((half *) input, (half *) output, size, dimsize, stride);
+        _blockSoftmaxKernel<T, 1024, 16>
+            <<<num_blocks, BLOCK_DIM, 0, (cudaStream_t) stream>>>((T *) input, (T *) output, size, dimsize, stride);
     } else if (dimsize > 1024) {
 
         int BLOCK_DIM = 1024;
-        _blockSoftmaxKernel<half, 1024, 4>
-            <<<num_blocks, BLOCK_DIM, 0, (cudaStream_t) stream>>>((half *) input, (half *) output, size, dimsize, stride);
+        _blockSoftmaxKernel<T, 1024, 4>
+            <<<num_blocks, BLOCK_DIM, 0, (cudaStream_t) stream>>>((T *) input, (T *) output, size, dimsize, stride);
     } else if (dimsize > 31) {
         int BLOCK_DIM_x = 32;
         int BLOCK_DIM_y = 32;
@@ -294,8 +295,8 @@ void softmax_nv_gpu_f16(SoftmaxCudaDescriptor_t desc, void const *input, int axi
         dim3 block_dim(BLOCK_DIM_x, BLOCK_DIM_y, 1);
         dim3 grid_dim(num_block_x, 1, 1);
 
-        _warpSoftmaxKernel<half, 32, 32, 32>
-            <<<grid_dim, block_dim, 0, (cudaStream_t) stream>>>((half *) input, (half *) output, size, dimsize, stride);
+        _warpSoftmaxKernel<T, 32, 32, 32>
+            <<<grid_dim, block_dim, 0, (cudaStream_t) stream>>>((T *) input, (T *) output, size, dimsize, stride);
     } else if (dimsize > 15) {
         int BLOCK_DIM_x = 16;
         int BLOCK_DIM_y = 64;
@@ -303,8 +304,8 @@ void softmax_nv_gpu_f16(SoftmaxCudaDescriptor_t desc, void const *input, int axi
         dim3 block_dim(BLOCK_DIM_x, BLOCK_DIM_y, 1);
         dim3 grid_dim(num_block_x, 1, 1);
 
-        _warpSoftmaxKernel<half, 16, 64, 2>
-            <<<grid_dim, block_dim, 0, (cudaStream_t) stream>>>((half *) input, (half *) output, size, dimsize, stride);
+        _warpSoftmaxKernel<T, 16, 64, 2>
+            <<<grid_dim, block_dim, 0, (cudaStream_t) stream>>>((T *) input, (T *) output, size, dimsize, stride);
     } else if (dimsize > 7) {
         int BLOCK_DIM_x = 8;
         int BLOCK_DIM_y = 128;
@@ -312,8 +313,8 @@ void softmax_nv_gpu_f16(SoftmaxCudaDescriptor_t desc, void const *input, int axi
         dim3 block_dim(BLOCK_DIM_x, BLOCK_DIM_y, 1);
         dim3 grid_dim(num_block_x, 1, 1);
 
-        _warpSoftmaxKernel<half, 8, 128, 2>
-            <<<grid_dim, block_dim, 0, (cudaStream_t) stream>>>((half *) input, (half *) output, size, dimsize, stride);
+        _warpSoftmaxKernel<T, 8, 128, 2>
+            <<<grid_dim, block_dim, 0, (cudaStream_t) stream>>>((T *) input, (T *) output, size, dimsize, stride);
     } else {
         int BLOCK_DIM_x = 4;
         int BLOCK_DIM_y = 256;
@@ -321,8 +322,8 @@ void softmax_nv_gpu_f16(SoftmaxCudaDescriptor_t desc, void const *input, int axi
         dim3 block_dim(BLOCK_DIM_x, BLOCK_DIM_y, 1);
         dim3 grid_dim(num_block_x, 1, 1);
 
-        _warpSoftmaxKernel<half, 4, 256, 2>
-            <<<grid_dim, block_dim, 0, (cudaStream_t) stream>>>((half *) input, (half *) output, size, dimsize, stride);
+        _warpSoftmaxKernel<T, 4, 256, 2>
+            <<<grid_dim, block_dim, 0, (cudaStream_t) stream>>>((T *) input, (T *) output, size, dimsize, stride);
     }
 }
 infiniopStatus_t cudaSoftmax(SoftmaxCudaDescriptor_t desc,
@@ -334,9 +335,12 @@ infiniopStatus_t cudaSoftmax(SoftmaxCudaDescriptor_t desc,
         return STATUS_BAD_DEVICE;
     }
     if (dtype_eq(desc->dtype, F16)) {
-        softmax_nv_gpu_f16(desc, input, axis, output, stream);
+        softmax_nv_gpu<half>(desc, input, axis, output, stream);
         return STATUS_SUCCESS;
     }
-
+    if (dtype_eq(desc->dtype, F32)) {
+        softmax_nv_gpu<float>(desc, input, axis, output, stream);
+        return STATUS_SUCCESS;
+    }
     return STATUS_BAD_TENSOR_DTYPE;
 }

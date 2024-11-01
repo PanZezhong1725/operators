@@ -66,16 +66,16 @@ def test(lib, handle, torch_device, x_shape, axis, x_dtype=torch.float16):
 def test_cpu(lib, test_cases):
     device = DeviceEnum.DEVICE_CPU
     handle = create_handle(lib, device)
-    for x_shape, axis in test_cases:
-        test(lib, handle, "cpu", x_shape, axis)
+    for x_shape, axis, x_dtype in test_cases:
+        test(lib, handle, "cpu", x_shape, axis, x_dtype)
     destroy_handle(lib, handle)
 
 
 def test_cuda(lib, test_cases):
     device = DeviceEnum.DEVICE_CUDA
     handle = create_handle(lib, device)
-    for x_shape, axis in test_cases:
-        test(lib, handle, "cuda", x_shape, axis)
+    for x_shape, axis, x_dtype in test_cases:
+        test(lib, handle, "cuda", x_shape, axis, x_dtype)
     destroy_handle(lib, handle)
 
 
@@ -84,17 +84,22 @@ def test_bang(lib, test_cases):
 
     device = DeviceEnum.DEVICE_BANG
     handle = create_handle(lib, device)
-    for x_shape, axis in test_cases:
-        test(lib, handle, "mlu", x_shape, axis)
+    for x_shape, axis, x_dtype in test_cases:
+        test(lib, handle, "mlu", x_shape, axis, x_dtype)
     destroy_handle(lib, handle)
 
 
 if __name__ == "__main__":
     test_cases = [
         # x_shape, axis
-        ((32, 20, 512), 0),
-        ((32, 20, 512), 1), 
-        ((32, 20, 512), 2), 
+        
+        ((32, 20, 512), 0, torch.float16),
+        ((32, 20, 512), 1, torch.float16), 
+        ((32, 20, 512), 2, torch.float16),
+        
+        ((32, 20, 512), 0, torch.float32),
+        ((32, 20, 512), 1, torch.float32), 
+        ((32, 20, 512), 2, torch.float32), 
          
     ]
     args = get_args()

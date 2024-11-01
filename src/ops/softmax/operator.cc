@@ -34,8 +34,8 @@ __C infiniopStatus_t infiniopCreateSoftmaxDescriptor(
 #endif
 #ifdef ENABLE_CAMBRICON_MLU
         case DevCambriconMlu: {
-            return bangCreateSoftmaxDescriptor((BangHandle_t) handle, (SoftmaxBangDescriptor_t *) desc_ptr, input_desc, output_desc);
-            //return cnnlCreateSoftmaxDescriptor((BangHandle_t) handle, (SoftmaxCnnlDescriptor_t *) desc_ptr, input_desc, output_desc);
+            //return bangCreateSoftmaxDescriptor((BangHandle_t) handle, (SoftmaxBangDescriptor_t *) desc_ptr, input_desc, output_desc);
+            return cnnlCreateSoftmaxDescriptor((BangHandle_t) handle, (SoftmaxCnnlDescriptor_t *) desc_ptr, input_desc, output_desc);
         }
 #endif
     }
@@ -57,8 +57,8 @@ __C infiniopStatus_t infiniopSoftmax(infiniopSoftmaxDescriptor_t desc, void cons
 #endif
 #ifdef ENABLE_CAMBRICON_MLU
         case DevCambriconMlu: {
-            return bangSoftmax((SoftmaxBangDescriptor_t) desc, input, axis, output, stream);
-            //return cnnlSoftmax((SoftmaxCnnlDescriptor_t) desc, input, axis, output, stream);
+            //return bangSoftmax((SoftmaxBangDescriptor_t) desc, input, axis, output, stream);
+            return cnnlSoftmax((SoftmaxCnnlDescriptor_t) desc, input, axis, output, stream);
         }
 #endif
     }
@@ -79,8 +79,8 @@ __C infiniopStatus_t infiniopDestroySoftmaxDescriptor(infiniopSoftmaxDescriptor_
 #endif
 #ifdef ENABLE_CAMBRICON_MLU
         case DevCambriconMlu: {
-            return bangDestroySoftmaxDescriptor((SoftmaxBangDescriptor_t) desc);
-            //return cnnlDestroySoftmaxDescriptor((SoftmaxCnnlDescriptor_t) desc);
+            //return bangDestroySoftmaxDescriptor((SoftmaxBangDescriptor_t) desc);
+            return cnnlDestroySoftmaxDescriptor((SoftmaxCnnlDescriptor_t) desc);
         }
 #endif
     }

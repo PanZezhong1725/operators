@@ -1,6 +1,6 @@
 #include "../../../devices/cuda/common_cuda.h"
 #include "../../utils.h"
-#include "softmax_cuda.cuh"
+#include "softmax.cuh"
 #include <cub/block/block_reduce.cuh>
 #include <cub/cub.cuh>
 struct __align__(8) DataMaxSum {// update the global max and sum, store the
@@ -241,14 +241,14 @@ __global__ void _warpSoftmaxKernel(T *__restrict input, T *__restrict output,
 //-----------------
 
 //------------------
-void softmax_nv_gpu_16(void const *input, int axis, void *output, void *stream) {
+void softmax_nv_gpu_f16(SoftmaxCudaDescriptor_t desc, void const *input, int axis, void *output, void *stream) {
     int ndim = desc->ndim;
     auto shape = desc->shape;
     int dimsize = shape[axis];
     int stride = 1;
-    int length = 1;
+    int size = 1;
     for (int i = ndim - 1; i >= 0; i -= 1) {
-        length *= shape[i];
+        size *= shape[i];
     }
     for (int i = ndim - 1; i >= 0; i -= 1) {
         if (i == axis) {
@@ -256,7 +256,7 @@ void softmax_nv_gpu_16(void const *input, int axis, void *output, void *stream) 
         }
         stride *= shape[i];
     }
-    int num_blocks = length / dimsize;
+    int num_blocks = size / dimsize;
     if (dimsize > 1024 * 128) {
 
         int BLOCK_DIM = 1024;

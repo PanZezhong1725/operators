@@ -1,5 +1,5 @@
-#include "softmax_cuda.cuh"
 #include "../../utils.h"
+#include "softmax.cuh"
 
 infiniopStatus_t cudaCreateSoftmaxDescriptor(CudaHandle_t handle,
                                              SoftmaxCudaDescriptor_t *desc_ptr,

@@ -17,9 +17,8 @@ infiniopStatus_t cudaCreateSoftmaxDescriptor(CudaHandle_t handle,
             return STATUS_BAD_TENSOR_SHAPE;
         }
     }
-    int dimsize = 1;
+    int dimsize = static_cast<int>(input_desc->shape[axis]);
     int stride = 1;
-    int othersize = 1;
     int size = 1;
     for (int i = ndim - 1; i >= 0; i -= 1) {
         size *= static_cast<int>(input_desc->shape[i]);
@@ -30,6 +29,7 @@ infiniopStatus_t cudaCreateSoftmaxDescriptor(CudaHandle_t handle,
         }
         stride *= static_cast<int>(input_desc->shape[i]);
     }
+    int othersize = size / dimsize;
     *desc_ptr = new SoftmaxCudaDescriptor{
         handle->device,
         handle->device_id,

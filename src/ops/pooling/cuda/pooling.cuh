@@ -28,7 +28,11 @@ infiniopStatus_t cudaCreatePoolingDescriptor(CudaHandle_t handle,
                                              uint64_t n,
                                              int pooling_type);
 
+infiniopStatus_t cudaGetPoolingWorkspaceSize(PoolingCudaDescriptor_t desc, uint64_t *size);
+
 infiniopStatus_t cudaPooling(PoolingCudaDescriptor_t desc,
+                             void *workspace,
+                             uint64_t workspace_size,
                              void *y,
                              void const *x,
                              void *stream);

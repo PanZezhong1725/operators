@@ -6,6 +6,7 @@
 infiniopStatus_t cnnlCreateSoftmaxDescriptor(BangHandle_t handle,
                                              SoftmaxCnnlDescriptor_t *desc_ptr,
                                              infiniopTensorDescriptor_t input_desc,
+                                             int axis,
                                              infiniopTensorDescriptor_t output_desc) {
     ASSERT_EQ(input_desc->ndim, output_desc->ndim);
     if (!dtype_eq(input_desc->dt, F16) && !dtype_eq(input_desc->dt, F32)) {
@@ -24,29 +25,6 @@ infiniopStatus_t cnnlCreateSoftmaxDescriptor(BangHandle_t handle,
     for (int i = 0; i < ndim; i++) {
         shape[i] = static_cast<int>(input_desc->shape[i]);
     }
-    *desc_ptr = new SoftmaxCnnlDescriptor{
-        handle->device,
-        handle->device_id,
-        input_desc->dt,
-        handle->cnnl_handles,
-        ndim,
-        shape};
-    return STATUS_SUCCESS;
-}
-
-
-infiniopStatus_t cnnlDestroySoftmaxDescriptor(SoftmaxCnnlDescriptor_t desc) {
-    desc->cnnl_handles = nullptr;
-    //cnnlDestroyTensorDescriptor(desc->aDesc);
-    //cnnlDestroyTensorDescriptor(desc->cDesc);
-    delete[] desc->shape;
-    delete desc;
-    return STATUS_SUCCESS;
-}
-
-void softmax_cnnl(SoftmaxCnnlDescriptor_t desc, void const *input, int axis, void *output, void *stream) {
-    int ndim = desc->ndim;
-    auto shape = desc->shape;
     cnnlSoftmaxMode_t mode;
     std::vector<int> inDim = {1, 1, 1};
     std::vector<int> outDim = inDim;
@@ -102,14 +80,14 @@ void softmax_cnnl(SoftmaxCnnlDescriptor_t desc, void const *input, int axis, voi
     cnnlTensorDescriptor_t aDesc, cDesc;
     cnnlCreateTensorDescriptor(&aDesc);
     cnnlCreateTensorDescriptor(&cDesc);
-    if (dtype_eq(desc->dtype, F16)) {
+    if (dtype_eq(input_desc->dt, F16)) {
         cnnlSetTensorDescriptor(
             aDesc, CNNL_LAYOUT_ARRAY, CNNL_DTYPE_HALF,
             inDim.size(), inDim.data());
         cnnlSetTensorDescriptor(
             cDesc, CNNL_LAYOUT_ARRAY, CNNL_DTYPE_HALF,
             outDim.size(), outDim.data());
-    } else if (dtype_eq(desc->dtype, F32)) {
+    } else if (dtype_eq(input_desc->dt, F32)) {
         cnnlSetTensorDescriptor(
             aDesc, CNNL_LAYOUT_ARRAY, CNNL_DTYPE_FLOAT,
             inDim.size(), inDim.data());
@@ -120,6 +98,35 @@ void softmax_cnnl(SoftmaxCnnlDescriptor_t desc, void const *input, int axis, voi
 
     float alpha = 1.0;
     float beta = 0.0;
+    *desc_ptr = new SoftmaxCnnlDescriptor{
+        handle->device,
+        handle->device_id,
+        input_desc->dt,
+        handle->cnnl_handles,
+        mode,
+        aDesc,
+        cDesc,
+        alpha,
+        beta};
+    return STATUS_SUCCESS;
+}
+
+
+infiniopStatus_t cnnlDestroySoftmaxDescriptor(SoftmaxCnnlDescriptor_t desc) {
+    desc->cnnl_handles = nullptr;
+    cnnlDestroyTensorDescriptor(desc->aDesc);
+    cnnlDestroyTensorDescriptor(desc->cDesc);
+    delete desc;
+    return STATUS_SUCCESS;
+}
+
+void softmax_cnnl(SoftmaxCnnlDescriptor_t desc, void const *input, void *output, void *stream) {
+    float alpha = desc->alpha;
+    float beta = desc->beta;
+    cnnlSoftmaxMode_t mode = desc->mode;
+    cnnlTensorDescriptor_t aDesc = desc->aDesc;
+    cnnlTensorDescriptor_t cDesc = desc->cDesc;
+
     use_cnnl(desc->cnnl_handles, desc->device_id, (cnrtQueue_t) stream,
              [&](cnnlHandle_t handle) {
                  cnnlSoftmaxForward_v2(handle, CNNL_SOFTMAX_ACCURATE,
@@ -127,13 +134,13 @@ void softmax_cnnl(SoftmaxCnnlDescriptor_t desc, void const *input, int axis, voi
                                        &alpha, aDesc, input, &beta, cDesc, output);
              });
 }
-infiniopStatus_t cnnlSoftmax(SoftmaxCnnlDescriptor_t desc, void const *input, int axis, void *output, void *stream) {
+infiniopStatus_t cnnlSoftmax(SoftmaxCnnlDescriptor_t desc, void const *input, void *output, void *stream) {
     if (cnrtSetDevice(desc->device_id) != cnrtSuccess) {
         return STATUS_BAD_DEVICE;
     }
 
     if (dtype_eq(desc->dtype, F16) || dtype_eq(desc->dtype, F32)) {
-        softmax_cnnl(desc, input, axis, output, stream);
+        softmax_cnnl(desc, input, output, stream);
 
         return STATUS_SUCCESS;
     }

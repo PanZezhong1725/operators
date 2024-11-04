@@ -10,19 +10,22 @@ struct SoftmaxBangDescriptor {
     int device_id;
     DT dtype;
     int ndim;
-    int *shape;
+    int axis;
+    int dimsize;
+    int stride;
+    int othersize;
+    int frontsize;
 };
 
 typedef struct SoftmaxBangDescriptor *SoftmaxBangDescriptor_t;
 
 infiniopStatus_t bangCreateSoftmaxDescriptor(BangHandle_t handle,
                                              SoftmaxBangDescriptor_t *desc_ptr,
-                                             infiniopTensorDescriptor_t input_desc, infiniopTensorDescriptor_t output_desc);
+                                             infiniopTensorDescriptor_t input_desc, int axis, infiniopTensorDescriptor_t output_desc);
 
 
 infiniopStatus_t bangSoftmax(SoftmaxBangDescriptor_t desc,
                              void const *input,
-                             int axis,
                              void *output,
                              void *stream);
 

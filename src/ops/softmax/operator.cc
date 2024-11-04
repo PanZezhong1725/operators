@@ -20,22 +20,22 @@
 __C infiniopStatus_t infiniopCreateSoftmaxDescriptor(
     infiniopHandle_t handle,
     infiniopSoftmaxDescriptor_t *desc_ptr,
-    infiniopTensorDescriptor_t input_desc, infiniopTensorDescriptor_t output_desc) {
+    infiniopTensorDescriptor_t input_desc, int axis, infiniopTensorDescriptor_t output_desc) {
     switch (handle->device) {
 #ifdef ENABLE_CPU
         case DevCpu:
-            return cpuCreateSoftmaxDescriptor(handle, (SoftmaxCpuDescriptor_t *) desc_ptr, input_desc, output_desc);
+            return cpuCreateSoftmaxDescriptor(handle, (SoftmaxCpuDescriptor_t *) desc_ptr, input_desc, axis, output_desc);
 #endif
 #ifdef ENABLE_NV_GPU
         case DevNvGpu: {
-            return cudaCreateSoftmaxDescriptor((CudaHandle_t) handle, (SoftmaxCudaDescriptor_t *) desc_ptr, input_desc, output_desc);
+            return cudaCreateSoftmaxDescriptor((CudaHandle_t) handle, (SoftmaxCudaDescriptor_t *) desc_ptr, input_desc, axis, output_desc);
         }
 
 #endif
 #ifdef ENABLE_CAMBRICON_MLU
         case DevCambriconMlu: {
-            //return bangCreateSoftmaxDescriptor((BangHandle_t) handle, (SoftmaxBangDescriptor_t *) desc_ptr, input_desc, output_desc);
-            return cnnlCreateSoftmaxDescriptor((BangHandle_t) handle, (SoftmaxCnnlDescriptor_t *) desc_ptr, input_desc, output_desc);
+            //return bangCreateSoftmaxDescriptor((BangHandle_t) handle, (SoftmaxBangDescriptor_t *) desc_ptr, input_desc, axis, output_desc);
+            return cnnlCreateSoftmaxDescriptor((BangHandle_t) handle, (SoftmaxCnnlDescriptor_t *) desc_ptr, input_desc, axis, output_desc);
         }
 #endif
     }
@@ -43,22 +43,22 @@ __C infiniopStatus_t infiniopCreateSoftmaxDescriptor(
 }
 
 
-__C infiniopStatus_t infiniopSoftmax(infiniopSoftmaxDescriptor_t desc, void const *input, int axis, void *output, void *stream) {
+__C infiniopStatus_t infiniopSoftmax(infiniopSoftmaxDescriptor_t desc, void const *input, void *output, void *stream) {
     switch (desc->device) {
 #ifdef ENABLE_CPU
         case DevCpu:
-            return cpuSoftmax((SoftmaxCpuDescriptor_t) desc, input, axis, output, stream);
+            return cpuSoftmax((SoftmaxCpuDescriptor_t) desc, input, output, stream);
 #endif
 #ifdef ENABLE_NV_GPU
         case DevNvGpu: {
-            return cudaSoftmax((SoftmaxCudaDescriptor_t) desc, input, axis, output, stream);
+            return cudaSoftmax((SoftmaxCudaDescriptor_t) desc, input, output, stream);
         }
 
 #endif
 #ifdef ENABLE_CAMBRICON_MLU
         case DevCambriconMlu: {
-            //return bangSoftmax((SoftmaxBangDescriptor_t) desc, input, axis, output, stream);
-            return cnnlSoftmax((SoftmaxCnnlDescriptor_t) desc, input, axis, output, stream);
+            //return bangSoftmax((SoftmaxBangDescriptor_t) desc, input, output, stream);
+            return cnnlSoftmax((SoftmaxCnnlDescriptor_t) desc, input, output, stream);
         }
 #endif
     }

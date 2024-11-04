@@ -3,7 +3,7 @@
 
 infiniopStatus_t bangCreateSoftmaxDescriptor(BangHandle_t handle,
                                              SoftmaxBangDescriptor_t *desc_ptr,
-                                             infiniopTensorDescriptor_t input_desc, infiniopTensorDescriptor_t output_desc) {
+                                             infiniopTensorDescriptor_t input_desc, int axis, infiniopTensorDescriptor_t output_desc) {
 
     ASSERT_EQ(input_desc->ndim, output_desc->ndim);
     if (!dtype_eq(input_desc->dt, F16) && !dtype_eq(input_desc->dt, F32)) {
@@ -17,25 +17,40 @@ infiniopStatus_t bangCreateSoftmaxDescriptor(BangHandle_t handle,
             return STATUS_BAD_TENSOR_SHAPE;
         }
     }
-    int *shape = new int[ndim];
 
+    int stride = 1;
+    int dimsize = static_cast<int>(input_desc->shape[axis]);
+    int othersize = 1;
+    int frontsize = 1;
 
-    for (int i = 0; i < ndim; i++) {
-        shape[i] = static_cast<int>(input_desc->shape[i]);
+    for (int s = ndim - 1; s >= 0; s--) {
+        if (s > axis) {
+            stride *= static_cast<int>(input_desc->shape[s]);
+        }
+        if (s < axis) {
+            frontsize *= static_cast<int>(input_desc->shape[s]);
+        }
+        if (s != axis) {
+            othersize *= static_cast<int>(input_desc->shape[s]);
+        }
     }
     *desc_ptr = new SoftmaxBangDescriptor{
         handle->device,
         handle->device_id,
         input_desc->dt,
         ndim,
-        shape};
+        axis,
+        dimsize,
+        stride,
+        othersize,
+        frontsize};
 
     return STATUS_SUCCESS;
 }
 
 
 infiniopStatus_t bangDestroySoftmaxDescriptor(SoftmaxBangDescriptor_t desc) {
-    delete[] desc->shape;
+
     delete desc;
     return STATUS_SUCCESS;
 }

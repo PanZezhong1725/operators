@@ -947,30 +947,17 @@ void softmaxUnion1(cnrtQueue_t queue, void const *input, void *output, int other
 
 
 
-void softmax_bang(SoftmaxBangDescriptor_t desc, void const *input, int axis, void *output, void *stream) {
+void softmax_bang(SoftmaxBangDescriptor_t desc, void const *input, void *output, void *stream) {
     auto queue = reinterpret_cast<cnrtQueue_t>(stream);
 
-    auto shape = desc->shape;
     int ndim = desc->ndim;
+    int axis = desc->axis;
+    int stride = desc->stride;
+    int dimsize = desc->dimsize;
+    int othersize = desc->othersize;
+    int frontsize = desc->frontsize;
 
-    int stride = 1;
-    int dimsize = shape[axis];
-    int num = 1;
-    int othersize = 1;
-    int frontsize = 1;
-
-    for (int s = ndim - 1; s >= 0; s--) {
-        num *= shape[s];
-        if (s > axis) {
-            stride *= shape[s];
-        }
-        if (s < axis) {
-            frontsize *= shape[s];
-        }
-        if (s != axis) {
-            othersize *= shape[s];
-        }
-    }
+    
     if (dtype_eq(desc->dtype, F16)) {
         softmaxUnion1<half>(queue, input, output, othersize, dimsize, frontsize, stride, axis, ndim);
     }
@@ -982,14 +969,13 @@ void softmax_bang(SoftmaxBangDescriptor_t desc, void const *input, int axis, voi
 
 infiniopStatus_t bangSoftmax(SoftmaxBangDescriptor_t desc,
                                    void const *input,
-                                   int axis,
                                    void *output,
                                    void *stream) {
     if (cnrtSetDevice(desc->device_id) != cnrtSuccess) {
         return STATUS_BAD_DEVICE;
     }
     if (dtype_eq(desc->dtype, F16) || dtype_eq(desc->dtype, F32)) {
-        softmax_bang(desc,input, axis, output, stream);
+        softmax_bang(desc,input, output, stream);
         return STATUS_SUCCESS;
     }
     return STATUS_BAD_TENSOR_DTYPE;

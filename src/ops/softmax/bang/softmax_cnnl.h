@@ -10,18 +10,22 @@ struct SoftmaxCnnlDescriptor {
     int device_id;
     DT dtype;
     std::shared_ptr<Pool<cnnlHandle_t>> cnnl_handles;
-    int ndim;
-    int *shape;
+    cnnlSoftmaxMode_t mode;
+    cnnlTensorDescriptor_t aDesc;
+    cnnlTensorDescriptor_t cDesc;
+    float alpha;
+    float beta;
 };
 typedef struct SoftmaxCnnlDescriptor *SoftmaxCnnlDescriptor_t;
 
 infiniopStatus_t cnnlCreateSoftmaxDescriptor(BangHandle_t handle,
                                              SoftmaxCnnlDescriptor_t *desc_ptr,
                                              infiniopTensorDescriptor_t input_desc,
+                                             int axis,
                                              infiniopTensorDescriptor_t output_desc);
 
 
-infiniopStatus_t cnnlSoftmax(SoftmaxCnnlDescriptor_t desc, void const *input, int axis, void *output, void *stream);
+infiniopStatus_t cnnlSoftmax(SoftmaxCnnlDescriptor_t desc, void const *input, void *output, void *stream);
 
 infiniopStatus_t cnnlDestroySoftmaxDescriptor(SoftmaxCnnlDescriptor_t desc);
 

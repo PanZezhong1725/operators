@@ -44,7 +44,7 @@ def test(lib, handle, torch_device, x_shape, axis, x_dtype=torch.float16):
     descriptor = infiniopSoftmaxDescriptor_t()
     check_error(
         lib.infiniopCreateSoftmaxDescriptor(
-            handle, ctypes.byref(descriptor), x_tensor.descriptor, y_tensor.descriptor
+            handle, ctypes.byref(descriptor), x_tensor.descriptor, axis, y_tensor.descriptor
         )
     )
     
@@ -52,7 +52,6 @@ def test(lib, handle, torch_device, x_shape, axis, x_dtype=torch.float16):
         lib.infiniopSoftmax(
             descriptor,
             x_tensor.data,
-            axis,
             y_tensor.data,
             None,
         )
@@ -115,7 +114,6 @@ if __name__ == "__main__":
     lib.infiniopSoftmax.argtypes = [
         infiniopSoftmaxDescriptor_t,
         c_void_p,
-        c_int32,
         c_void_p,
         c_void_p,
     ]

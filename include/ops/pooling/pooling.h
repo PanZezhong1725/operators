@@ -19,7 +19,9 @@ __C __export infiniopStatus_t infiniopCreatePoolingDescriptor(infiniopHandle_t h
                                                               uint64_t n,
                                                               int pooling_type);
 
-__C __export infiniopStatus_t infiniopPooling(infiniopPoolingDescriptor_t desc, void *y, void const *x, void *stream);
+__C __export infiniopStatus_t infiniopGetPoolingWorkspaceSize(infiniopPoolingDescriptor_t desc, uint64_t *size);
+
+__C __export infiniopStatus_t infiniopPooling(infiniopPoolingDescriptor_t desc, void *workspace, uint64_t workspace_size, void *y, void const *x, void *stream);
 
 __C __export infiniopStatus_t infiniopDestroyPoolingDescriptor(infiniopPoolingDescriptor_t desc);
 #endif

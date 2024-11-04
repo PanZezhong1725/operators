@@ -17,28 +17,22 @@ from operatorspy import (
 )
 
 from operatorspy.tests.test_utils import get_args
-from enum import Enum, auto
 import torch
 from typing import Tuple
 
 
-class PoolingDescriptor(Structure):
+class AvgPoolDescriptor(Structure):
     _fields_ = [("device", c_int32)]
 
 
-class PoolingMode(Enum):
-    MAX_POOL = 0
-    AVG_POOL = 1
+infiniopAvgPoolDescriptor_t = POINTER(AvgPoolDescriptor)
 
 
-infiniopPoolingDescriptor_t = POINTER(PoolingDescriptor)
-
-
-def pool(x, k, padding, stride, pooling_mode, dilation = 1):
+def pool(x, k, padding, stride, dilation = 1):
     pooling_layers = {
-        1: (torch.nn.MaxPool1d, torch.nn.AvgPool1d),
-        2: (torch.nn.MaxPool2d, torch.nn.AvgPool2d),
-        3: (torch.nn.MaxPool3d, torch.nn.AvgPool3d),
+        1: torch.nn.AvgPool1d,
+        2: torch.nn.AvgPool2d,
+        3: torch.nn.AvgPool3d,
     }
 
     ndim = len(x.shape) - 2
@@ -46,11 +40,9 @@ def pool(x, k, padding, stride, pooling_mode, dilation = 1):
         print("Error: Pytorch -> Unsupported tensor dimension")
         return None
 
-    max_pool, avg_pool = pooling_layers[ndim]
-    if pooling_mode == PoolingMode.MAX_POOL:
-        return max_pool(k, stride=stride, padding=padding, dilation=dilation)(x)
-    else:
-        return avg_pool(k, stride=stride, padding=padding)(x)
+    if ndim == 3 and x.dtype == torch.float16:
+        return pooling_layers[ndim](k, stride=stride, padding=padding)(x.to(torch.float32)).to(torch.float16)
+    return pooling_layers[ndim](k, stride=stride, padding=padding)(x)
 
 
 def inferShape(x_shape, kernel_shape, padding, strides):
@@ -81,23 +73,22 @@ def test(
     padding,
     strides,
     tensor_dtype=torch.float16,
-    pooling_mode=PoolingMode.MAX_POOL
 ):
     print(
-        f"Testing Pooling on {torch_device} with x_shape:{x_shape} kernel_shape:{k_shape} padding:{padding} strides:{strides} dtype:{tensor_dtype} pooling_mode: {pooling_mode.name}"
+        f"Testing AvgPool on {torch_device} with x_shape:{x_shape} kernel_shape:{k_shape} padding:{padding} strides:{strides} dtype:{tensor_dtype}"
     )
 
     x = torch.rand(x_shape, dtype=tensor_dtype).to(torch_device)
     y = torch.rand(inferShape(x_shape, k_shape, padding, strides), dtype=tensor_dtype).to(torch_device)
     
-    ans = pool(x, k_shape, padding, strides, pooling_mode)
+    ans = pool(x, k_shape, padding, strides)
 
     x_tensor = to_tensor(x, lib)
     y_tensor = to_tensor(y, lib)
-    descriptor = infiniopPoolingDescriptor_t()
+    descriptor = infiniopAvgPoolDescriptor_t()
 
     check_error(
-        lib.infiniopCreatePoolingDescriptor(
+        lib.infiniopCreateAvgPoolDescriptor(
             handle,
             ctypes.byref(descriptor),
             y_tensor.descriptor,
@@ -106,33 +97,39 @@ def test(
             tuple_to_void_p(padding),
             tuple_to_void_p(strides),
             len(k_shape),
-            pooling_mode.value,
         )
     )
-    lib.infiniopPooling(
-        descriptor, y_tensor.data, x_tensor.data, None
+
+    workspaceSize = ctypes.c_uint64(0)
+    check_error(
+        lib.infiniopGetAvgPoolWorkspaceSize(descriptor, ctypes.byref(workspaceSize))
+    )
+    workspace = torch.zeros(int(workspaceSize.value), dtype=torch.uint8).to(torch_device)
+    workspace_ptr = ctypes.cast(workspace.data_ptr(), ctypes.POINTER(ctypes.c_uint8))
+
+    lib.infiniopAvgPool(
+        descriptor, workspace_ptr, workspaceSize, y_tensor.data, x_tensor.data, None
     )
 
-    print(" - x :\n", x, "\n - y :\n", y, "\n - ans:\n", ans)
     assert torch.allclose(y, ans, atol=0, rtol=1e-3)
-    check_error(lib.infiniopDestroyPoolingDescriptor(descriptor))
+    check_error(lib.infiniopDestroyAvgPoolDescriptor(descriptor))
 
 
 def test_cpu(lib, test_cases):
     device = DeviceEnum.DEVICE_CPU
     handle = create_handle(lib, device)
-    for x_shape, kernel_shape, padding, strides, pooling_mode in test_cases:
-        test(lib, handle, "cpu", x_shape, kernel_shape, padding, strides, tensor_dtype=torch.float16, pooling_mode=pooling_mode)
-        test(lib, handle, "cpu", x_shape, kernel_shape, padding, strides, tensor_dtype=torch.float32, pooling_mode=pooling_mode)
+    for x_shape, kernel_shape, padding, strides in test_cases:
+        test(lib, handle, "cpu", x_shape, kernel_shape, padding, strides, tensor_dtype=torch.float16)
+        test(lib, handle, "cpu", x_shape, kernel_shape, padding, strides, tensor_dtype=torch.float32)
     destroy_handle(lib, handle)
 
 
 def test_cuda(lib, test_cases):
     device = DeviceEnum.DEVICE_CUDA
     handle = create_handle(lib, device)
-    for x_shape, kernel_shape, padding, strides, pooling_mode in test_cases:
-        test(lib, handle, "cuda", x_shape, kernel_shape, padding, strides, tensor_dtype=torch.float16, pooling_mode=pooling_mode)
-        test(lib, handle, "cuda", x_shape, kernel_shape, padding, strides, tensor_dtype=torch.float32, pooling_mode=pooling_mode)
+    for x_shape, kernel_shape, padding, strides in test_cases:
+        test(lib, handle, "cuda", x_shape, kernel_shape, padding, strides, tensor_dtype=torch.float16)
+        test(lib, handle, "cuda", x_shape, kernel_shape, padding, strides, tensor_dtype=torch.float32)
     destroy_handle(lib, handle)
 
 
@@ -141,47 +138,50 @@ def test_bang(lib, test_cases):
 
     device = DeviceEnum.DEVICE_BANG
     handle = create_handle(lib, device)
-    for x_shape, kernel_shape, padding, strides, pooling_mode in test_cases:
-        test(lib, handle, "mlu", x_shape, kernel_shape, padding, strides, tensor_dtype=torch.float16, pooling_mode=pooling_mode)
-        test(lib, handle, "mlu", x_shape, kernel_shape, padding, strides, tensor_dtype=torch.float32, pooling_mode=pooling_mode)
+    for x_shape, kernel_shape, padding, strides in test_cases:
+        test(lib, handle, "mlu", x_shape, kernel_shape, padding, strides, tensor_dtype=torch.float16)
+        test(lib, handle, "mlu", x_shape, kernel_shape, padding, strides, tensor_dtype=torch.float32)
     destroy_handle(lib, handle)
 
 
 if __name__ == "__main__":
     test_cases = [
-        # x_shape, kernel_shape, padding, strides, pooling_mode
-        # ((), (), (), (), PoolingMode.MAX_POOL),
-        # ((1, 1, 10), (3,), (1,), (1,), PoolingMode.MAX_POOL),
-        # ((1, 1, 10), (3,), (1,), (1,), PoolingMode.AVG_POOL),
-        # ((1, 3, 224, 224), (3, 3), (1, 1), (2, 2), PoolingMode.MAX_POOL),
-        # ((1, 3, 224, 224), (3, 3), (1, 1), (2, 2), PoolingMode.AVG_POOL),
-        ((1, 1, 3, 3, 3), (5, 5, 5), (2, 2, 2), (2, 2, 2), PoolingMode.MAX_POOL),
-        ((32, 3, 10, 10, 10), (5, 5, 5), (2, 2, 2), (2, 2, 2), PoolingMode.AVG_POOL),
+        # x_shape, kernel_shape, padding, strides
+        # ((), (), (), ()),
+        ((1, 1, 10), (3,), (1,), (1,)),
+        ((1, 3, 224, 224), (3, 3), (1, 1), (2, 2)),
+        ((1, 1, 16, 16, 16), (5, 5, 5), (2, 2, 2), (2, 2, 2)),
     ]
     args = get_args()
     lib = open_lib()
-    lib.infiniopCreatePoolingDescriptor.restype = c_int32
-    lib.infiniopCreatePoolingDescriptor.argtypes = [
+    lib.infiniopCreateAvgPoolDescriptor.restype = c_int32
+    lib.infiniopCreateAvgPoolDescriptor.argtypes = [
         infiniopHandle_t,
-        POINTER(infiniopPoolingDescriptor_t),
+        POINTER(infiniopAvgPoolDescriptor_t),
         infiniopTensorDescriptor_t,
         infiniopTensorDescriptor_t,
         c_void_p,
         c_void_p,
         c_void_p,
         c_uint64,
-        c_int32,
     ]
-    lib.infiniopPooling.restype = c_int32
-    lib.infiniopPooling.argtypes = [
-        infiniopPoolingDescriptor_t,
+    lib.infiniopGetAvgPoolWorkspaceSize.restype = c_int32
+    lib.infiniopGetAvgPoolWorkspaceSize.argtypes = [
+        infiniopAvgPoolDescriptor_t,
+        POINTER(c_uint64),
+    ]
+    lib.infiniopAvgPool.restype = c_int32
+    lib.infiniopAvgPool.argtypes = [
+        infiniopAvgPoolDescriptor_t,
+        c_void_p,
+        c_uint64,
         c_void_p,
         c_void_p,
         c_void_p,
     ]
-    lib.infiniopDestroyPoolingDescriptor.restype = c_int32
-    lib.infiniopDestroyPoolingDescriptor.argtypes = [
-        infiniopPoolingDescriptor_t,
+    lib.infiniopDestroyAvgPoolDescriptor.restype = c_int32
+    lib.infiniopDestroyAvgPoolDescriptor.argtypes = [
+        infiniopAvgPoolDescriptor_t,
     ]
 
     if args.cpu:

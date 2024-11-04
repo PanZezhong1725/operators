@@ -45,15 +45,37 @@ __C infiniopStatus_t infiniopCreatePoolingDescriptor(
     return STATUS_BAD_DEVICE;
 }
 
-__C infiniopStatus_t infiniopPooling(infiniopPoolingDescriptor_t desc, void *y, void const *x, void *stream) {
+__C infiniopStatus_t infiniopGetPoolingWorkspaceSize(infiniopPoolingDescriptor_t desc, uint64_t *size) {
     switch (desc->device) {
 #ifdef ENABLE_CPU
         case DevCpu:
-            return cpuPooling((PoolingCpuDescriptor_t) desc, y, x, stream);
+            return cpuGetPoolingWorkspaceSize((PoolingCpuDescriptor_t) desc, size);
 #endif
 #ifdef ENABLE_NV_GPU
         case DevNvGpu: {
-            return cudaPooling((PoolingCudaDescriptor_t) desc, y, x, stream);
+            return cudaGetPoolingWorkspaceSize((PoolingCudaDescriptor_t) desc, size);
+        }
+
+#endif
+#ifdef ENABLE_CAMBRICON_MLU
+        case DevCambriconMlu: {
+            return bangGetPoolingWorkspaceSize((PoolingBangDescriptor_t) desc, size);
+        }
+
+#endif
+    }
+    return STATUS_BAD_DEVICE;
+}
+
+__C infiniopStatus_t infiniopPooling(infiniopPoolingDescriptor_t desc, void *workspace, uint64_t workspace_size, void *y, void const *x, void *stream) {
+    switch (desc->device) {
+#ifdef ENABLE_CPU
+        case DevCpu:
+            return cpuPooling((PoolingCpuDescriptor_t) desc, workspace, workspace_size, y, x, stream);
+#endif
+#ifdef ENABLE_NV_GPU
+        case DevNvGpu: {
+            return cudaPooling((PoolingCudaDescriptor_t) desc, workspace, workspace_size, y, x, stream);
         }
 
 #endif

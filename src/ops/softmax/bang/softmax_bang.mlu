@@ -488,24 +488,30 @@ __mlu_global__ void softmaxKernelAxis_s(T *destination, T const *source, T *tmpG
     
     __bang_write_zero(tmpSum, othersize);
     __bang_write_zero(src, 3 * maxNum);
-    for(int i = 0; i < repeat; i++){
-      __memcpy(src, source + (i * size + taskId * multiple) * stride, multiple * othersize * sizeof(T), GDRAM2NRAM);//stride=othersize
-      for(int m = 0; m < multiple; m++){
-        __bang_maxequal(tmpNewMax, tmpNewMax, src + m * othersize, othersize);
+    
+    for(int i = 0; i < repeat + 1; i++){
+      if (i < repeat){
+        __memcpy_async(src + (i % 2) * maxNum, source + (i * size + taskId * multiple) * stride, multiple * othersize * sizeof(T), GDRAM2NRAM);//stride=othersize
       }
-      for(int m = 0; m < multiple; m++){
-        __bang_sub(src + m * othersize, src + m * othersize, tmpNewMax, othersize);//x - M
-      }
-      __bang_active_exp_less_0(src, src, multiple * othersize);//exp(x - M)
       if(i > 0){
-        __bang_sub(tmpOldMax, tmpOldMax, tmpNewMax, othersize);//oldM = oldM - newM
-        __bang_active_exp_less_0(tmpOldMax, tmpOldMax, othersize);//exp(oldM - newM)
-        __bang_mul(tmpSum, tmpSum, tmpOldMax, othersize);      //sum = sum * exp(oldM - newM)
+        for(int m = 0; m < multiple; m++){
+          __bang_maxequal(tmpNewMax, tmpNewMax, src + (i - 1) % 2 * maxNum + m * othersize, othersize);
+        }
+        for(int m = 0; m < multiple; m++){
+          __bang_sub(src + (i - 1) % 2 * maxNum + m * othersize, src + (i - 1) % 2 * maxNum + m * othersize, tmpNewMax, othersize);//x - M
+        }
+        __bang_active_exp_less_0(src + (i - 1) % 2 * maxNum, src + (i - 1) % 2 * maxNum, multiple * othersize);//exp(x - M)
+        if(i > 1){
+          __bang_sub(tmpOldMax, tmpOldMax, tmpNewMax, othersize);//oldM = oldM - newM
+          __bang_active_exp_less_0(tmpOldMax, tmpOldMax, othersize);//exp(oldM - newM)
+          __bang_mul(tmpSum, tmpSum, tmpOldMax, othersize);      //sum = sum * exp(oldM - newM)
+        }
+        for(int m = 0; m < multiple; m++){
+          __bang_add(tmpSum, tmpSum, src + (i - 1) % 2 * maxNum + m * othersize, othersize);
+        }
+        __memcpy(tmpOldMax, tmpNewMax, othersize * sizeof(T), NRAM2NRAM);
       }
-      for(int m = 0; m < multiple; m++){
-        __bang_add(tmpSum, tmpSum, src + m * othersize, othersize);
-      }
-      __memcpy(tmpOldMax, tmpNewMax, othersize * sizeof(T), NRAM2NRAM);
+      __sync_all_ipu();
     }
     
     if(step) {
@@ -571,16 +577,23 @@ __mlu_global__ void softmaxKernelAxis_s(T *destination, T const *source, T *tmpG
     }
     
     //-------------------
-    for(int i = 0; i < repeat; i++){
-      __memcpy(src, source + (i * size + taskId * multiple) * stride, multiple * othersize * sizeof(T), GDRAM2NRAM);//stride=othersize
-      for(int m = 0; m < multiple; m++){
-        __bang_sub(src + m * othersize, src + m * othersize, tmpNewMax, othersize);
+    for(int i = 0; i < repeat + 2; i++){
+      if(i < repeat){
+        __memcpy_async(src + (i % 3) * maxNum, source + (i * size + taskId * multiple) * stride, multiple * othersize * sizeof(T), GDRAM2NRAM);//stride=othersize
       }
-      __bang_active_exp_less_0(src, src, multiple * othersize);
-      for(int m = 0; m < multiple; m++){
-        __bang_mul(src + m * othersize, src + m * othersize, tmpSum, othersize);
+      if(i > 0){
+        for(int m = 0; m < multiple; m++){
+          __bang_sub(src + (i - 1) % 3 * maxNum + m * othersize, src + (i - 1) % 3 * maxNum + m * othersize, tmpNewMax, othersize);
+        }
+        __bang_active_exp_less_0(src + (i - 1) % 3 * maxNum, src + (i - 1) % 3 * maxNum, multiple * othersize);
+        for(int m = 0; m < multiple; m++){
+          __bang_mul(src + (i - 1) % 3 * maxNum + m * othersize, src + (i - 1) % 3 * maxNum + m * othersize, tmpSum, othersize);
+        }
       }
-      __memcpy(destination + (i * size + taskId * multiple) * stride, src, multiple * othersize * sizeof(T), NRAM2GDRAM);
+      if (i > 1){
+        __memcpy_async(destination + ((i - 2) * size + taskId * multiple) * stride, src + (i - 2) % 3 * maxNum, multiple * othersize * sizeof(T), NRAM2GDRAM);
+      }
+      __sync_all_ipu();
     }
     if(step) {
       __memcpy(src, source + repeat * size * stride + indStart * stride, step * othersize * sizeof(T), GDRAM2NRAM);//stride=othersize

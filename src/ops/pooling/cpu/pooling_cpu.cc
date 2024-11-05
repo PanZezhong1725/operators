@@ -1,6 +1,17 @@
 #include "pooling_cpu.h"
 #include "../../utils.h"
 
+// get the total number of elements in arr
+inline uint64_t getTotalSize(const uint64_t *arr, uint64_t ndim) {
+    return std::accumulate(arr, arr + ndim, 1ULL, std::multiplies<uint64_t>());
+}
+
+// check if padding is needed
+inline bool requirePadding(uint64_t const *pads, uint64_t ndim) {
+    return std::any_of(pads, pads + ndim - 2,
+                       [](uint64_t pad) { return pad > 0; });
+}
+
 infiniopStatus_t cpuCreatePoolingDescriptor(infiniopHandle_t,
                                             PoolingCpuDescriptor_t *desc_ptr,
                                             infiniopTensorDescriptor_t y,
@@ -68,22 +79,6 @@ infiniopStatus_t cpuDestroyPoolingDescriptor(PoolingCpuDescriptor_t desc) {
     delete[] desc->y_shape;
     delete desc;
     return STATUS_SUCCESS;
-}
-
-uint64_t getPaddedSize(uint64_t ndim, uint64_t *shape, uint64_t const *pads) {
-    uint64_t total_size = 1;
-    for (size_t i = 0; i < ndim; ++i) {
-        total_size *= shape[i] + (i < 2 ? 0 : 2 * pads[i - 2]);
-    }
-    return total_size;
-}
-
-// calculate the padded shape and store the result in padded_shape
-void getPaddedShape(uint64_t ndim, uint64_t const *shape, uint64_t const *pads, uint64_t *padded_shape) {
-    memcpy(padded_shape, shape, ndim * sizeof(uint64_t));
-    for (size_t i = 2; i < ndim; ++i) {
-        padded_shape[i] += 2 * pads[i - 2];
-    }
 }
 
 // initialize the padded input with the data from the original input

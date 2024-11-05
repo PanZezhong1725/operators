@@ -3,6 +3,7 @@
 
 #include <cmath>
 #include <cstdint>
+#include <cstring>
 
 // return a mask with the specified number of low bits set to 1
 constexpr static uint16_t mask_low(int bits) noexcept {
@@ -20,5 +21,22 @@ uint64_t getDstOffset(uint64_t flat_index, uint64_t ndim, int64_t const *src_str
 
 // get the memory offset of the given element in a tensor given its flat index
 uint64_t getOffset(uint64_t flat_index, uint64_t ndim, uint64_t const *shape, int64_t const *strides);
+/**
+ * get the total array size (element count) after applying padding for a 
+ * ndim-ary tensor with the given shape
+ */
+uint64_t getPaddedSize(uint64_t ndim, uint64_t *shape, uint64_t const *pads);
+
+// calculate the padded shape and store the result in padded_shape
+void getPaddedShape(uint64_t ndim, uint64_t const *shape, uint64_t const *pads, uint64_t *padded_shape);
+
+// copy the data in src tensor into that of the dest tensor but also convert
+// from f32 to f16
+inline void copyF32DataToF16(uint16_t *dest, float const *src, uint64_t size) {
+#pragma omp parallel for
+    for (size_t i = 0; i < size; ++i) {
+        dest[i] = f32_to_f16(src[i]);
+    }
+}
 
 #endif// __COMMON_CPU_H__

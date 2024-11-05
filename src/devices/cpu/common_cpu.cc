@@ -83,3 +83,18 @@ uint64_t getOffset(uint64_t flat_index, uint64_t ndim, uint64_t const *shape, in
     }
     return res;
 }
+
+uint64_t getPaddedSize(uint64_t ndim, uint64_t *shape, uint64_t const *pads) {
+    uint64_t total_size = 1;
+    for (size_t i = 0; i < ndim; ++i) {
+        total_size *= shape[i] + (i < 2 ? 0 : 2 * pads[i - 2]);
+    }
+    return total_size;
+}
+
+void getPaddedShape(uint64_t ndim, uint64_t const *shape, uint64_t const *pads, uint64_t *padded_shape) {
+    memcpy(padded_shape, shape, ndim * sizeof(uint64_t));
+    for (size_t i = 2; i < ndim; ++i) {
+        padded_shape[i] += 2 * pads[i - 2];
+    }
+}

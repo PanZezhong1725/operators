@@ -169,10 +169,10 @@ void _applyPooling(PoolingCpuDescriptor_t desc, Ydata *y, Xdata const *x,
 
 template<typename Xdata, typename Ydata>
 void applyPooling(PoolingCpuDescriptor_t desc, Ydata *y, Xdata const *x, uint64_t const *x_shape) {
-#pragma omp parallel for
+#pragma omp parallel for collapse(2)
     // batch
     for (size_t i = 0; i < x_shape[0]; ++i) {
-#pragma omp parallel for
+
         // channel
         for (size_t j = 0; j < x_shape[1]; ++j) {
             uint64_t x_index = i * x_shape[1] + j;

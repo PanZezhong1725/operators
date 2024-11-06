@@ -1,6 +1,6 @@
 #include "../utils.h"
 #include "operators.h"
-#include "ops/pooling/pooling.h"
+#include "pooling.h"
 
 #ifdef ENABLE_CPU
 #include "cpu/pooling_cpu.h"
@@ -19,9 +19,9 @@ __C infiniopStatus_t infiniopCreatePoolingDescriptor(
     infiniopPoolingDescriptor_t *desc_ptr,
     infiniopTensorDescriptor_t y,
     infiniopTensorDescriptor_t x,
-    void const *kernel_shape,
-    void const *pads,
-    void const *strides,
+    uint64_t const *kernel_shape,
+    uint64_t const *pads,
+    int64_t const *strides,
     uint64_t n,
     int pooling_type) {
     switch (handle->device) {

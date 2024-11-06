@@ -11,8 +11,7 @@
 #include "cuda/pooling.cuh"
 #endif
 #ifdef ENABLE_CAMBRICON_MLU
-#include "bang/pooling_bang.h"
-//#include "bang/pooling_cnnl.h"
+// TODO
 #endif
 
 __C infiniopStatus_t infiniopCreatePoolingDescriptor(
@@ -37,9 +36,7 @@ __C infiniopStatus_t infiniopCreatePoolingDescriptor(
 
 #endif
 #ifdef ENABLE_CAMBRICON_MLU
-        case DevCambriconMlu: {
-            return bangCreatePoolingDescriptor((BangHandle_t) handle, (PoolingBangDescriptor_t *) desc_ptr, y, x, kernel_shape, pads, strides, n, pooling_type);
-        }
+        // TODO
 #endif
     }
     return STATUS_BAD_DEVICE;
@@ -58,9 +55,7 @@ __C infiniopStatus_t infiniopGetPoolingWorkspaceSize(infiniopPoolingDescriptor_t
 
 #endif
 #ifdef ENABLE_CAMBRICON_MLU
-        case DevCambriconMlu: {
-            return bangGetPoolingWorkspaceSize((PoolingBangDescriptor_t) desc, size);
-        }
+        // TODO
 
 #endif
     }
@@ -80,9 +75,7 @@ __C infiniopStatus_t infiniopPooling(infiniopPoolingDescriptor_t desc, void *wor
 
 #endif
 #ifdef ENABLE_CAMBRICON_MLU
-        case DevCambriconMlu: {
-            return bangPooling((PoolingBangDescriptor_t) desc, y, x, stream);
-        }
+        // TODO
 #endif
     }
     return STATUS_BAD_DEVICE;
@@ -101,9 +94,7 @@ __C infiniopStatus_t infiniopDestroyPoolingDescriptor(infiniopPoolingDescriptor_
 
 #endif
 #ifdef ENABLE_CAMBRICON_MLU
-        case DevCambriconMlu: {
-            return bangDestroyPoolingDescriptor((PoolingBangDescriptor_t) desc);
-        }
+        // TODO
 #endif
     }
     return STATUS_BAD_DEVICE;

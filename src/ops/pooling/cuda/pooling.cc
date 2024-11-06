@@ -7,9 +7,9 @@ infiniopStatus_t cudaCreatePoolingDescriptor(CudaHandle_t handle,
                                              PoolingCudaDescriptor_t *desc_ptr,
                                              infiniopTensorDescriptor_t y,
                                              infiniopTensorDescriptor_t x,
-                                             void const *kernel_shape,
-                                             void const *pads,
-                                             void const *strides,
+                                             uint64_t const *kernel_shape,
+                                             uint64_t const *pads,
+                                             int64_t const *strides,
                                              uint64_t n,
                                              int pooling_type) {
     uint64_t ndim = y->ndim;
@@ -42,8 +42,8 @@ infiniopStatus_t cudaCreatePoolingDescriptor(CudaHandle_t handle,
         int xw = ndim == 3 ? x->shape[2] : x->shape[3];
         int yh = ndim == 3 ? 1 : y->shape[2];
         int yw = ndim == 3 ? y->shape[2] : y->shape[3];
-        const auto kernel_ = reinterpret_cast<uint64_t const *>(kernel_shape);
-        const auto pads_ = reinterpret_cast<uint64_t const *>(pads);
+        const auto kernel_ = reinterpret_cast<int64_t const *>(kernel_shape);
+        const auto pads_ = reinterpret_cast<int64_t const *>(pads);
         const auto strides_ = reinterpret_cast<int64_t const *>(strides);
         int kh = ndim == 3 ? 1 : kernel_[0];
         int kw = ndim == 3 ? kernel_[0] : kernel_[1];

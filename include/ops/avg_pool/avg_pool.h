@@ -13,9 +13,9 @@ __C __export infiniopStatus_t infiniopCreateAvgPoolDescriptor(infiniopHandle_t h
                                                               infiniopAvgPoolDescriptor_t *desc_ptr,
                                                               infiniopTensorDescriptor_t y,
                                                               infiniopTensorDescriptor_t x,
-                                                              void const *kernel_shape,
-                                                              void const *pads,
-                                                              void const *strides,
+                                                              uint64_t const *kernel_shape,
+                                                              uint64_t const *pads,
+                                                              int64_t const *strides,
                                                               uint64_t n);
 
 __C __export infiniopStatus_t infiniopGetAvgPoolWorkspaceSize(infiniopAvgPoolDescriptor_t desc, uint64_t *size);

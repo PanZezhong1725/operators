@@ -1,6 +1,6 @@
+#include "../pooling/pooling.h"
 #include "../utils.h"
 #include "ops/avg_pool/avg_pool.h"
-#include "ops/pooling/pooling.h"
 
 struct _AvgPoolDescriptor {
     Device device;
@@ -14,9 +14,9 @@ __C __export infiniopStatus_t infiniopCreateAvgPoolDescriptor(infiniopHandle_t h
                                                               infiniopAvgPoolDescriptor_t *desc_ptr,
                                                               infiniopTensorDescriptor_t y,
                                                               infiniopTensorDescriptor_t x,
-                                                              void const *kernel_shape,
-                                                              void const *pads,
-                                                              void const *strides,
+                                                              uint64_t const *kernel_shape,
+                                                              uint64_t const *pads,
+                                                              int64_t const *strides,
                                                               uint64_t n) {
     infiniopPoolingDescriptor_t pooling_desc = new PoolingDescriptor{handle->device};
     CHECK_STATUS(infiniopCreatePoolingDescriptor(handle, &pooling_desc, y, x, kernel_shape, pads, strides, n, 1), STATUS_SUCCESS);

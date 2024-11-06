@@ -1,6 +1,6 @@
+#include "../pooling/pooling.h"
 #include "../utils.h"
 #include "ops/max_pool/max_pool.h"
-#include "ops/pooling/pooling.h"
 
 struct _MaxPoolDescriptor {
     Device device;
@@ -14,9 +14,9 @@ __C __export infiniopStatus_t infiniopCreateMaxPoolDescriptor(infiniopHandle_t h
                                                               infiniopMaxPoolDescriptor_t *desc_ptr,
                                                               infiniopTensorDescriptor_t y,
                                                               infiniopTensorDescriptor_t x,
-                                                              void const *kernel_shape,
-                                                              void const *pads,
-                                                              void const *strides,
+                                                              uint64_t const *kernel_shape,
+                                                              uint64_t const *pads,
+                                                              int64_t const *strides,
                                                               uint64_t n) {
     infiniopPoolingDescriptor_t pooling_desc = new PoolingDescriptor{handle->device};
     CHECK_STATUS(infiniopCreatePoolingDescriptor(handle, &pooling_desc, y, x, kernel_shape, pads, strides, n, 0), STATUS_SUCCESS);

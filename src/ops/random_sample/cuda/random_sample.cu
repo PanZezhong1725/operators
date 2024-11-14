@@ -142,8 +142,8 @@ void random_sample_nv_gpu_f16(RandomSampleCudaDescriptor_t desc, void *workspace
     index<<<(voc + 1023) / 1024, 1024, 0, (cudaStream_t) stream>>>(key_in, voc);
     //下面开始计算workspace空间
 
-    void *workspace_extra = reinterpret_cast<char *>(workspace) + 2 * voc * sizeof(half) + voc * sizeof(uint64_t);
-    uint64_t workspace_len = workspace_size - 2 * voc * sizeof(half) - voc * sizeof(uint64_t);
+    void *workspace_extra = reinterpret_cast<char *>(workspace) + desc->step;
+    uint64_t workspace_len = workspace_size - desc->step;
     sort_pairs_descending<half, uint64_t>(
         workspace_extra, workspace_len,
         (half *) probs, val_out,

@@ -11,6 +11,7 @@ struct RandomSampleCudaDescriptor {
     int voc;
     DT rDtype;
     int rLength;
+    int step;
 };
 
 typedef struct RandomSampleCudaDescriptor *RandomSampleCudaDescriptor_t;

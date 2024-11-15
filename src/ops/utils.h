@@ -1,8 +1,8 @@
 #ifndef __UTILS_H__
 #define __UTILS_H__
 
-#include "data_type.h"
-#include "tensor.h"
+#include "../../include/data_type.h"
+#include "../../include/tensor.h"
 #include <algorithm>
 #include <numeric>
 #include <stdio.h>

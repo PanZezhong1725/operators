@@ -36,6 +36,13 @@ option("ascend-npu")
     add_defines("ENABLE_ASCEND_NPU")
 option_end()
 
+option("iluvatar-bi")
+    set_default(false)
+    set_showmenu(true)
+    set_description("Enable or disable Iluvatar Bi150 kernel")
+    add_defines("ENABLE_ILU_BI")
+option_end()
+
 if is_mode("debug") then
     add_cxflags("-g -O0")
     add_defines("DEBUG_MODE")
@@ -197,6 +204,43 @@ if has_config("ascend-npu") then
     target_end()
 end
 
+
+if has_config("iluvatar-bi") then
+
+    add_defines("ENABLE_ILU_BI")
+    -- Add include dirs
+    add_includedirs("/usr/local/corex/include")
+    add_includedirs("include")
+
+    -- Add shared lib
+    -- add_linkdirs("/usr/local/corex/lib")
+    add_linkdirs("/usr/local/corex/lib64")
+    add_links("cuda", "cublas", "cudnn", "cudart")
+    add_ldflags("-Wl,--exclude-libs,libcudadevrt.a", {force = true})
+
+    rule("cu")
+        set_extensions(".cu")
+        on_build_file(function (target, sourcefile)
+            local objectfile = target:objectfile(sourcefile)
+            os.mkdir(path.directory(objectfile))
+            local mcc = "/usr/local/corex/bin/clang++"
+            print("Compiling" .. sourcefile .. "to " .. objectfile)
+            os.execv(mcc, {"-c", sourcefile, "-o", objectfile, "-I/usr/local/corex/include",  "-std=c++17", "-fPIC"})
+            table.insert(target:objectfiles(), objectfile)
+        end)
+    rule_end()
+
+    target("iluvatar-bi")
+        set_kind("static")
+        set_languages("cxx17")
+        add_files("src/devices/iluvatar/*.cc", "src/ops/*/iluvatar/*.cc")
+        add_files("src/ops/*/iluvatar/*.cu", {rule = "cu"})
+        add_cxflags("-lstdc++ -Wall -Werror -fPIC")
+    target_end()
+
+end
+
+
 target("infiniop")
     set_kind("shared")
 
@@ -211,6 +255,9 @@ target("infiniop")
     end
     if has_config("ascend-npu") then
         add_deps("ascend-npu")
+    end
+    if has_config("iluvatar-bi") then
+        add_deps("iluvatar-bi")
     end
     set_languages("cxx17")
     add_files("src/devices/handle.cc")

@@ -14,7 +14,10 @@
 #ifdef ENABLE_ASCEND_NPU
 #include "ascend/matmul_aclnn.h"
 #endif
-
+#ifdef ENABLE_ILU_BI
+#include "iluvatar/matmul_ilu.h"
+#include <cublas_v2.h>
+#endif
 __C infiniopStatus_t infiniopCreateMatmulDescriptor(infiniopHandle_t handle,
                                                     infiniopMatmulDescriptor_t *desc_ptr,
                                                     infiniopTensorDescriptor_t c_desc,
@@ -49,6 +52,11 @@ __C infiniopStatus_t infiniopCreateMatmulDescriptor(infiniopHandle_t handle,
                                                1);
         }
 #endif
+#ifdef ENABLE_ILU_BI
+        case DevIluvatarBi: {
+            return iluCreateMatmulDescriptor((IluHandle_t) handle, (MatmulIluDescriptor_t *) desc_ptr, c_desc, alpha, a_desc, b_desc, beta);
+        }
+#endif
     }
     return STATUS_BAD_DEVICE;
 }
@@ -63,7 +71,6 @@ __C infiniopStatus_t infiniopGetMatmulWorkspaceSize(infiniopMatmulDescriptor_t d
         case DevNvGpu: {
             return cudaGetMatmulWorkspaceSize((MatmulCudaDescriptor_t) desc, size);
         }
-
 #endif
 #ifdef ENABLE_CAMBRICON_MLU
         case DevCambriconMlu: {
@@ -76,11 +83,17 @@ __C infiniopStatus_t infiniopGetMatmulWorkspaceSize(infiniopMatmulDescriptor_t d
                                                size);
         }
 #endif
+#ifdef ENABLE_ILU_BI
+        case DevIluvatarBi: {
+            return iluGetMatmulWorkspaceSize((MatmulIluDescriptor_t) desc, size);
+        }
+#endif
     }
     return STATUS_BAD_DEVICE;
 }
 
 __C infiniopStatus_t infiniopMatmul(infiniopMatmulDescriptor_t desc, void *workspace, uint64_t workspace_size, void *c, void const *a, void const *b, void *stream) {
+
     switch (desc->device) {
 #ifdef ENABLE_CPU
         case DevCpu:
@@ -105,6 +118,11 @@ __C infiniopStatus_t infiniopMatmul(infiniopMatmulDescriptor_t desc, void *works
                                b,
                                stream);
 #endif
+#ifdef ENABLE_ILU_BI
+        case DevIluvatarBi: {
+            return iluMatmul((MatmulIluDescriptor_t) desc, workspace, workspace_size, c, a, b, stream);
+        }
+#endif
     }
     return STATUS_BAD_DEVICE;
 }
@@ -119,7 +137,6 @@ __C infiniopStatus_t infiniopDestroyMatmulDescriptor(infiniopMatmulDescriptor_t 
         case DevNvGpu: {
             return cudaDestroyMatmulDescriptor((MatmulCudaDescriptor_t) desc);
         }
-
 #endif
 #ifdef ENABLE_CAMBRICON_MLU
         case DevCambriconMlu: {
@@ -129,6 +146,11 @@ __C infiniopStatus_t infiniopDestroyMatmulDescriptor(infiniopMatmulDescriptor_t 
 #ifdef ENABLE_ASCEND_NPU
         case DevAscendNpu: {
             return aclnnDestroyMatmulDescriptor((MatmulAclnnDescriptor_t) desc);
+        }
+#endif
+#ifdef ENABLE_ILU_BI
+        case DevIluvatarBi: {
+            return iluDestroyMatmulDescriptor((MatmulIluDescriptor_t) desc);
         }
 #endif
     }

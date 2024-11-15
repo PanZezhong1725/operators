@@ -137,7 +137,6 @@ def test(
         print(f"    lib time: {elapsed :6f}")
 
     assert torch.allclose(c, ans, atol=0, rtol=1e-2)
-
     check_error(lib.infiniopDestroyMatmulDescriptor(descriptor))
 
 
@@ -273,6 +272,38 @@ def test_ascend(lib, test_cases):
         )
 
     destroy_handle(lib, handle)
+    
+def test_ilu(lib, test_cases):
+    device = DeviceEnum.DEVICE_ILU
+    handle = create_handle(lib, device)
+    for (
+        alpha,
+        beta,
+        a_shape,
+        b_shape,
+        c_shape,
+        a_stride,
+        b_stride,
+        c_stride,
+        dtype,
+    ) in test_cases:
+        test(
+            lib,
+            handle,
+            "cuda",
+            alpha,
+            beta,
+            a_shape,
+            b_shape,
+            c_shape,
+            a_stride,
+            b_stride,
+            c_stride,
+            dtype,
+        )
+
+    destroy_handle(lib, handle)
+
 
 if __name__ == "__main__":
     test_cases = [
@@ -287,7 +318,6 @@ if __name__ == "__main__":
     ]
     args = get_args()
     lib = open_lib()
-
     lib.infiniopCreateMatmulDescriptor.restype = c_int32
     lib.infiniopCreateMatmulDescriptor.argtypes = [
         infiniopHandle_t,
@@ -329,6 +359,8 @@ if __name__ == "__main__":
         test_bang(lib, test_cases)
     if args.ascend:
         test_ascend(lib, test_cases)
-    if not (args.cpu or args.cuda or args.bang or args.ascend):
+    if args.ilu:
+        test_ilu(lib, test_cases)
+    if not (args.cpu or args.cuda or args.bang or args.ascend or args.ilu):
         test_cpu(lib, test_cases)
     print("\033[92mTest passed!\033[0m")

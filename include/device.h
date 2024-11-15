@@ -6,6 +6,7 @@ enum DeviceEnum {
     DevNvGpu,
     DevCambriconMlu,
     DevAscendNpu,
+    DevIluvatarBi,
 };
 
 typedef enum DeviceEnum Device;

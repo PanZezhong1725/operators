@@ -8,8 +8,8 @@ from .devices import *
 Device = c_int
 Optype = c_int
 
-LIB_OPERATORS_DIR = os.path.join(os.environ.get("INFINI_ROOT"), "lib")
-
+# LIB_OPERATORS_DIR = os.path.join(os.environ.get("INFINI_ROOT"), "lib")
+LIB_OPERATORS_DIR = os.environ.get("INFINI_ROOT")
 
 class TensorDescriptor(Structure):
     _fields_ = [

@@ -1,4 +1,5 @@
 #include "handle/handle_export.h"
+#include <stdio.h>
 #ifdef ENABLE_CPU
 #include "./cpu/cpu_handle.h"
 #endif
@@ -11,7 +12,9 @@
 #ifdef ENABLE_ASCEND_NPU
 #include "./ascend/ascend_handle.h"
 #endif
-
+#ifdef ENABLE_ILU_BI
+#include "./iluvatar/ilu_handle.h"
+#endif
 
 __C infiniopStatus_t infiniopCreateHandle(infiniopHandle_t *handle_ptr, Device device, int device_id) {
     if (handle_ptr == nullptr) {
@@ -20,7 +23,6 @@ __C infiniopStatus_t infiniopCreateHandle(infiniopHandle_t *handle_ptr, Device d
     if (device_id < 0) {
         return STATUS_BAD_PARAM;
     }
-
     switch (device) {
 #ifdef ENABLE_CPU
         case DevCpu:
@@ -39,6 +41,11 @@ __C infiniopStatus_t infiniopCreateHandle(infiniopHandle_t *handle_ptr, Device d
 #ifdef ENABLE_ASCEND_NPU
         case DevAscendNpu: {
             return createAscendHandle((AscendHandle_t *) handle_ptr, device_id);
+        }
+#endif
+#ifdef ENABLE_ILU_BI
+        case DevIluvatarBi: {
+            return createIluHandle((IluHandle_t *) handle_ptr, device_id);
         }
 #endif
     }
@@ -67,6 +74,11 @@ __C infiniopStatus_t infiniopDestroyHandle(infiniopHandle_t handle) {
 #ifdef ENABLE_ASCEND_NPU
         case DevAscendNpu: {
             return deleteAscendHandle((AscendHandle_t) handle);
+        }
+#endif
+#ifdef ENABLE_ILU_BI
+        case DevIluvatarBi: {
+            return deleteIluHandle((IluHandle_t) handle);
         }
 #endif
     }

@@ -3,3 +3,4 @@ class DeviceEnum:
     DEVICE_CUDA = 1
     DEVICE_BANG = 2
     DEVICE_ASCEND = 3
+    DEVICE_ILU = 4

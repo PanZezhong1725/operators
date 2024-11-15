@@ -15,7 +15,10 @@
 #ifdef ENABLE_ASCEND_NPU
 #include "ascend/rotary_embedding.h"
 #endif
-
+#ifdef ENABLE_ILU_BI
+#include "../../devices/iluvatar/ilu_handle.h"
+#include "iluvatar/rotary_embedding.cuh"
+#endif
 struct RoPEDescriptor {
     Device device;
 };
@@ -53,6 +56,11 @@ __C infiniopStatus_t infiniopCreateRoPEDescriptor(infiniopHandle_t handle,
                                               cos_table);
         }
 #endif
+#ifdef ENABLE_ILU_BI
+        case DevIluvatarBi: {
+            return cudaCreateRoPEDescriptor((IluHandle_t) handle, (RoPECudaDescriptor_t *) desc_ptr, t, pos_ids, sin_table, cos_table);
+        }
+#endif
     }
     return STATUS_BAD_DEVICE;
 }
@@ -78,6 +86,11 @@ __C infiniopStatus_t infiniopGetRoPEWorkspaceSize(infiniopRoPEDescriptor_t desc,
         case DevAscendNpu: {
             return ascendGetRoPEWorkspaceSize((RoPEAscendDescriptor_t) desc,
                                               size);
+        }
+#endif
+#ifdef ENABLE_ILU_BI
+        case DevIluvatarBi: {
+            return cudaGetRoPEWorkspaceSize((RoPECudaDescriptor_t) desc, size);
         }
 #endif
     }
@@ -120,6 +133,11 @@ __C infiniopStatus_t infiniopRoPE(infiniopRoPEDescriptor_t desc,
                               stream);
         }
 #endif
+#ifdef ENABLE_ILU_BI
+        case DevIluvatarBi: {
+            return cudaRoPE((RoPECudaDescriptor_t) desc, workspace, workspace_size, t, pos_ids, sin_table, cos_table, stream);
+        }
+#endif
     }
     return STATUS_BAD_DEVICE;
 }
@@ -144,6 +162,11 @@ __C infiniopStatus_t infiniopDestroyRoPEDescriptor(infiniopRoPEDescriptor_t desc
 #ifdef ENABLE_ASCEND_NPU
         case DevAscendNpu: {
             return ascendDestroyRoPEDescriptor((RoPEAscendDescriptor_t) desc);
+        }
+#endif
+#ifdef ENABLE_ILU_BI
+        case DevIluvatarBi: {
+            return cudaDestroyRoPEDescriptor((RoPECudaDescriptor_t) desc);
         }
 #endif
     }

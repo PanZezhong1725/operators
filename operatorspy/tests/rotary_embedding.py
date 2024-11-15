@@ -82,8 +82,9 @@ def test(lib, handle, torch_device, shape, strides=None, dtype=torch.float16):
     else:
         t = t.to(torch_device)
         pos = pos.to(torch_device)
+        pos = pos.to(torch.int64)
         ans = rotary_embedding(t, pos, theta, torch_device)
-        pos = pos.to(torch.uint64)
+        # pos = pos.to(torch.uint64)
 
     descriptor = infiniopRoPEDescriptor_t()
     # 2x table length for test
@@ -165,6 +166,13 @@ def test_ascend(lib, test_cases) :
         test(lib, handle, "npu", shape, strides, dtype)
     destroy_handle(lib, handle)
 
+def test_ilu(lib, test_cases):
+    device = DeviceEnum.DEVICE_ILU
+    handle = create_handle(lib, device)
+    for shape, strides, dtype in test_cases:
+        test(lib, handle, "cuda", shape, strides, dtype)
+    destroy_handle(lib, handle)
+
 if __name__ == "__main__":
     test_cases = [
         ((1, 32, 128), None, torch.float16),
@@ -215,5 +223,7 @@ if __name__ == "__main__":
         test_bang(lib, test_cases)
     if args.ascend:
         test_ascend(lib, test_cases)
-    if not (args.cpu or args.cuda or args.bang or args.ascend):
+    if args.ilu:
+        test_ilu(lib, test_cases)
+    if not (args.cpu or args.cuda or args.bang or args.ascend or args.ilu):
         test_cpu(lib, test_cases)

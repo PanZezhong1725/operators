@@ -107,6 +107,13 @@ def test_ascend(lib, test_cases):
 
     destroy_handle(lib, handle)
 
+def test_ilu(lib, test_cases):
+    device = DeviceEnum.DEVICE_ILU
+    handle = create_handle(lib, device)
+    for x_shape, x_stride in test_cases:
+        test(lib, handle, "cuda", x_shape, x_stride)
+    destroy_handle(lib, handle)
+
 if __name__ == "__main__":
     test_cases = [
         # x_shape, x_stride
@@ -147,6 +154,8 @@ if __name__ == "__main__":
         test_bang(lib, test_cases)
     if args.ascend:
         test_ascend(lib, test_cases)
+    if args.ilu:
+        test_ilu(lib, test_cases)
     if not (args.cpu or args.cuda or args.bang or args.ascend):
         test_cpu(lib, test_cases)
     print("Test passed!")

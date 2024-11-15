@@ -7,8 +7,8 @@
 #endif
 #ifdef ENABLE_NV_GPU
 #include "../../devices/cuda/common_cuda.h"
-#include "cuda/causal_softmax.cuh"
 #include "../../devices/cuda/cuda_handle.h"
+#include "cuda/causal_softmax.cuh"
 #endif
 #ifdef ENABLE_CAMBRICON_MLU
 #include "../../devices/bang/bang_handle.h"
@@ -17,6 +17,10 @@
 #endif
 #ifdef ENABLE_ASCEND_NPU
 #include "ascend/causal_softmax_aclnn.h"
+#endif
+#ifdef ENABLE_ILU_BI
+#include "../../devices/iluvatar/ilu_handle.h"
+#include "iluvatar/causal_softmax.cuh"
 #endif
 
 __C infiniopStatus_t infiniopCreateCausalSoftmaxDescriptor(
@@ -30,7 +34,7 @@ __C infiniopStatus_t infiniopCreateCausalSoftmaxDescriptor(
 #endif
 #ifdef ENABLE_NV_GPU
         case DevNvGpu: {
-            return cudaCreateCausalSoftmaxDescriptor((CudaHandle_t)handle, (CausalSoftmaxCudaDescriptor_t *) desc_ptr, y_desc);
+            return cudaCreateCausalSoftmaxDescriptor((CudaHandle_t) handle, (CausalSoftmaxCudaDescriptor_t *) desc_ptr, y_desc);
         }
 
 #endif
@@ -43,6 +47,11 @@ __C infiniopStatus_t infiniopCreateCausalSoftmaxDescriptor(
 #ifdef ENABLE_ASCEND_NPU
         case DevAscendNpu: {
             return aclnnCreateCausalSoftmaxDescriptor((AscendHandle_t) handle, (CausalSoftmaxAclnnDescriptor_t *) desc_ptr, y_desc);
+        }
+#endif
+#ifdef ENABLE_ILU_BI
+        case DevIluvatarBi: {
+            return cudaCreateCausalSoftmaxDescriptor((IluHandle_t) handle, (CausalSoftmaxCudaDescriptor_t *) desc_ptr, y_desc);
         }
 #endif
     }
@@ -73,6 +82,11 @@ __C infiniopStatus_t infiniopGetCausalSoftmaxWorkspaceSize(infiniopCausalSoftmax
             return aclnnGetCausalSoftmaxWorkspaceSize((CausalSoftmaxAclnnDescriptor_t) desc, size);
         }
 #endif
+#ifdef ENABLE_ILU_BI
+        case DevIluvatarBi: {
+            return cudaGetCausalSoftmaxWorkspaceSize((CausalSoftmaxCudaDescriptor_t) desc, size);
+        }
+#endif
     }
     return STATUS_BAD_DEVICE;
 }
@@ -100,6 +114,11 @@ __C infiniopStatus_t infiniopCausalSoftmax(infiniopCausalSoftmaxDescriptor_t des
             return aclnnCausalSoftmax((CausalSoftmaxAclnnDescriptor_t) desc, workspace, workspace_size, data, stream);
         }
 #endif
+#ifdef ENABLE_ILU_BI
+        case DevIluvatarBi: {
+            return cudaCausalSoftmax((CausalSoftmaxCudaDescriptor_t) desc, workspace, workspace_size, data, stream);
+        }
+#endif
     }
     return STATUS_BAD_DEVICE;
 }
@@ -125,6 +144,11 @@ __C infiniopStatus_t infiniopDestroyCausalSoftmaxDescriptor(infiniopCausalSoftma
 #ifdef ENABLE_ASCEND_NPU
         case DevAscendNpu: {
             return aclnnDestroyCausalSoftmaxDescriptor((CausalSoftmaxAclnnDescriptor_t) desc);
+        }
+#endif
+#ifdef ENABLE_ILU_BI
+        case DevIluvatarBi: {
+            return cudaDestroyCausalSoftmaxDescriptor((CausalSoftmaxCudaDescriptor_t) desc);
         }
 #endif
     }

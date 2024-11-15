@@ -17,6 +17,7 @@ from operatorspy import (
 )
 
 from operatorspy.tests.test_utils import get_args
+from enum import Enum, auto
 import torch
 import ctypes
 import torch.nn.functional as F
@@ -27,6 +28,10 @@ import torch.nn.functional as F
 PROFILE = False
 NUM_PRERUN = 10
 NUM_ITERATIONS = 1000
+
+class Inplace(Enum):
+    OUT_OF_PLACE = auto()
+    INPLACE_X = auto()
 
 
 class BatchNormDescriptor(Structure):
@@ -64,9 +69,10 @@ def test(
     x_shape,
     eps=1e-5,
     tensor_dtype=torch.float16,
+    inplace=Inplace.OUT_OF_PLACE,
 ):
     print(
-        f"Testing BatchNorm on {torch_device} with x_shape: {x_shape}, scale_shape: {x_shape[1]}, b_shape: {x_shape[1]}, mean_shape: {x_shape[1]}, var_shape: {x_shape[1]}, eps: {eps} dtype:{tensor_dtype}"
+        f"Testing BatchNorm on {torch_device} with x_shape: {x_shape}, scale_shape: {x_shape[1]}, b_shape: {x_shape[1]}, mean_shape: {x_shape[1]}, var_shape: {x_shape[1]}, eps: {eps}, dtype:{tensor_dtype}, Inplace:{inplace}"
     )
     num_channel = x_shape[1]
     bn_dtype = tensor_dtype if tensor_dtype != torch.float16 else torch.float32
@@ -74,7 +80,7 @@ def test(
     scale = torch.rand(num_channel, dtype=bn_dtype).to(torch_device)
     b = torch.rand(num_channel, dtype=bn_dtype).to(torch_device)
     mean, var = get_mean_variance(x, bn_dtype)
-    y = torch.zeros(x_shape, dtype=tensor_dtype).to(torch_device)
+    y = torch.zeros(x_shape, dtype=tensor_dtype).to(torch_device) if inplace == Inplace.OUT_OF_PLACE else x
 
     # get the pytorch answer
     for i in range(NUM_PRERUN if PROFILE else 1):
@@ -92,7 +98,7 @@ def test(
     b_tensor = to_tensor(b, lib)
     mean_tensor = to_tensor(mean, lib)
     var_tensor = to_tensor(var, lib)
-    y_tensor = to_tensor(y, lib)
+    y_tensor = to_tensor(y, lib) if inplace == Inplace.OUT_OF_PLACE else x_tensor
     descriptor = infiniopBatchNormDescriptor_t()
 
     check_error(
@@ -145,18 +151,18 @@ def test(
 def test_cpu(lib, test_cases):
     device = DeviceEnum.DEVICE_CPU
     handle = create_handle(lib, device)
-    for x_shape, eps in test_cases:
-        test(lib, handle, "cpu", x_shape, eps, tensor_dtype=torch.float16)
-        test(lib, handle, "cpu", x_shape, eps, tensor_dtype=torch.float32)
+    for x_shape, eps, inplace in test_cases:
+        test(lib, handle, "cpu", x_shape, eps, tensor_dtype=torch.float16, inplace=inplace)
+        test(lib, handle, "cpu", x_shape, eps, tensor_dtype=torch.float32, inplace=inplace)
     destroy_handle(lib, handle)
 
 
 def test_cuda(lib, test_cases):
     device = DeviceEnum.DEVICE_CUDA
     handle = create_handle(lib, device)
-    for x_shape, eps in test_cases:
-        test(lib, handle, "cuda", x_shape, eps, tensor_dtype=torch.float16)
-        test(lib, handle, "cuda", x_shape, eps, tensor_dtype=torch.float32)
+    for x_shape, eps, inplace in test_cases:
+        test(lib, handle, "cuda", x_shape, eps, tensor_dtype=torch.float16, inplace=inplace)
+        test(lib, handle, "cuda", x_shape, eps, tensor_dtype=torch.float32, inplace=inplace)
     destroy_handle(lib, handle)
 
 
@@ -165,19 +171,20 @@ def test_bang(lib, test_cases):
 
     device = DeviceEnum.DEVICE_BANG
     handle = create_handle(lib, device)
-    for x_shape, eps in test_cases:
-        test(lib, handle, "mlu", x_shape, eps, tensor_dtype=torch.float16)
-        test(lib, handle, "mlu", x_shape, eps, tensor_dtype=torch.float32)
+    for x_shape, eps, inplace in test_cases:
+        test(lib, handle, "mlu", x_shape, eps, tensor_dtype=torch.float16, inplace=inplace)
+        test(lib, handle, "mlu", x_shape, eps, tensor_dtype=torch.float32, inplace=inplace)
     destroy_handle(lib, handle)
 
 
 if __name__ == "__main__":
     test_cases = [
-        # x_shape, eps
-        ((2, 5, 7), 1e-5),
-        ((32, 3, 1024), 1e-5),
-        ((32, 3, 128, 128), 1e-5),
-        ((32, 3, 64, 64, 64), 1e-5),
+        # x_shape, eps, inplace
+        ((2, 5, 7), 1e-5, Inplace.OUT_OF_PLACE),
+        ((2, 5, 7), 1e-5, Inplace.INPLACE_X),
+        ((32, 3, 1024), 1e-5, Inplace.OUT_OF_PLACE),
+        ((32, 3, 128, 128), 1e-5, Inplace.OUT_OF_PLACE),
+        ((32, 3, 64, 64, 64), 1e-5, Inplace.OUT_OF_PLACE),
     ]
     args = get_args()
     lib = open_lib()

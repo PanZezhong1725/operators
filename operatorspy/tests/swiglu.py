@@ -75,7 +75,6 @@ def test_out_of_place(
         )
     )
     lib.infiniopSwiGLU(descriptor, c_tensor.data, a_tensor.data, b_tensor.data, None)
-    
     assert torch.allclose(c, ans, atol=1e-4, rtol=1e-2)
     print("out-of-place Test passed!")
 
@@ -117,8 +116,7 @@ def test_in_place1(
         )
     )
     lib.infiniopSwiGLU(descriptor, a_tensor.data, a_tensor.data, b_tensor.data, None)
-    
-    
+
     assert torch.allclose(a, ans, atol=1e-4, rtol=1e-2)
     print("in-place1 Test passed!")
 
@@ -160,7 +158,7 @@ def test_in_place2(
         )
     )
     lib.infiniopSwiGLU(descriptor, b_tensor.data, a_tensor.data, b_tensor.data, None)
-    
+
     assert torch.allclose(b, ans, atol=1e-4, rtol=1e-2)
     print("in-place2 Test passed!")
 
@@ -224,6 +222,19 @@ def test_ascend(lib, test_cases):
 
     destroy_handle(lib, handle) 
 
+def test_ilu(lib, test_cases):
+    device = DeviceEnum.DEVICE_ILU
+    handle = create_handle(lib, device)
+
+    for shape, a_stride, b_stride, c_stride, dtype in test_cases:
+        test_out_of_place(
+            lib, handle, "cuda", shape, a_stride, b_stride, c_stride, dtype
+        )
+        test_in_place1(lib, handle, "cuda", shape, a_stride, b_stride, dtype)
+        test_in_place2(lib, handle, "cuda", shape, a_stride, b_stride, dtype)
+
+    destroy_handle(lib, handle)
+
 
 if __name__ == "__main__":
     test_cases = [
@@ -267,3 +278,5 @@ if __name__ == "__main__":
         test_bang(lib, test_cases)
     if args.ascend:
         test_ascend(lib, test_cases)
+    if args.ilu:
+        test_ilu(lib, test_cases)

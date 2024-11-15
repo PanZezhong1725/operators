@@ -44,7 +44,7 @@ infiniopStatus_t aclnnTensorDescriptor::fromInfiniOpTensorDescriptor(infiniopTen
         (*storageShape)[i] = ((yOri->shape)[i] * (yOri->strides)[i]) /
                              ((yOri->shape)[i + 1] * (yOri->strides)[i + 1]);
     }
-    (*storageShape)[ndim - 1] = (yOri->shape)[ndim - 1];
+    (*storageShape)[ndim - 1] = (yOri->shape)[ndim - 1] * (yOri->strides)[ndim - 1];
     this->storageShape = (*storageShape).data();
     this->storageNdim = ndim;
 

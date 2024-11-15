@@ -135,16 +135,11 @@ void random_sample_cpu_f16(RandomSampleCpuDescriptor_t desc,
     auto index_ = reinterpret_cast<uint64_t *>(result);
     auto source = reinterpret_cast<const uint16_t *>(probs);
 
-    char *origin = reinterpret_cast<char *>(workspace);
-    uint16_t *logits_ = (uint16_t *) origin;
-
-    std::copy(source, source + voc, logits_);
-
-    float M = f16_to_f32(logits_[0]);
+    float M = f16_to_f32(source[0]);
     int index = 0;
     for (int j = 1; j < voc; j++) {
-        if (M < f16_to_f32(logits_[j])) {
-            M = f16_to_f32(logits_[j]);
+        if (M < f16_to_f32(source[j])) {
+            M = f16_to_f32(source[j]);
             index = j;
         }
     }

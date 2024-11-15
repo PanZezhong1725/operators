@@ -18,7 +18,10 @@
 #ifdef ENABLE_ASCEND_NPU
 #include "ascend/rms_norm_aclnn.h"
 #endif
-
+#ifdef ENABLE_ILU_BI
+#include "../../devices/iluvatar/ilu_handle.h"
+#include "iluvatar/rms_norm.cuh"
+#endif
 __C infiniopStatus_t infiniopCreateRMSNormDescriptor(
     infiniopHandle_t handle,
     infiniopRMSNormDescriptor_t *desc_ptr,
@@ -51,6 +54,11 @@ __C infiniopStatus_t infiniopCreateRMSNormDescriptor(
                                                 epsilon);
         }
 #endif
+#ifdef ENABLE_ILU_BI
+        case DevIluvatarBi: {
+            return cudaCreateRMSNormDescriptor((IluHandle_t) handle, (RMSNormCudaDescriptor_t *) desc_ptr, y_desc, x_desc, w_desc, epsilon);
+        }
+#endif
     }
     return STATUS_BAD_DEVICE;
 }
@@ -76,6 +84,11 @@ __C infiniopStatus_t infiniopGetRMSNormWorkspaceSize(infiniopRMSNormDescriptor_t
         case DevAscendNpu: {
             return aclnnGetRMSNormWorkspaceSize((RMSNormAclnnDescriptor_t) desc,
                                                 size);
+        }
+#endif
+#ifdef ENABLE_ILU_BI
+        case DevIluvatarBi: {
+            return cudaGetRMSNormWorkspaceSize((RMSNormCudaDescriptor_t) desc, size);
         }
 #endif
     }
@@ -111,6 +124,11 @@ __C infiniopStatus_t infiniopRMSNorm(infiniopRMSNormDescriptor_t desc, void *wor
                                 stream);
         }
 #endif
+#ifdef ENABLE_ILU_BI
+        case DevIluvatarBi: {
+            return cudaRMSNorm((RMSNormCudaDescriptor_t) desc, workspace, workspace_size, y, x, w, stream);
+        }
+#endif
     }
     return STATUS_BAD_DEVICE;
 }
@@ -137,6 +155,11 @@ __C infiniopStatus_t infiniopDestroyRMSNormDescriptor(infiniopRMSNormDescriptor_
             return aclnnDestroyRMSNormDescriptor((RMSNormAclnnDescriptor_t) desc);
         }
 
+#endif
+#ifdef ENABLE_ILU_BI
+        case DevIluvatarBi: {
+            return cudaDestroyRMSNormDescriptor((RMSNormCudaDescriptor_t) desc);
+        }
 #endif
     }
     return STATUS_BAD_DEVICE;

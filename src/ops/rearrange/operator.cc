@@ -17,7 +17,10 @@
 #ifdef ENABLE_ASCEND_NPU
 #include "ascend/rearrange_aclnn.h"
 #endif
-
+#ifdef ENABLE_ILU_BI
+#include "../../devices/iluvatar/ilu_handle.h"
+#include "iluvatar/rearrange.cuh"
+#endif
 __C infiniopStatus_t infiniopCreateRearrangeDescriptor(
     infiniopHandle_t handle,
     infiniopRearrangeDescriptor_t *desc_ptr,
@@ -46,6 +49,12 @@ __C infiniopStatus_t infiniopCreateRearrangeDescriptor(
                                                   dst,
                                                   src);
         }
+#endif
+#ifdef ENABLE_ILU_BI
+        case DevIluvatarBi: {
+            return cudaCreateRearrangeDescriptor((IluHandle_t) handle, (RearrangeCudaDescriptor_t *) desc_ptr, dst, src);
+        }
+
 #endif
     }
     return STATUS_BAD_DEVICE;
@@ -76,6 +85,11 @@ __C infiniopStatus_t infiniopRearrange(infiniopRearrangeDescriptor_t desc, void 
                                   stream);
         }
 #endif
+#ifdef ENABLE_ILU_BI
+        case DevIluvatarBi: {
+            return cudaRearrange((RearrangeCudaDescriptor_t) desc, dst, src, stream);
+        }
+#endif
     }
     return STATUS_BAD_DEVICE;
 }
@@ -100,6 +114,11 @@ __C infiniopStatus_t infiniopDestroyRearrangeDescriptor(infiniopRearrangeDescrip
 #ifdef ENABLE_ASCEND_NPU
         case DevAscendNpu: {
             return aclnnDestroyRearrangeDescriptor((RearrangeAclnnDescriptor_t) desc);
+        }
+#endif
+#ifdef ENABLE_ILU_BI
+        case DevIluvatarBi: {
+            return cudaDestroyRearrangeDescriptor((RearrangeCudaDescriptor_t) desc);
         }
 #endif
     }

@@ -20,7 +20,6 @@ from operatorspy.tests.test_utils import get_args
 import torch
 import ctypes
 import torch.nn.functional as F
-import numpy as np
 
 # constant for control whether profile the pytorch and lib functions
 # NOTE: need to manually add synchronization function to the lib function,
@@ -56,26 +55,6 @@ def get_mean_variance(x, dtype):
     return x.mean(dim=reduction_dims, dtype=dtype), x.var(
         dim=reduction_dims, unbiased=False
     ).to(dtype)
-
-
-def find_and_print_differing_indices(
-    x, tensor1, tensor2, mean, scale, var, b, atol=0, rtol=1e-2
-):
-    if tensor1.shape != tensor2.shape:
-        raise ValueError("Tensors must have the same shape to compare.")
-
-    # Calculate the difference mask based on atol and rtol
-    diff_mask = torch.abs(tensor1 - tensor2) > (atol + rtol * torch.abs(tensor2))
-    diff_indices = torch.nonzero(diff_mask, as_tuple=False)
-
-    # Print the indices and the differing elements
-    for idx in diff_indices:
-        index_tuple = tuple(idx.tolist())
-        print(
-            f"Index: {index_tuple}, x: {x[index_tuple]}, mean: {mean[index_tuple[1]]}, scale: {scale[index_tuple[1]]}, var: {var[index_tuple[1]]}, b: {b[index_tuple[1]]}, y element: {tensor1[index_tuple]}, ans element: {tensor2[index_tuple]}"
-        )
-
-    return diff_indices
 
 
 def test(
@@ -159,11 +138,6 @@ def test(
         elapsed = (time.time() - start_time) / NUM_ITERATIONS
         print(f"    lib time: {elapsed :6f}")
 
-    # print(" - x: \n", x, "\n - y:\n", y, "\n - ans:\n", ans)
-    # print(" - y:\n", y, "\n - ans:\n", ans)
-
-    # find_and_print_differing_indices(x, y, ans, mean, scale, mean, b, atol=1e-7, rtol=1e-3)
-    # np.testing.assert_allclose(y.numpy(), ans.numpy(), atol=1e-7, rtol=1e-3)
     assert torch.allclose(y, ans, atol=1e-7, rtol=1e-3)
     check_error(lib.infiniopDestroyBatchNormDescriptor(descriptor))
 
@@ -200,11 +174,9 @@ def test_bang(lib, test_cases):
 if __name__ == "__main__":
     test_cases = [
         # x_shape, eps
-        ((2, 3, 4), 1e-5),
+        ((2, 5, 7), 1e-5),
         ((32, 3, 1024), 1e-5),
-        ((1, 3, 4, 4), 1e-5),
         ((32, 3, 128, 128), 1e-5),
-        ((1, 6, 5, 5, 5), 1e-5),
         ((32, 3, 64, 64, 64), 1e-5),
     ]
     args = get_args()

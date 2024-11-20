@@ -150,6 +150,11 @@ inline infiniopTensorDescriptor_t permute(infiniopTensorDescriptor_t desc, const
         shape[i] = desc->shape[order[i]];
         strides[i] = desc->strides[order[i]];
     }
+    for (uint64_t i = 0; i < ndim; i++) {
+        if (shape[i] == 1) {
+            strides[i] = i == ndim - 1 ? 1 : strides[i + 1] * shape[i + 1];
+        }
+    }
     return new TensorDescriptor{
         desc->dt, ndim, shape, strides};
 }

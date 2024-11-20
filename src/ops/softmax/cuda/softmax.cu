@@ -20,7 +20,7 @@ __device__ __forceinline__ DataMaxSum reduce_dms_op(DataMaxSum a,
 }
 template<typename T, int BLOCK_DIM>
 __launch_bounds__(BLOCK_DIM) __global__ void _blockSoftmaxKernel(
-    T *__restrict input, T *__restrict output, int dimsize,
+    T const *input, T *output, int dimsize,
     int stride) {// if set axis = 1, inputShape=[I,J,K,S]
                  // tid = i(JKS) + j(KS) + k(S) + s
 
@@ -41,7 +41,7 @@ __launch_bounds__(BLOCK_DIM) __global__ void _blockSoftmaxKernel(
     if (threadIdx.x < remain) {
         for (int ind = 0; ind < step; ind++) {
             dms_input.max_tmp =
-                input[tid + (threadIdx.x * step + ind) * stride];
+                static_cast<float>(input[tid + (threadIdx.x * step + ind) * stride]);
 
             dms_input.sum_tmp = 1.0f;
             dms_partial =
@@ -51,9 +51,9 @@ __launch_bounds__(BLOCK_DIM) __global__ void _blockSoftmaxKernel(
     } else {
         for (int ind = 0; ind < step - 1; ind++) {
             dms_input.max_tmp =
-                input[tid + (remain * step +
-                             (threadIdx.x - remain) * (step - 1) + ind) *
-                                stride];
+                static_cast<float>(input[tid + (remain * step +
+                                                (threadIdx.x - remain) * (step - 1) + ind) *
+                                                   stride]);
 
             dms_input.sum_tmp = 1.0f;
             dms_partial =
@@ -76,32 +76,30 @@ __launch_bounds__(BLOCK_DIM) __global__ void _blockSoftmaxKernel(
     if (threadIdx.x < remain) {
         for (int ind = 0; ind < step; ind++) {
 
-            output[tid + (threadIdx.x * step + ind) * stride] =
+            output[tid + (threadIdx.x * step + ind) * stride] = static_cast<T>(
                 __expf(static_cast<float>(
                            input[tid + (threadIdx.x * step + ind) * stride]) -
                        dms_total.max_tmp) *
-                __fdividef(1.0F, dms_total.sum_tmp);
+                __fdividef(1.0F, dms_total.sum_tmp));
         }
     } else {
         for (int ind = 0; ind < step - 1; ind++) {
 
             output[tid +
                    (remain * step + (threadIdx.x - remain) * (step - 1) + ind) *
-                       stride] =
-                __expf(static_cast<float>(
-                           input[tid +
-                                 (remain * step +
-                                  (threadIdx.x - remain) * (step - 1) + ind) *
-                                     stride]) -
-                       dms_total.max_tmp) *
-                __fdividef(1.0F, dms_total.sum_tmp);
+                       stride] = static_cast<T>(__expf(static_cast<float>(input[tid +
+                                                                                (remain * step +
+                                                                                 (threadIdx.x - remain) * (step - 1) + ind) *
+                                                                                    stride]) -
+                                                       dms_total.max_tmp) *
+                                                __fdividef(1.0F, dms_total.sum_tmp));
         }
     }
 }
 
 template<typename T, int BLOCK_DIM, int numPerThread>
 __global__ void
-_blockSoftmaxKernel(T *__restrict input, T *__restrict output,
+_blockSoftmaxKernel(T const *input, T *output,
                     int dimsize,
                     int stride) {// if set axis = 1, inputShape=[I,J,K,S]
                                  // tid = i(JKS) + j(KS) + k(S) + s
@@ -123,7 +121,7 @@ _blockSoftmaxKernel(T *__restrict input, T *__restrict output,
     if (threadIdx.x < remain) {
         for (int ind = 0; ind < step; ind++) {
             dataPerThread[ind] =
-                input[tid + (threadIdx.x * step + ind) * stride];
+                static_cast<float>(input[tid + (threadIdx.x * step + ind) * stride]);
             dms_input.max_tmp = dataPerThread[ind];
             dms_input.sum_tmp = 1.0f;
             dms_partial =
@@ -133,9 +131,9 @@ _blockSoftmaxKernel(T *__restrict input, T *__restrict output,
     } else {
         for (int ind = 0; ind < step - 1; ind++) {
             dataPerThread[ind] =
-                input[tid + (remain * step +
-                             (threadIdx.x - remain) * (step - 1) + ind) *
-                                stride];
+                static_cast<float>(input[tid + (remain * step +
+                                                (threadIdx.x - remain) * (step - 1) + ind) *
+                                                   stride]);
             dms_input.max_tmp = dataPerThread[ind];
             dms_input.sum_tmp = 1.0f;
             dms_partial =
@@ -157,28 +155,29 @@ _blockSoftmaxKernel(T *__restrict input, T *__restrict output,
     //-----------------
     if (threadIdx.x < remain) {
         for (int ind = 0; ind < step; ind++) {
-            output[tid + (threadIdx.x * step + ind) * stride] =
+            output[tid + (threadIdx.x * step + ind) * stride] = static_cast<T>(
                 __expf(dataPerThread[ind] - dms_total.max_tmp) *
-                __fdividef(1.0F, dms_total.sum_tmp);
+                __fdividef(1.0F, dms_total.sum_tmp));
         }
     } else {
         for (int ind = 0; ind < step - 1; ind++) {
             output[tid +
                    (remain * step + (threadIdx.x - remain) * (step - 1) + ind) *
-                       stride] =
-                __expf(dataPerThread[ind] - dms_total.max_tmp) *
-                __fdividef(1.0F, dms_total.sum_tmp);
+                       stride] = static_cast<T>(__expf(dataPerThread[ind] - dms_total.max_tmp) *
+                                                __fdividef(1.0F, dms_total.sum_tmp));
         }
     }
 }
 
-template<typename T> struct SumOp {
+template<typename T>
+struct SumOp {
     __device__ __forceinline__ T operator()(const T &a, const T &b) const {
         return a + b;
     }
 };
 
-template<typename T> struct MaxOp {
+template<typename T>
+struct MaxOp {
     __device__ __forceinline__ T operator()(const T &a, const T &b) const {
         return max(a, b);
     }
@@ -193,7 +192,7 @@ __inline__ __device__ T WarpAllReduce(T val) {
 }
 
 template<typename T, int BLOCK_DIM_x, int BLOCK_DIM_y, int numPerThreadx>
-__global__ void _warpSoftmaxKernel(T *__restrict input, T *__restrict output,
+__global__ void _warpSoftmaxKernel(T const *input, T *output,
                                    int othersize, int dimsize, int stride) {
     int otherIdx = blockIdx.x * blockDim.y + threadIdx.y;
 
@@ -207,7 +206,7 @@ __global__ void _warpSoftmaxKernel(T *__restrict input, T *__restrict output,
 
         for (int ph = 0; threadIdx.x + ph * BLOCK_DIM_x < dimsize; ph++) {
             dataPerThreadx[ph] =
-                input[tid + (threadIdx.x + ph * BLOCK_DIM_x) * stride];
+                static_cast<float>(input[tid + (threadIdx.x + ph * BLOCK_DIM_x) * stride]);
             max_data = max(max_data, dataPerThreadx[ph]);
         }
 
@@ -233,8 +232,8 @@ __global__ void _warpSoftmaxKernel(T *__restrict input, T *__restrict output,
         //--------------------------------------------
 
         for (int ph = 0; threadIdx.x + ph * BLOCK_DIM_x < dimsize; ph++) {
-            output[tid + (threadIdx.x + ph * BLOCK_DIM_x) * stride] =
-                dataPerThreadx[ph] * __fdividef(1.0F, sum_total[threadIdx.y]);
+            output[tid + (threadIdx.x + ph * BLOCK_DIM_x) * stride] = static_cast<T>(
+                dataPerThreadx[ph] * __fdividef(1.0F, sum_total[threadIdx.y]));
         }
     }
 }

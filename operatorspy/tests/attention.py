@@ -306,6 +306,49 @@ def test_bang(lib, test_cases):
     destroy_handle(lib, handle)
 
 
+def test_ascend(lib, test_cases):
+    import torch_npu
+
+    device = DeviceEnum.DEVICE_ASCEND
+    handle = create_handle(lib, device)
+
+    for (
+        n_q_head,
+        n_kv_head,
+        seq_len,
+        head_dim,
+        pos,
+        k_cache_buf_len,
+        v_cache_buf_len,
+        dtype,
+        q_stride,
+        k_stride,
+        v_stride,
+        k_cache_stride,
+        v_cache_stride,
+    ) in test_cases:
+        test(
+            lib,
+            handle,
+            "npu",
+            n_q_head,
+            n_kv_head,
+            seq_len,
+            head_dim,
+            pos,
+            k_cache_buf_len,
+            v_cache_buf_len,
+            dtype,
+            q_stride,
+            k_stride,
+            v_stride,
+            k_cache_stride,
+            v_cache_stride,
+        )
+
+    destroy_handle(lib, handle)
+
+
 if __name__ == "__main__":
     test_cases = [
         # prefill
@@ -404,6 +447,8 @@ if __name__ == "__main__":
         test_cuda(lib, test_cases)
     if args.bang:
         test_bang(lib, test_cases)
-    if not (args.cpu or args.cuda or args.bang):
+    if args.ascend:
+        test_ascend(lib, test_cases)
+    if not (args.cpu or args.cuda or args.bang or args.ascend):
         test_cpu(lib, test_cases)
     print("Test passed!")

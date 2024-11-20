@@ -206,6 +206,11 @@ inline infiniopTensorDescriptor_t dim_merge(infiniopTensorDescriptor_t desc, uin
         new_strides[index] = desc->strides[i];
         index++;
     }
+    for (uint64_t i = 0; i < new_ndim; i++) {
+        if (new_shape[i] == 1) {
+            new_strides[i] = i == new_ndim - 1 ? 1 : new_strides[i + 1] * new_shape[i + 1];
+        }
+    }    
     return new TensorDescriptor{
         desc->dt, new_ndim, new_shape, new_strides};
 }
@@ -235,6 +240,11 @@ inline infiniopTensorDescriptor_t dim_split(infiniopTensorDescriptor_t desc, uin
         new_strides[index] = desc->strides[i];
         index++;
     }
+    for (uint64_t i = 0; i < new_ndim; i++) {
+        if (new_shape[i] == 1) {
+            new_strides[i] = i == new_ndim - 1 ? 1 : new_strides[i + 1] * new_shape[i + 1];
+        }
+    }        
     return new TensorDescriptor{
         desc->dt, new_ndim, new_shape, new_strides};
 }

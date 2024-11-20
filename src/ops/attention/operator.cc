@@ -185,14 +185,42 @@ __C __export infiniopStatus_t infiniopCreateAttentionDescriptor(infiniopHandle_t
     //      matmul2 tensor size
     uint64_t matmul2_tensor_size = get_byte_size(temp_out_desc);
 
+    printf("============\n");
+    for (uint64_t i = 0; i < temp_out_desc->ndim; i++) {
+        printf("%ld ", temp_out_desc->shape[i]);
+    }
+    printf("\n");
+    for (uint64_t i = 0; i < temp_out_desc->ndim; i++) {
+        printf("%lu ", temp_out_desc->strides[i]);
+    }
+    printf("\n");
     // Rearrange temp_out into out
     //      out: [seq_len, n_q_head, head_dim]
     //      temp_out: [n_kv_head, n_group * seq_len, head_dim] -> [n_q_head, seq_len, head_dim] -> [seq_len, n_q_head, head_dim]
     temp_out_desc = dim_split(temp_out_desc, 1, {n_group, seq_len});
+    printf("============\n");
+    for (uint64_t i = 0; i < temp_out_desc->ndim; i++) {
+        printf("%ld ", temp_out_desc->shape[i]);
+    }
+    printf("\n");
+    for (uint64_t i = 0; i < temp_out_desc->ndim; i++) {
+        printf("%lu ", temp_out_desc->strides[i]);
+    }
+    printf("\n");
+    
     if (!temp_out_desc) {
         return STATUS_BAD_PARAM;
     }
     temp_out_desc = dim_merge(temp_out_desc, 0, 1);
+    printf("============\n");
+    for (uint64_t i = 0; i < temp_out_desc->ndim; i++) {
+        printf("%ld ", temp_out_desc->shape[i]);
+    }
+    printf("\n");
+    for (uint64_t i = 0; i < temp_out_desc->ndim; i++) {
+        printf("%lu ", temp_out_desc->strides[i]);
+    }
+    printf("\n");
     if (!temp_out_desc) {
         return STATUS_BAD_PARAM;
     }
@@ -201,6 +229,17 @@ __C __export infiniopStatus_t infiniopCreateAttentionDescriptor(infiniopHandle_t
         return STATUS_BAD_PARAM;
     }
     infiniopRearrangeDescriptor_t rearrange_desc_out;
+
+    printf("============\n");
+    for (uint64_t i = 0; i < temp_out_desc->ndim; i++) {
+        printf("%ld ", temp_out_desc->shape[i]);
+    }
+    printf("\n");
+    for (uint64_t i = 0; i < temp_out_desc->ndim; i++) {
+        printf("%lu ", temp_out_desc->strides[i]);
+    }
+    printf("\n");
+
     CHECK_STATUS(infiniopCreateRearrangeDescriptor(handle, &rearrange_desc_out, out_desc, temp_out_desc), STATUS_SUCCESS);
 
     // workspace size

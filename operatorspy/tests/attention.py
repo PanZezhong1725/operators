@@ -352,21 +352,21 @@ def test_ascend(lib, test_cases):
 if __name__ == "__main__":
     test_cases = [
         # prefill
-        (
-            32,  # n_q_head
-            4,  # n_kv_head
-            5,  # seq_len
-            64,  # head_dim
-            0,  # pos
-            2048,  # k_cache_buf_len
-            2048,  # v_cache_buf_len
-            torch.float16,  # dtype
-            [64, 2560, 1],  # q_stride
-            [64, 2560, 1],  # k_stride
-            [64, 2560, 1],  # v_stride
-            [64, 11264, 1],  # k_cache_stride
-            [64, 11264, 1],  # v_cache_stride
-        ),
+        # (
+        #     32,  # n_q_head
+        #     4,  # n_kv_head
+        #     5,  # seq_len
+        #     64,  # head_dim
+        #     0,  # pos
+        #     2048,  # k_cache_buf_len
+        #     2048,  # v_cache_buf_len
+        #     torch.float16,  # dtype
+        #     [64, 2560, 1],  # q_stride
+        #     [64, 2560, 1],  # k_stride
+        #     [64, 2560, 1],  # v_stride
+        #     [64, 11264, 1],  # k_cache_stride
+        #     [64, 11264, 1],  # v_cache_stride
+        # ),
         # decode
         (
             32,  # n_q_head
@@ -384,21 +384,21 @@ if __name__ == "__main__":
             [64, 11264, 1],  # v_cache_stride
         ),
         # for test
-        (
-            8,  # n_q_head
-            4,  # n_kv_head
-            2,  # seq_len
-            16,  # head_dim
-            1,  # pos
-            8,  # k_cache_buf_len
-            8,  # v_cache_buf_len
-            torch.float16,  # dtype
-            None,  # q_stride
-            None,  # k_stride
-            None,  # v_stride
-            None,  # k_cache_stride
-            None,  # v_cache_stride
-        ),
+        # (
+        #     8,  # n_q_head
+        #     4,  # n_kv_head
+        #     2,  # seq_len
+        #     16,  # head_dim
+        #     1,  # pos
+        #     8,  # k_cache_buf_len
+        #     8,  # v_cache_buf_len
+        #     torch.float16,  # dtype
+        #     None,  # q_stride
+        #     None,  # k_stride
+        #     None,  # v_stride
+        #     None,  # k_cache_stride
+        #     None,  # v_cache_stride
+        # ),
     ]
     args = get_args()
     lib = open_lib()

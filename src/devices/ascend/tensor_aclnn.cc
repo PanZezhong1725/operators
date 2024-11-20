@@ -57,6 +57,16 @@ infiniopStatus_t aclnnTensorDescriptor::inferStorageShape(){
     shape[bound - 1] = shape[bound - 1] * strides[bound - 1];
     strides[bound - 1] = 1;
     int64_t carry = 1;
+    printf("In inferStorageShape\n");
+    for (size_t i = 0; i < this->shape.size(); i++){
+        printf("%lu ", this->shape[i]);
+    }
+    printf("\n");
+    for (size_t i = 0; i < this->strides.size(); i++){
+        printf("%ld ", this->strides[i]);
+    }
+    printf("\n");
+
     for (int64_t i = bound - 1; i > 0; --i) {
         // Each non-cummulative stride should be no smaller than corresponding dim
         // and storage shape is the bigger one

@@ -141,6 +141,8 @@ void random_sample_workspace(size_t &size_radix_sort, size_t &size_scan,
             nullptr, size_scan,
             nullptr, voc,
             nullptr);
+    } else {
+        throw std::invalid_argument("Unsupported dtype provided.");
     }
 }
 __global__ void random_sample_kernel(uint64_t *result,

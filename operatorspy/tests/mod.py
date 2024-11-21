@@ -34,19 +34,38 @@ class Inplace(Enum):
     INPLACE_AB = auto()
 
 
-class AddDescriptor(Structure):
+class ModDescriptor(Structure):
     _fields_ = [("device", c_int32)]
 
 
-infiniopAddDescriptor_t = POINTER(AddDescriptor)
+infiniopModDescriptor_t = POINTER(ModDescriptor)
+
+def find_and_print_differing_indices(
+    a, b, c, ans, atol=0, rtol=1e-2
+):
+    if c.shape != ans.shape:
+        raise ValueError("Tensors must have the same shape to compare.")
+
+    # Calculate the difference mask based on atol and rtol
+    diff_mask = torch.abs(c - ans) > (atol + rtol * torch.abs(ans))
+    diff_indices = torch.nonzero(diff_mask, as_tuple=False)
+
+    # Print the indices and the differing elements
+    for idx in diff_indices:
+        index_tuple = tuple(idx.tolist())
+        print(
+            f"Index: {index_tuple}, a: {a[index_tuple]}, b: {b[index_tuple]}, y element: {c[index_tuple]}, ans element: {ans[index_tuple]}"
+        )
+
+    return diff_indices
 
 
-def add(x, y):
+def mod(x, y):
     if PROFILE:
-        ans = torch.add(x, y)
-        torch.cuda.synchronize()
+        ans = torch.fmod(x, y)
+        torch.cuda.synchronize() 
         return ans
-    return torch.add(x, y)
+    return torch.fmod(x, y)
 
 
 def test(
@@ -60,32 +79,32 @@ def test(
     inplace=Inplace.OUT_OF_PLACE,
 ):
     print(
-        f"Testing Add on {torch_device} with c_shape:{c_shape} a_shape:{a_shape} b_shape:{b_shape} dtype:{tensor_dtype} inplace: {inplace.name}"
+        f"Testing Mod on {torch_device} with c_shape:{c_shape} a_shape:{a_shape} b_shape:{b_shape} dtype:{tensor_dtype} inplace: {inplace.name}"
     )
     if a_shape != b_shape and inplace != Inplace.OUT_OF_PLACE:
         print("Unsupported test: broadcasting does not support in-place")
         return
 
-    a = torch.rand(a_shape, dtype=tensor_dtype).to(torch_device)
+    a = torch.rand(a_shape, dtype=tensor_dtype).to(torch_device) * 10
     b = torch.rand(b_shape, dtype=tensor_dtype).to(torch_device) if inplace != Inplace.INPLACE_AB else a
     c = torch.rand(c_shape, dtype=tensor_dtype).to(torch_device) if inplace == Inplace.OUT_OF_PLACE else (a if inplace == Inplace.INPLACE_A else b)
     
     for i in range(NUM_PRERUN if PROFILE else 1):
-        ans = add(a, b)
+        ans = mod(a, b)
     if PROFILE:
         start_time = time.time()
         for i in range(NUM_ITERATIONS):
-            _ = add(a, b)
+            _ = mod(a, b)
         elapsed = (time.time() - start_time) / NUM_ITERATIONS
         print(f"pytorch time: {elapsed :6f}")
 
     a_tensor = to_tensor(a, lib)
     b_tensor = to_tensor(b, lib) if inplace != Inplace.INPLACE_AB else a_tensor
     c_tensor = to_tensor(c, lib) if inplace == Inplace.OUT_OF_PLACE else (a_tensor if inplace == Inplace.INPLACE_A else b_tensor)
-    descriptor = infiniopAddDescriptor_t()
+    descriptor = infiniopModDescriptor_t()
 
     check_error(
-        lib.infiniopCreateAddDescriptor(
+        lib.infiniopCreateModDescriptor(
             handle,
             ctypes.byref(descriptor),
             c_tensor.descriptor,
@@ -95,20 +114,20 @@ def test(
     )
     
     for i in range(NUM_PRERUN if PROFILE else 1):
-        lib.infiniopAdd(
+        lib.infiniopMod(
             descriptor, c_tensor.data, a_tensor.data, b_tensor.data, None
         )
     if PROFILE:
         start_time = time.time()
         for i in range(NUM_ITERATIONS):
-            lib.infiniopAdd(
+            lib.infiniopMod(
                 descriptor, c_tensor.data, a_tensor.data, b_tensor.data, None
             )
         elapsed = (time.time() - start_time) / NUM_ITERATIONS
         print(f"    lib time: {elapsed :6f}")
 
-    assert torch.allclose(c, ans, atol=0, rtol=1e-3)
-    check_error(lib.infiniopDestroyAddDescriptor(descriptor))
+    assert torch.allclose(c, ans, atol=0, rtol=0, equal_nan=True)
+    check_error(lib.infiniopDestroyModDescriptor(descriptor))
 
 
 def test_cpu(lib, test_cases):
@@ -144,12 +163,12 @@ if __name__ == "__main__":
     test_cases = [
         # c_shape, a_shape, b_shape, inplace
         # ((32, 150, 51200), (32, 150, 51200), (32, 150, 1), Inplace.OUT_OF_PLACE),
-        # ((32, 150, 51200), (32, 150, 51200), (32, 150, 51200), Inplace.OUT_OF_PLACE),
         ((1, 3), (1, 3), (1, 3), Inplace.OUT_OF_PLACE),
         ((), (), (), Inplace.OUT_OF_PLACE),
         ((2, 4, 3), (2, 1, 3), (4, 3), Inplace.OUT_OF_PLACE),
         ((2, 3, 4, 5), (2, 3, 4, 5), (5,), Inplace.OUT_OF_PLACE),
         ((3, 2, 4, 5), (4, 5), (3, 2, 1, 1), Inplace.OUT_OF_PLACE),
+        ((3, 20, 33), (3, 20, 33), (3, 20, 33), Inplace.OUT_OF_PLACE),
         ((3, 20, 33), (3, 20, 33), (3, 20, 33), Inplace.INPLACE_A) if not PROFILE else ((32, 10, 100), (32, 10, 100), (32, 10, 100), Inplace.OUT_OF_PLACE),
         ((3, 20, 33), (3, 20, 33), (3, 20, 33), Inplace.INPLACE_B) if not PROFILE else ((32, 15, 510), (32, 15, 510), (32, 15, 510), Inplace.OUT_OF_PLACE),
         ((3, 20, 33), (3, 20, 33), (3, 20, 33), Inplace.INPLACE_AB) if not PROFILE else ((32, 256, 112, 112), (32, 256, 112, 1), (32, 256, 112, 112), Inplace.OUT_OF_PLACE),
@@ -157,25 +176,25 @@ if __name__ == "__main__":
     ]
     args = get_args()
     lib = open_lib()
-    lib.infiniopCreateAddDescriptor.restype = c_int32
-    lib.infiniopCreateAddDescriptor.argtypes = [
+    lib.infiniopCreateModDescriptor.restype = c_int32
+    lib.infiniopCreateModDescriptor.argtypes = [
         infiniopHandle_t,
-        POINTER(infiniopAddDescriptor_t),
+        POINTER(infiniopModDescriptor_t),
         infiniopTensorDescriptor_t,
         infiniopTensorDescriptor_t,
         infiniopTensorDescriptor_t,
     ]
-    lib.infiniopAdd.restype = c_int32
-    lib.infiniopAdd.argtypes = [
-        infiniopAddDescriptor_t,
+    lib.infiniopMod.restype = c_int32
+    lib.infiniopMod.argtypes = [
+        infiniopModDescriptor_t,
         c_void_p,
         c_void_p,
         c_void_p,
         c_void_p,
     ]
-    lib.infiniopDestroyAddDescriptor.restype = c_int32
-    lib.infiniopDestroyAddDescriptor.argtypes = [
-        infiniopAddDescriptor_t,
+    lib.infiniopDestroyModDescriptor.restype = c_int32
+    lib.infiniopDestroyModDescriptor.argtypes = [
+        infiniopModDescriptor_t,
     ]
 
     if args.cpu:

@@ -34,19 +34,19 @@ class Inplace(Enum):
     INPLACE_AB = auto()
 
 
-class AddDescriptor(Structure):
+class MinDescriptor(Structure):
     _fields_ = [("device", c_int32)]
 
 
-infiniopAddDescriptor_t = POINTER(AddDescriptor)
+infiniopMinDescriptor_t = POINTER(MinDescriptor)
 
 
-def add(x, y):
+def min(x, y):
     if PROFILE:
-        ans = torch.add(x, y)
+        ans = torch.min(x, y)
         torch.cuda.synchronize()
         return ans
-    return torch.add(x, y)
+    return torch.min(x, y)
 
 
 def test(
@@ -60,32 +60,32 @@ def test(
     inplace=Inplace.OUT_OF_PLACE,
 ):
     print(
-        f"Testing Add on {torch_device} with c_shape:{c_shape} a_shape:{a_shape} b_shape:{b_shape} dtype:{tensor_dtype} inplace: {inplace.name}"
+        f"Testing Min on {torch_device} with c_shape:{c_shape} a_shape:{a_shape} b_shape:{b_shape} dtype:{tensor_dtype} inplace: {inplace.name}"
     )
     if a_shape != b_shape and inplace != Inplace.OUT_OF_PLACE:
         print("Unsupported test: broadcasting does not support in-place")
         return
 
-    a = torch.rand(a_shape, dtype=tensor_dtype).to(torch_device)
+    a = torch.rand(a_shape, dtype=tensor_dtype).to(torch_device) * 10
     b = torch.rand(b_shape, dtype=tensor_dtype).to(torch_device) if inplace != Inplace.INPLACE_AB else a
     c = torch.rand(c_shape, dtype=tensor_dtype).to(torch_device) if inplace == Inplace.OUT_OF_PLACE else (a if inplace == Inplace.INPLACE_A else b)
     
     for i in range(NUM_PRERUN if PROFILE else 1):
-        ans = add(a, b)
+        ans = min(a, b)
     if PROFILE:
         start_time = time.time()
         for i in range(NUM_ITERATIONS):
-            _ = add(a, b)
+            _ = min(a, b)
         elapsed = (time.time() - start_time) / NUM_ITERATIONS
         print(f"pytorch time: {elapsed :6f}")
 
     a_tensor = to_tensor(a, lib)
     b_tensor = to_tensor(b, lib) if inplace != Inplace.INPLACE_AB else a_tensor
     c_tensor = to_tensor(c, lib) if inplace == Inplace.OUT_OF_PLACE else (a_tensor if inplace == Inplace.INPLACE_A else b_tensor)
-    descriptor = infiniopAddDescriptor_t()
+    descriptor = infiniopMinDescriptor_t()
 
     check_error(
-        lib.infiniopCreateAddDescriptor(
+        lib.infiniopCreateMinDescriptor(
             handle,
             ctypes.byref(descriptor),
             c_tensor.descriptor,
@@ -95,20 +95,20 @@ def test(
     )
     
     for i in range(NUM_PRERUN if PROFILE else 1):
-        lib.infiniopAdd(
+        lib.infiniopMin(
             descriptor, c_tensor.data, a_tensor.data, b_tensor.data, None
         )
     if PROFILE:
         start_time = time.time()
         for i in range(NUM_ITERATIONS):
-            lib.infiniopAdd(
+            lib.infiniopMin(
                 descriptor, c_tensor.data, a_tensor.data, b_tensor.data, None
             )
         elapsed = (time.time() - start_time) / NUM_ITERATIONS
         print(f"    lib time: {elapsed :6f}")
 
-    assert torch.allclose(c, ans, atol=0, rtol=1e-3)
-    check_error(lib.infiniopDestroyAddDescriptor(descriptor))
+    assert torch.allclose(c, ans, atol=0, rtol=0)
+    check_error(lib.infiniopDestroyMinDescriptor(descriptor))
 
 
 def test_cpu(lib, test_cases):
@@ -157,25 +157,25 @@ if __name__ == "__main__":
     ]
     args = get_args()
     lib = open_lib()
-    lib.infiniopCreateAddDescriptor.restype = c_int32
-    lib.infiniopCreateAddDescriptor.argtypes = [
+    lib.infiniopCreateMinDescriptor.restype = c_int32
+    lib.infiniopCreateMinDescriptor.argtypes = [
         infiniopHandle_t,
-        POINTER(infiniopAddDescriptor_t),
+        POINTER(infiniopMinDescriptor_t),
         infiniopTensorDescriptor_t,
         infiniopTensorDescriptor_t,
         infiniopTensorDescriptor_t,
     ]
-    lib.infiniopAdd.restype = c_int32
-    lib.infiniopAdd.argtypes = [
-        infiniopAddDescriptor_t,
+    lib.infiniopMin.restype = c_int32
+    lib.infiniopMin.argtypes = [
+        infiniopMinDescriptor_t,
         c_void_p,
         c_void_p,
         c_void_p,
         c_void_p,
     ]
-    lib.infiniopDestroyAddDescriptor.restype = c_int32
-    lib.infiniopDestroyAddDescriptor.argtypes = [
-        infiniopAddDescriptor_t,
+    lib.infiniopDestroyMinDescriptor.restype = c_int32
+    lib.infiniopDestroyMinDescriptor.argtypes = [
+        infiniopMinDescriptor_t,
     ]
 
     if args.cpu:

@@ -92,6 +92,7 @@ infiniopStatus_t cudaCreateConvDescriptor(CudaHandle_t handle,
     checkCudnnError(cudnnCreateTensorDescriptor(&y_desc));
     checkCudnnError(cudnnSetTensorNdDescriptorEx(y_desc, CUDNN_TENSOR_NCHW, static_cast<cudnnDataType_t>(tensor_dt), new_ndim, y_shape));
 
+    cudnnSetConvolutionMathType(op_desc, CUDNN_TENSOR_OP_MATH_ALLOW_CONVERSION);
 
     // tuning: get the best algorithm
     int requestedAlgoCount = 1;

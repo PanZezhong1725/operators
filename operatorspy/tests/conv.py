@@ -41,14 +41,32 @@ infiniopConvDescriptor_t = POINTER(ConvDescriptor)
 def conv(x, w, stride, padding, dilation):
     match len(x.shape) - 2:
         case 1:
+            if PROFILE:
+                ans = F.conv1d(
+                    x, w, stride=stride, padding=padding, dilation=dilation
+                )
+                torch.cuda.synchronize()
+                return ans
             return F.conv1d(
                 x, w, stride=stride, padding=padding, dilation=dilation
             )
         case 2:
+            if PROFILE:
+                ans = F.conv2d(
+                        x, w, stride=stride, padding=padding, dilation=dilation
+                    )
+                torch.cuda.synchronize()
+                return ans
             return F.conv2d(
                 x, w, stride=stride, padding=padding, dilation=dilation
             )
         case 3:
+            if PROFILE:
+                ans = F.conv3d(
+                        x, w, stride=stride, padding=padding, dilation=dilation
+                    )
+                torch.cuda.synchronize()
+                return ans
             return F.conv3d(
                 x, w, stride=stride, padding=padding, dilation=dilation
             )

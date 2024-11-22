@@ -109,8 +109,8 @@ void inclusive_sum(
         stream);
 }
 
-void random_sample_workspace(size_t &size_radix_sort, size_t &size_scan,
-                             int voc, DT dtype) {
+infiniopStatus_t random_sample_workspace(size_t &size_radix_sort, size_t &size_scan,
+                                         int voc, DT dtype) {
     if (dtype_eq(dtype, F16)) {
         sort_pairs_descending<half, uint64_t>(nullptr, size_radix_sort,
                                               nullptr, nullptr,
@@ -121,6 +121,7 @@ void random_sample_workspace(size_t &size_radix_sort, size_t &size_scan,
             nullptr, size_scan,
             nullptr, voc,
             nullptr);
+        return STATUS_SUCCESS;
     } else if (dtype_eq(dtype, F32)) {
         sort_pairs_descending<float, uint64_t>(nullptr, size_radix_sort,
                                                nullptr, nullptr,
@@ -131,6 +132,7 @@ void random_sample_workspace(size_t &size_radix_sort, size_t &size_scan,
             nullptr, size_scan,
             nullptr, voc,
             nullptr);
+        return STATUS_SUCCESS;
     } else if (dtype_eq(dtype, F64)) {
         sort_pairs_descending<double, uint64_t>(nullptr, size_radix_sort,
                                                 nullptr, nullptr,
@@ -141,8 +143,9 @@ void random_sample_workspace(size_t &size_radix_sort, size_t &size_scan,
             nullptr, size_scan,
             nullptr, voc,
             nullptr);
+        return STATUS_SUCCESS;
     } else {
-        throw std::invalid_argument("Unsupported dtype provided.");
+        return STATUS_BAD_TENSOR_DTYPE;
     }
 }
 __global__ void random_sample_kernel(uint64_t *result,

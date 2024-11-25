@@ -1,6 +1,7 @@
 #include "../../../devices/cuda/common_cuda.h"
 #include "../../utils.h"
 #include "binary.cuh"
+#include <cuda_fp16.h>
 
 /**
  * @brief A templated vector type that supports binary elementwise operation.
@@ -16,14 +17,15 @@ struct vecN {
 
     __device__ __forceinline__ vecN compute(const vecN<T, TComp, N> &other, BinaryMode::Mode mode) const {
         vecN<T, TComp, N> result;
+#pragma unroll
         for (int i = 0; i < N; ++i) {
-            if constexpr (std::is_same<T, TComp>::value) {
+            if constexpr (std::is_same_v<T, TComp>) {
                 result[i] = binary_op(data[i], other[i], mode);
             } else {
-                auto data_ = reinterpret_cast<vecN<TComp, TComp, pack_size> *>(result.data);
-                auto this_data = reinterpret_cast<const vecN<TComp, TComp, pack_size> *>(data);
-                auto other_data = reinterpret_cast<const vecN<TComp, TComp, pack_size> *>(other.data);
-                data_[i] = binary_op(this_data[i], other_data[i], mode);
+                auto &data_ = reinterpret_cast<vecN<TComp, TComp, pack_size> *>(result.data)[i];
+                const auto this_data = reinterpret_cast<const vecN<TComp, TComp, pack_size> *>(data)[i];
+                const auto other_data = reinterpret_cast<const vecN<TComp, TComp, pack_size> *>(other.data)[i];
+                data_ = binary_op(this_data, other_data, mode);
             }
         }
         return result;
@@ -89,7 +91,13 @@ __device__ __forceinline__ Tdata binary_op(const Tdata &a, const Tdata &b, int m
     switch (mode) {
         // Arithmetic operations:
         case BinaryMode::Add:
-            return a + b;
+            if constexpr (std::is_same_v<Tdata, half2>) {
+                return __hadd2_rn(a, b);
+            } else if constexpr (std::is_same_v<Tdata, float>) {
+                return __fadd_rn(a, b);
+            } else {
+                return a + b;
+            }
         case BinaryMode::Subtract:
             return a - b;
         case BinaryMode::Multiply:
@@ -199,7 +207,9 @@ __global__ void binary(
             }
             return;
         }
-        c[idx] = binary_op(a[idx], b[idx], mode);
+        Tdata a_data = a[idx];
+        Tdata b_data = b[idx];
+        c[idx] = binary_op(a_data, b_data, mode);
     }
 }
 
@@ -238,10 +248,12 @@ infiniopStatus_t binary_nv_gpu(BinaryCudaDescriptor_t desc, void *c, void const 
     _binary_nv_gpu<Tdata, TIdata, BLOCK_SIZE>(desc, c_vec, a_vec, b_vec, data_size, pack_size, 0, stream);
 
     const auto remainder = desc->c_data_size % pack_size;
-    const auto a_ = reinterpret_cast<const TIdata *>(a);
-    const auto b_ = reinterpret_cast<const TIdata *>(b);
-    const auto c_ = reinterpret_cast<TIdata *>(c);
-    _binary_nv_gpu<TIdata, TIdata, BLOCK_SIZE>(desc, c_, a_, b_, remainder, 1, data_size * pack_size, stream);
+    if (remainder > 0) {
+        const auto a_ = reinterpret_cast<const TIdata *>(a);
+        const auto b_ = reinterpret_cast<const TIdata *>(b);
+        const auto c_ = reinterpret_cast<TIdata *>(c);
+        _binary_nv_gpu<TIdata, TIdata, BLOCK_SIZE>(desc, c_, a_, b_, remainder, 1, data_size * pack_size, stream);
+    }
     cudaDeviceSynchronize();
     return STATUS_SUCCESS;
 }

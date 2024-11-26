@@ -99,9 +99,21 @@ __device__ __forceinline__ Tdata binary_op(const Tdata &a, const Tdata &b, int m
                 return a + b;
             }
         case BinaryMode::Subtract:
-            return a - b;
+            if constexpr (std::is_same_v<Tdata, half2>) {
+                return __hsub2(a, b);
+            } else if constexpr (std::is_same_v<Tdata, float>) {
+                return __fsub_rn(a, b);
+            } else {
+                return a - b;
+            }
         case BinaryMode::Multiply:
-            return a * b;
+            if constexpr (std::is_same_v<Tdata, half2>) {
+                return __hmul2(a, b);
+            } else if constexpr (std::is_same_v<Tdata, float>) {
+                return __fmul_rd(a, b);
+            } else {
+                return a * b;
+            }
         case BinaryMode::Divide:
             return a / b;
         case BinaryMode::Pow:

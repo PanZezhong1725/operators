@@ -104,7 +104,7 @@ infiniopStatus_t cudaCreateConvBiasActDescriptor(CudaHandle_t handle,
         op_desc, new_ndim - 2, pad, stride, dilation, CUDNN_CROSS_CORRELATION,
         conv_op_dt));
 
-    // cudnnSetConvolutionMathType(op_desc, CUDNN_TENSOR_OP_MATH_ALLOW_CONVERSION);
+    cudnnSetConvolutionMathType(op_desc, CUDNN_TENSOR_OP_MATH_ALLOW_CONVERSION);
 
     // create and set tensor descriptors for y
     cudnnTensorDescriptor_t y_desc;

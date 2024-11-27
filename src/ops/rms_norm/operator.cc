@@ -13,7 +13,6 @@
 #ifdef ENABLE_CAMBRICON_MLU
 #include "../../devices/bang/bang_handle.h"
 #include "bang/rms_norm_bang.h"
-#include "bang/rms_norm_cnnl.h"
 #endif
 #ifdef ENABLE_ASCEND_NPU
 #include "ascend/rms_norm_aclnn.h"

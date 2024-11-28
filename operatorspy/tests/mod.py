@@ -150,26 +150,8 @@ def test_cpu(lib, test_cases):
     device = DeviceEnum.DEVICE_CPU
     handle = create_handle(lib, device)
     for c_shape, a_shape, b_shape, inplace in test_cases:
-        test(
-            lib,
-            handle,
-            "cpu",
-            c_shape,
-            a_shape,
-            b_shape,
-            tensor_dtype=torch.float16,
-            inplace=inplace,
-        )
-        test(
-            lib,
-            handle,
-            "cpu",
-            c_shape,
-            a_shape,
-            b_shape,
-            tensor_dtype=torch.float32,
-            inplace=inplace,
-        )
+        test(lib, handle, "cpu", c_shape, a_shape, b_shape, tensor_dtype=torch.float16, inplace=inplace)
+        test(lib, handle, "cpu", c_shape, a_shape, b_shape, tensor_dtype=torch.float32, inplace=inplace)
     destroy_handle(lib, handle)
 
 
@@ -177,26 +159,8 @@ def test_cuda(lib, test_cases):
     device = DeviceEnum.DEVICE_CUDA
     handle = create_handle(lib, device)
     for c_shape, a_shape, b_shape, inplace in test_cases:
-        test(
-            lib,
-            handle,
-            "cuda",
-            c_shape,
-            a_shape,
-            b_shape,
-            tensor_dtype=torch.float16,
-            inplace=inplace,
-        )
-        test(
-            lib,
-            handle,
-            "cuda",
-            c_shape,
-            a_shape,
-            b_shape,
-            tensor_dtype=torch.float32,
-            inplace=inplace,
-        )
+        test(lib, handle, "cuda", c_shape, a_shape, b_shape, tensor_dtype=torch.float16, inplace=inplace)
+        test(lib, handle, "cuda", c_shape, a_shape, b_shape, tensor_dtype=torch.float32, inplace=inplace)
     destroy_handle(lib, handle)
 
 
@@ -206,26 +170,8 @@ def test_bang(lib, test_cases):
     device = DeviceEnum.DEVICE_BANG
     handle = create_handle(lib, device)
     for c_shape, a_shape, b_shape, inplace in test_cases:
-        test(
-            lib,
-            handle,
-            "mlu",
-            c_shape,
-            a_shape,
-            b_shape,
-            tensor_dtype=torch.float16,
-            inplace=inplace,
-        )
-        test(
-            lib,
-            handle,
-            "mlu",
-            c_shape,
-            a_shape,
-            b_shape,
-            tensor_dtype=torch.float32,
-            inplace=inplace,
-        )
+        test(lib, handle, "mlu", c_shape, a_shape, b_shape, tensor_dtype=torch.float16, inplace=inplace)
+        test(lib, handle, "mlu", c_shape, a_shape, b_shape, tensor_dtype=torch.float32, inplace=inplace)
     destroy_handle(lib, handle)
 
 
@@ -239,41 +185,10 @@ if __name__ == "__main__":
         ((2, 3, 4, 5), (2, 3, 4, 5), (5,), Inplace.OUT_OF_PLACE),
         ((3, 2, 4, 5), (4, 5), (3, 2, 1, 1), Inplace.OUT_OF_PLACE),
         ((3, 20, 33), (3, 20, 33), (3, 20, 33), Inplace.OUT_OF_PLACE),
-        (
-            ((3, 20, 33), (3, 20, 33), (3, 20, 33), Inplace.INPLACE_A)
-            if not PROFILE
-            else ((32, 10, 100), (32, 10, 100), (32, 10, 100), Inplace.OUT_OF_PLACE)
-        ),
-        (
-            ((3, 20, 33), (3, 20, 33), (3, 20, 33), Inplace.INPLACE_B)
-            if not PROFILE
-            else ((32, 15, 510), (32, 15, 510), (32, 15, 510), Inplace.OUT_OF_PLACE)
-        ),
-        (
-            ((3, 20, 33), (3, 20, 33), (3, 20, 33), Inplace.INPLACE_AB)
-            if not PROFILE
-            else (
-                (32, 256, 112, 112),
-                (32, 256, 112, 1),
-                (32, 256, 112, 112),
-                Inplace.OUT_OF_PLACE,
-            )
-        ),
-        (
-            (
-                (32, 3, 112, 112),
-                (32, 3, 112, 112),
-                (32, 3, 112, 112),
-                Inplace.OUT_OF_PLACE,
-            )
-            if not PROFILE
-            else (
-                (32, 256, 112, 112),
-                (32, 256, 112, 112),
-                (32, 256, 112, 112),
-                Inplace.OUT_OF_PLACE,
-            )
-        ),
+        ((3, 20, 33), (3, 20, 33), (3, 20, 33), Inplace.INPLACE_A) if not PROFILE else ((32, 10, 100), (32, 10, 100), (32, 10, 100), Inplace.OUT_OF_PLACE),
+        ((3, 20, 33), (3, 20, 33), (3, 20, 33), Inplace.INPLACE_B) if not PROFILE else ((32, 15, 510), (32, 15, 510), (32, 15, 510), Inplace.OUT_OF_PLACE),
+        ((3, 20, 33), (3, 20, 33), (3, 20, 33), Inplace.INPLACE_AB) if not PROFILE else ((32, 256, 112, 112), (32, 256, 112, 1), (32, 256, 112, 112), Inplace.OUT_OF_PLACE),
+        ((32, 3, 112, 112), (32, 3, 112, 112), (32, 3, 112, 112), Inplace.OUT_OF_PLACE) if not PROFILE else ((32, 256, 112, 112), (32, 256, 112, 112), (32, 256, 112, 112), Inplace.OUT_OF_PLACE),
     ]
     args = get_args()
     lib = open_lib()
@@ -288,4 +203,22 @@ if __name__ == "__main__":
     lib.infiniopMod.restype = c_int32
     lib.infiniopMod.argtypes = [
         infiniopModDescriptor_t,
-   
+        c_void_p,
+        c_void_p,
+        c_void_p,
+        c_void_p,
+    ]
+    lib.infiniopDestroyModDescriptor.restype = c_int32
+    lib.infiniopDestroyModDescriptor.argtypes = [
+        infiniopModDescriptor_t,
+    ]
+
+    if args.cpu:
+        test_cpu(lib, test_cases)
+    if args.cuda:
+        test_cuda(lib, test_cases)
+    if args.bang:
+        test_bang(lib, test_cases)
+    if not (args.cpu or args.cuda or args.bang):
+        test_cpu(lib, test_cases)
+    print("\033[92mTest passed!\033[0m")

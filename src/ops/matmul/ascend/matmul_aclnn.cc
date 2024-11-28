@@ -22,36 +22,38 @@ infiniopStatus_t aclnnCreateMatmulDescriptor(AscendHandle_t handle,
                                              infiniopTensorDescriptor_t b_desc,
                                              float beta,
                                              int8_t mt) {
-    if (c_desc->ndim == 3 && (alpha != 1.0 || beta != 0)) {
-        return STATUS_BAD_PARAM;
+    DT dtype = c_desc->dt;
+    if (dtype != F16 && dtype != F32) {
+        return STATUS_BAD_TENSOR_DTYPE;
     }
 
     *desc_ptr = new MatmulAclnnDescriptor(handle->device);
     (*desc_ptr)->device_id = handle->device_id;
+    (*desc_ptr)->dtype = dtype;
     (*desc_ptr)->mt = mt;
     (*desc_ptr)->alpha = alpha;
     (*desc_ptr)->beta = beta;
-
     infiniopStatus_t *status = new infiniopStatus_t{STATUS_EXECUTION_FAILED};
-    auto info_ptr = new MatmulInfo(c_desc, a_desc, b_desc, status);
+    auto info = new MatmulInfo(c_desc, a_desc, b_desc, status, false);
     if (*status != STATUS_SUCCESS) {
         return *status;
     }
-    (*desc_ptr)->info = info_ptr;
+    (*desc_ptr)->info = info;
 
     auto &cDesc = (*desc_ptr)->cDesc;
     auto &aDesc = (*desc_ptr)->aDesc;
     auto &bDesc = (*desc_ptr)->bDesc;
 
-    CHECK_STATUS(cDesc->fromInfiniOpTensorDescriptor(c_desc), STATUS_SUCCESS);
-    CHECK_STATUS(aDesc->fromInfiniOpTensorDescriptor(a_desc), STATUS_SUCCESS);
-    CHECK_STATUS(bDesc->fromInfiniOpTensorDescriptor(b_desc), STATUS_SUCCESS);
+    // Treat A, B, C as 2D matrix, reuse aclnnTensorDescriptor for batched operation
+    CHECK_STATUS(cDesc->setDescriptor(c_desc->dt, {info->c_matrix.rows, info->c_matrix.cols}, {info->c_matrix.row_stride, info->c_matrix.col_stride}), STATUS_SUCCESS);
+    CHECK_STATUS(aDesc->setDescriptor(a_desc->dt, {info->a_matrix.rows, info->a_matrix.cols}, {info->a_matrix.row_stride, info->a_matrix.col_stride}), STATUS_SUCCESS);
+    CHECK_STATUS(bDesc->setDescriptor(b_desc->dt, {info->b_matrix.rows, info->b_matrix.cols}, {info->b_matrix.row_stride, info->b_matrix.col_stride}), STATUS_SUCCESS);
 
     CHECK_STATUS(cDesc->createTensor(), STATUS_SUCCESS);
     CHECK_STATUS(aDesc->createTensor(), STATUS_SUCCESS);
     CHECK_STATUS(bDesc->createTensor(), STATUS_SUCCESS);
 
-    auto b = (*desc_ptr)->info->batch;
+
     auto &workspaceSize = (*desc_ptr)->workspaceSize;
     auto &executor = (*desc_ptr)->executor;
 
@@ -61,33 +63,18 @@ infiniopStatus_t aclnnCreateMatmulDescriptor(AscendHandle_t handle,
 
     aclnnStatus ret;
 
-    if (b > 1) {
-        // https://www.hiascend.com/document/detail/zh/CANNCommunityEdition/80RC3alpha003/apiref/aolapi/context/aclnnMatmul.md
-        ret = aclnnMatmulGetWorkspaceSize(ta,
-                                          tb,
-                                          tc,
-                                          (*desc_ptr)->mt,
-                                          &workspaceSize,
-                                          &executor);
-        CHECK_RET(ret == ACL_SUCCESS,
-                  LOG_PRINT("aclnnMatmulGetWorkspaceSize failed. ERROR: %d\n", ret);
-                  return STATUS_EXECUTION_FAILED);
-        aclSetAclOpExecutorRepeatable(executor);
-    } else {
-        // Get transA and transB according strides
-        // int64_t transA = aDesc->strides[aDesc->ndim - 1] == 1 ? 0 : 1;
-        // int64_t transB = bDesc->strides[bDesc->ndim - 1] == 1 ? 0 : 1;
-        int64_t transA = 0;
-        int64_t transB = 0;
-        // aclnnGemm support C = alpha * A @ B + beta * C
-        // see https://www.hiascend.com/document/detail/zh/CANNCommunityEdition/80RC3alpha003/apiref/aolapi/context/aclnnGemm.md
-        ret = aclnnGemmGetWorkspaceSize(ta, tb, tc, (*desc_ptr)->alpha, (*desc_ptr)->beta, transA, transB, tc,
+
+    int64_t transA = 0;
+    int64_t transB = 0;
+    // aclnnGemm support C = alpha * A @ B + beta * C
+    // see https://www.hiascend.com/document/detail/zh/CANNCommunityEdition/80RC3alpha003/apiref/aolapi/context/aclnnGemm.md
+    ret = aclnnGemmGetWorkspaceSize(ta, tb, tc, (*desc_ptr)->alpha, (*desc_ptr)->beta, transA, transB, tc,
                                         (*desc_ptr)->mt, &workspaceSize, &executor);
-        CHECK_RET(ret == ACL_SUCCESS,
-                  LOG_PRINT("aclnnGemmGetWorkspaceSize failed. ERROR: %d\n", ret);
-                  return STATUS_EXECUTION_FAILED);
-        aclSetAclOpExecutorRepeatable(executor);
-    }
+    CHECK_RET(ret == ACL_SUCCESS,
+            LOG_PRINT("aclnnGemmGetWorkspaceSize failed. ERROR: %d\n", ret);
+            return STATUS_EXECUTION_FAILED);
+    aclSetAclOpExecutorRepeatable(executor);
+
 
     return STATUS_SUCCESS;
 }
@@ -121,21 +108,12 @@ infiniopStatus_t aclnnMatmul(MatmulAclnnDescriptor_t desc,
     // Set runing on handle device
     aclrtSetDevice(desc->device_id);
 
-    aclnnStatus ret;
-    if (batch > 1) {
-        AclSetTensorAddr(executor, 0, ta, (void *) a);
-        AclSetTensorAddr(executor, 1, tb, (void *) b);
-        AclSetTensorAddr(executor, 2, tc, (void *) c);
-        ret = aclnnMatmul(workspace, workspaceSize, executor, stream);
-        CHECK_RET(ret == ACL_SUCCESS,
-                  LOG_PRINT("aclnnMatmul failed. ERROR: %d\n", ret);
-                  return STATUS_EXECUTION_FAILED);
-    } else {
-        AclSetTensorAddr(executor, 0, ta, (void *) a);
-        AclSetTensorAddr(executor, 1, tb, (void *) b);
-        AclSetTensorAddr(executor, 2, tc, (void *) c);
-        AclSetTensorAddr(executor, 3, tc, (void *) c);
-        ret = aclnnGemm(workspace,
+    for (int i = 0; i < batch; i++) {
+        AclSetTensorAddr(executor, 0, ta, (char *)(a) + i * desc->info->a_matrix.stride * desc->dtype.size);
+        AclSetTensorAddr(executor, 1, tb, (char *)(b) + i * desc->info->b_matrix.stride * desc->dtype.size);
+        AclSetTensorAddr(executor, 2, tc, (char *)(c) + i * desc->info->c_matrix.stride * desc->dtype.size);
+        AclSetTensorAddr(executor, 3, tc, (char *)(c) + i * desc->info->c_matrix.stride * desc->dtype.size);
+        aclnnStatus ret = aclnnGemm(workspace,
                         workspaceSize,
                         executor,
                         stream);

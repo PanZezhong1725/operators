@@ -2,55 +2,113 @@
 #include "../../ops/utils.h"
 #include <algorithm>
 
+infiniopStatus_t aclnnTensorDescriptor::setDescriptor(DT dtype, const std::vector<int64_t> &shape, const std::vector<int64_t> &strides) {
+    if (shape.size() != strides.size()) {
+        return STATUS_BAD_PARAM;
+    }
+    this->ndim = shape.size();
+    this->shape = std::vector<int64_t>(shape);
+    this->strides = std::vector<int64_t>(strides);
+
+    if (dtype_eq(dtype, F16)) {
+        this->dataType = aclDataType::ACL_FLOAT16;
+    } else if (dtype_eq(dtype, F32)) {
+        this->dataType = aclDataType::ACL_FLOAT;
+    } else if (dtype_eq(dtype, U64)) {
+        this->dataType = aclDataType::ACL_UINT64;
+    } else if (dtype_eq(dtype, I64)) {
+        this->dataType = aclDataType::ACL_INT64;
+    } else {
+        return STATUS_BAD_TENSOR_DTYPE;
+    }
+    // Set format
+    // TODO: Support other format
+    aclFormat format = aclFormat::ACL_FORMAT_ND;
+    this->format = format;
+
+    CHECK_STATUS(this->inferStorageShape(), STATUS_SUCCESS);
+
+    return STATUS_SUCCESS;
+}
+
+// infiniopStatus_t aclnnTensorDescriptor::inferStorageShape(){
+//     auto shape = std::vector<int64_t>();
+//     auto strides = std::vector<int64_t>();
+//     for (uint64_t i = 0; i < this->ndim; ++i) {
+//         if (this->shape[i] > 1){
+//             shape.push_back(this->shape[i]);
+//             strides.push_back(this->strides[i]);
+//         }else if (this->shape[i] <= 0){
+//             return STATUS_BAD_TENSOR_SHAPE;
+//         }
+//     }
+
+//     this->storageNdim = shape.size();
+//     this->storageShape = std::vector<int64_t>(this->storageNdim, 1);
+//     std::vector<uint64_t> indices(this->storageNdim);
+//     for (int64_t i = 0; i < this->storageNdim; ++i) {
+//         indices[i] = i;
+//     }
+
+//     std::sort(indices.begin(), indices.end(), [&](uint64_t a, uint64_t b) {
+//         return strides[a] > strides[b];
+//     });
+//     auto bound = 0; // upper bound of non-zero-strided dimension
+//     for (int64_t i = 0; i < this->storageNdim; ++i) {
+//         // sort shape and strides by strides
+//         shape[i] = this->shape[indices[i]];
+//         strides[i] = this->strides[indices[i]];
+//         if (strides[i] >= 1){
+//             bound++;
+//         }else if (strides[i] < 0){
+//             // negative stride not supported
+//             return STATUS_BAD_TENSOR_STRIDES;
+//         }
+//     }
+//     // Treat the last non-zero-strided dimension as continuous
+//     // All trilling zero-strided dimensions are treated as 1
+//     shape[bound - 1] = shape[bound - 1] * strides[bound - 1];
+//     strides[bound - 1] = 1;
+//     int64_t carry = 1;
+//     for (int64_t i = bound - 1; i > 0; --i) {
+//         // Each non-cummulative stride should be no smaller than corresponding dim
+//         // and storage shape is the bigger one
+//         this->storageShape[i] = strides[i-1] / carry;
+//         if (shape[i] > this->storageShape[i]){
+//                 return STATUS_BAD_TENSOR_STRIDES;
+//         }
+//         carry *= this->storageShape[i];
+//     }
+//     this->storageShape[0] = shape[0];
+
+//     return STATUS_SUCCESS;
+// }
+
+
+/// @brief Infer storage shape. For now this ruturns a 1D shape of the total tensor storage size.
+/// We don't see why higher dimensional storage shape is ever needed. To change if necesary.
+infiniopStatus_t aclnnTensorDescriptor::inferStorageShape() {
+    auto index = std::max_element(this->strides.begin(), this->strides.end());
+    uint64_t max_stride_index = std::distance(this->strides.begin(), index);
+    this->storageNdim = 1;
+    this->storageShape = std::vector<int64_t>({this->shape[max_stride_index] * this->strides[max_stride_index]});
+
+    return STATUS_SUCCESS;
+}
+
 /// @brief Set aclnnTensorDescriptor from infiniopTensorDescriptor
 /// @param y infiniopTensorDescriptor
 /// @return infiniopStatus_t
 infiniopStatus_t aclnnTensorDescriptor::fromInfiniOpTensorDescriptor(infiniopTensorDescriptor_t y) {
     uint64_t ndim = y->ndim;
     // Cast shape type
-    auto shape = new std::vector<int64_t>(ndim);
-    auto strides = new std::vector<int64_t>(ndim);
+    auto shape = std::vector<int64_t>(ndim);
+    auto strides = std::vector<int64_t>(ndim);
     for (uint64_t i = 0; i < ndim; ++i) {
-        (*shape)[i] = static_cast<int64_t>(y->shape[i]);
-        (*strides)[i] = y->strides[i];
+        shape[i] = static_cast<int64_t>(y->shape[i]);
+        strides[i] = y->strides[i];
     }
-    aclDataType dt;
-    if (dtype_eq(y->dt, F16)) {
-        dt = aclDataType::ACL_FLOAT16;
-    } else if (dtype_eq(y->dt, F32)) {
-        dt = aclDataType::ACL_FLOAT;
-    } else {
-        return STATUS_BAD_TENSOR_DTYPE;
-    }
-
-    // Set format
-    // TODO: Support other format
-    aclFormat format = aclFormat::ACL_FORMAT_ND;
-
-    this->ndim = ndim;
-    this->shape = (*shape).data();
-    this->strides = (*strides).data();
-    // TODO: Support other offset
-    this->offset = 0;
-    this->dataType = dt;
-    this->format = format;
-
-    infiniopTensorDescriptor_t yOri;
-    CHECK_STATUS(inferOriginInfiniOpTensorDescriptor(y, &yOri), STATUS_SUCCESS);
-
-    // Infer continuous storageShape
-    auto storageShape = new std::vector<int64_t>(ndim);
-    for (uint64_t i = 0; i < ndim - 1; ++i) {
-        (*storageShape)[i] = ((yOri->shape)[i] * (yOri->strides)[i]) /
-                             ((yOri->shape)[i + 1] * (yOri->strides)[i + 1]);
-    }
-    (*storageShape)[ndim - 1] = (yOri->shape)[ndim - 1];
-    this->storageShape = (*storageShape).data();
-    this->storageNdim = ndim;
-
-    CHECK_STATUS(infiniopDestroyTensorDescriptor(yOri), STATUS_SUCCESS);
-
-    return STATUS_SUCCESS;
+    return setDescriptor(y->dt, shape, strides);
 }
 
 /// @brief Wrapper of aclCreateTensor. Create aclTensor.
@@ -63,13 +121,13 @@ infiniopStatus_t aclnnTensorDescriptor::createTensor() {
     if (this->t) {
         return STATUS_SUCCESS;
     }
-    this->t = aclCreateTensor(this->shape,
+    this->t = aclCreateTensor(this->shape.data(),
                               this->ndim,
                               this->dataType,
-                              this->strides,
+                              this->strides.data(),
                               this->offset,
                               this->format,
-                              this->storageShape,
+                              this->storageShape.data(),
                               this->storageNdim,
                               nullptr);
     return STATUS_SUCCESS;
@@ -81,53 +139,13 @@ infiniopStatus_t aclnnTensorDescriptor::destroyTensor() {
               LOG_PRINT("aclDesctroyTensor failed, ERROR: %d\n", ret);
               return STATUS_EXECUTION_FAILED);
     t = nullptr;
-    shape = nullptr;
-    strides = nullptr;
-    storageShape = nullptr;
 
     return STATUS_SUCCESS;
-}
-
-infiniopStatus_t
-aclnnTensorDescriptor::inferOriginInfiniOpTensorDescriptor(infiniopTensorDescriptor_t y,
-                                                           infiniopTensorDescriptor_t *ori_ptr) {
-    auto shape = y->shape;
-    auto strides = y->strides;
-    auto ndim = y->ndim;
-
-    std::vector<uint64_t> indices(ndim);
-    for (uint64_t i = 0; i < ndim; ++i) {
-        indices[i] = i;
-    }
-
-    std::sort(indices.begin(), indices.end(), [&](uint64_t a, uint64_t b) {
-        return strides[a] > strides[b];
-    });
-
-    auto oriShape = new std::vector<uint64_t>(ndim);
-    auto oriStrides = new std::vector<int64_t>(ndim);
-    for (uint64_t i = 0; i < ndim; ++i) {
-        (*oriShape)[i] = shape[indices[i]];
-        (*oriStrides)[i] = strides[indices[i]];
-    }
-
-    auto status = infiniopCreateTensorDescriptor(
-        ori_ptr,
-        ndim,
-        (*oriShape).data(),
-        (*oriStrides).data(),
-        y->dt);
-
-    return status;
 }
 
 aclnnTensorDescriptor::~aclnnTensorDescriptor() {
     if (this->t) {
         destroyTensor();
-    } else {
-        delete shape;
-        delete strides;
-        delete storageShape;
     }
 }
 

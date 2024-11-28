@@ -24,25 +24,25 @@ infiniopStatus_t aclnnCreateRearrangeDescriptor(AscendHandle_t handle,
     CHECK_STATUS(dstDesc->fromInfiniOpTensorDescriptor(dst), STATUS_SUCCESS);
     CHECK_STATUS(srcDesc->fromInfiniOpTensorDescriptor(src), STATUS_SUCCESS);
 
-    CHECK_STATUS(dstDesc->createTensor(), STATUS_SUCCESS);
-    CHECK_STATUS(srcDesc->createTensor(), STATUS_SUCCESS);
+    // CHECK_STATUS(dstDesc->createTensor(), STATUS_SUCCESS);
+    // CHECK_STATUS(srcDesc->createTensor(), STATUS_SUCCESS);
 
-    aclTensor *td = dstDesc->t;
-    aclTensor *ts = srcDesc->t;
+    // aclTensor *td = dstDesc->t;
+    // aclTensor *ts = srcDesc->t;
 
-    auto &workspaceSize = (*desc_ptr)->workspaceSize;
-    auto &executor = (*desc_ptr)->executor;
+    // auto &workspaceSize = (*desc_ptr)->workspaceSize;
+    // auto &executor = (*desc_ptr)->executor;
 
-    auto ret = aclnnInplaceCopyGetWorkspaceSize(td,
-                                                ts,
-                                                &workspaceSize,
-                                                &executor);
-    aclSetAclOpExecutorRepeatable(executor);
-    CHECK_RET(ret == ACL_SUCCESS,
-              LOG_PRINT("aclnnInplaceCopyGetWorkspaceSize failed. ERROR: %d\n", ret);
-              return STATUS_EXECUTION_FAILED);
+    // auto ret = aclnnInplaceCopyGetWorkspaceSize(td,
+    //                                             ts,
+    //                                             &workspaceSize,
+    //                                             &executor);
+    // aclSetAclOpExecutorRepeatable(executor);
+    // CHECK_RET(ret == ACL_SUCCESS,
+    //           LOG_PRINT("aclnnInplaceCopyGetWorkspaceSize failed. ERROR: %d\n", ret);
+    //           return STATUS_EXECUTION_FAILED);
 
-    (*desc_ptr)->workspaceAddr = mallocWorkspace(workspaceSize);
+    // (*desc_ptr)->workspaceAddr = mallocWorkspace(workspaceSize);
 
     return STATUS_SUCCESS;
 }
@@ -54,13 +54,39 @@ infiniopStatus_t aclnnRearrange(RearrangeAclnnDescriptor_t desc,
     // Set runing on handle device
     aclrtSetDevice(desc->device_id);
 
+    /// TODO: something is wrong with aclSetTensorAddr, do all the preparation here for now
+    desc->dstDesc->t = aclCreateTensor(desc->dstDesc->shape.data(),
+                              desc->dstDesc->ndim,
+                              desc->dstDesc->dataType,
+                              desc->dstDesc->strides.data(),
+                              desc->dstDesc->offset,
+                              desc->dstDesc->format,
+                              desc->dstDesc->storageShape.data(),
+                              desc->dstDesc->storageNdim,
+                              dst);
+    desc->srcDesc->t = aclCreateTensor(desc->srcDesc->shape.data(),
+                              desc->srcDesc->ndim,
+                              desc->srcDesc->dataType,
+                              desc->srcDesc->strides.data(),
+                              desc->srcDesc->offset,
+                              desc->srcDesc->format,
+                              desc->srcDesc->storageShape.data(),
+                              desc->srcDesc->storageNdim,
+                              (void*)src);
+    
     aclTensor *td = desc->dstDesc->t;
     aclTensor *ts = desc->srcDesc->t;
+    aclOpExecutor *executor;
+    uint64_t workspaceSize;
+    aclnnInplaceCopyGetWorkspaceSize(td,
+                                     ts,
+                                     &workspaceSize,
+                                     &executor);
+    desc->workspaceAddr = mallocWorkspace(workspaceSize);
 
-    auto &executor = desc->executor;
 
-    AclSetTensorAddr(executor, 0, td, dst);
-    AclSetTensorAddr(executor, 1, ts, (void *) src);
+    // AclSetTensorAddr(executor, 0, td, dst);
+    // AclSetTensorAddr(executor, 1, ts, (void *) src);
     auto ret = aclnnInplaceCopy(desc->workspaceAddr,
                                 desc->workspaceSize,
                                 executor,
@@ -69,14 +95,18 @@ infiniopStatus_t aclnnRearrange(RearrangeAclnnDescriptor_t desc,
               LOG_PRINT("aclnnInplaceCopy failed. ERROR: %d\n", ret);
               return STATUS_EXECUTION_FAILED);
 
+    desc->dstDesc->destroyTensor();
+    desc->srcDesc->destroyTensor();
+    freeWorkspace(desc->workspaceAddr);
     return STATUS_SUCCESS;
 }
 
 infiniopStatus_t aclnnDestroyRearrangeDescriptor(RearrangeAclnnDescriptor_t desc) {
     delete desc->srcDesc;
     delete desc->dstDesc;
-    aclDestroyAclOpExecutor(desc->executor);
-    freeWorkspace(desc->workspaceAddr);
+    /// TODO: this aclDestroyAclOpExecutor seems to trigger a double free error
+    // aclDestroyAclOpExecutor(desc->executor);
+    // freeWorkspace(desc->workspaceAddr);
     delete desc;
 
     return STATUS_SUCCESS;

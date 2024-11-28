@@ -42,46 +42,35 @@ infiniopStatus_t aclnnCreateCausalSoftmaxDescriptor(AscendHandle_t handle,
     }
 
     // Change input shape and stride
-    auto aclnn_shape = new std::vector<uint64_t>(4);
-    auto aclnn_strides = new std::vector<int64_t>(4);
+    auto aclnn_shape = std::vector<int64_t>(4);
+    auto aclnn_strides = std::vector<int64_t>(4);
     for (uint64_t i = 0; i < ndim; ++i) {
-        (*aclnn_shape)[4 - i - 1] = shape[ndim - i - 1];
-        (*aclnn_strides)[4 - i - 1] = strides[ndim - i - 1];
+        aclnn_shape[4 - i - 1] = shape[ndim - i - 1];
+        aclnn_strides[4 - i - 1] = strides[ndim - i - 1];
     }
+    // Add padding to input shape and stride if ndim < 4
     for (uint64_t i = 0; i < 4 - ndim; ++i) {
-        (*aclnn_shape)[i] = 1;
-        (*aclnn_strides)[i] = (*aclnn_shape)[i + 1] * (*aclnn_strides)[i + 1];
+        aclnn_shape[i] = 1;
+        aclnn_strides[i] = aclnn_shape[i + 1] * aclnn_strides[i + 1];
     }
 
-    auto _y = y;
-    _y->shape = aclnn_shape->data();
-    _y->ndim = aclnn_shape->size();
-    _y->strides = aclnn_strides->data();
-
-    CHECK_STATUS(aDesc->fromInfiniOpTensorDescriptor(_y), STATUS_SUCCESS);
-    CHECK_STATUS(outDesc->fromInfiniOpTensorDescriptor(_y), STATUS_SUCCESS);
+    CHECK_STATUS(aDesc->setDescriptor(y->dt, aclnn_shape, aclnn_strides), STATUS_SUCCESS);
+    CHECK_STATUS(outDesc->setDescriptor(y->dt, aclnn_shape, aclnn_strides), STATUS_SUCCESS);
 
     // Set mask Desc
     auto &maskDesc = (*desc_ptr)->maskDesc;
-    auto mask_shape = new std::vector<int64_t>(3);
+    auto mask_shape = std::vector<int64_t>(3);
 
-    (*mask_shape)[2] = total_seq_len;
-    (*mask_shape)[1] = seq_len;
+    mask_shape[2] = total_seq_len;
+    mask_shape[1] = seq_len;
     if (ndim == 2) {
-        (*mask_shape)[0] = 1;
+        mask_shape[0] = 1;
     } else {
-        (*mask_shape)[0] = static_cast<int64_t>(shape[0]);
+        mask_shape[0] = static_cast<int64_t>(shape[0]);
     }
-    auto mask_strides = new std::vector<int64_t>{total_seq_len * seq_len, total_seq_len, 1};
+    auto mask_strides = std::vector<int64_t>{total_seq_len * seq_len, total_seq_len, 1};
 
-    maskDesc->ndim = mask_shape->size();
-    maskDesc->shape = mask_shape->data();
-    maskDesc->strides = mask_strides->data();
-    maskDesc->offset = 0;
-    maskDesc->dataType = aDesc->dataType;
-    maskDesc->format = aDesc->format;
-    maskDesc->storageShape = mask_shape->data();
-    maskDesc->storageNdim = mask_shape->size();
+    CHECK_STATUS(maskDesc->setDescriptor(y->dt, mask_shape, mask_strides), STATUS_SUCCESS);
 
     // Create aclTensor
     CHECK_STATUS(aDesc->createTensor(), STATUS_SUCCESS);
@@ -128,7 +117,7 @@ infiniopStatus_t aclnnCreateCausalSoftmaxDescriptor(AscendHandle_t handle,
 
     // malloc mask space
     auto &maskAddr = (*desc_ptr)->maskAddr;
-    auto mask_size = numElements(maskDesc->shape, maskDesc->ndim) * ele_size;
+    auto mask_size = numElements(maskDesc->shape.data(), maskDesc->ndim) * ele_size;
     maskAddr = mallocWorkspace(mask_size);
 
     // copy mask matrix to device mem

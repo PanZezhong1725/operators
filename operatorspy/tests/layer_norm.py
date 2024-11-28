@@ -74,7 +74,7 @@ def test(lib, handle, torch_device, x_shape, axis, x_dtype=torch.float16):
     )
     err = y.reshape(-1,1) - ans.reshape(-1,1)
     print(max(abs(err)))
-    assert torch.allclose(y, ans, atol=0, rtol=1e-2)
+    assert torch.allclose(y, ans, atol=1e-3, rtol=1e-3)
     check_error(lib.infiniopDestroyLayerNormDescriptor(descriptor))
 
 

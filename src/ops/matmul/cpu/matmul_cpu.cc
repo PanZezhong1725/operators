@@ -64,7 +64,11 @@ infiniopStatus_t matmul_cpu(MatmulCpuDescriptor_t desc, void *c, float beta, voi
                     }
                 }
                 if constexpr (std::is_same<Tdata, uint16_t>::value) {
-                    *c_ = f32_to_f16(beta * f16_to_f32(*c_) + alpha * sum);
+                    if (beta == 0) {
+                        *c_ = f32_to_f16(alpha * sum);
+                    } else {
+                        *c_ = f32_to_f16(beta * f16_to_f32(*c_) + alpha * sum);
+                    }
                 } else {
                     *c_ = beta * (*c_) + alpha * sum;
                 }

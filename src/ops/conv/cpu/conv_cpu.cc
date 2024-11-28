@@ -1,20 +1,15 @@
 #include "conv_cpu.h"
 #include "../../utils.h"
 
-uint64_t getPaddedSize(uint64_t ndim, uint64_t *shape, uint64_t const *pads) {
-    uint64_t total_size = 1;
-    for (size_t i = 0; i < ndim; ++i) {
-        total_size *= shape[i] + (i < 2 ? 0 : 2 * pads[i - 2]);
-    }
-    return total_size;
+// get the total number of elements in arr
+inline uint64_t getTotalSize(const uint64_t *arr, uint64_t ndim) {
+    return std::accumulate(arr, arr + ndim, 1ULL, std::multiplies<uint64_t>());
 }
 
-// calculate the padded shape and store the result in padded_shape
-void getPaddedShape(uint64_t ndim, uint64_t const *shape, uint64_t const *pads, uint64_t *padded_shape) {
-    memcpy(padded_shape, shape, ndim * sizeof(uint64_t));
-    for (size_t i = 2; i < ndim; ++i) {
-        padded_shape[i] += 2 * pads[i - 2];
-    }
+// check if padding is needed
+inline bool requirePadding(uint64_t const *pads, uint64_t ndim) {
+    return std::any_of(pads, pads + ndim - 2,
+                       [](uint64_t pad) { return pad > 0; });
 }
 
 infiniopStatus_t cpuCreateConvDescriptor(infiniopHandle_t,
@@ -213,7 +208,10 @@ infiniopStatus_t conv_cpu<uint16_t>(ConvCpuDescriptor_t desc, void *workspace, u
 
     // copy data from y_ to y
     auto y_16 = reinterpret_cast<uint16_t *>(y);
-    copyF32DataToF16(y_16, y_, desc->y_size);
+#pragma omp parallel for
+    for (size_t i = 0; i < desc->y_size; ++i) {
+        y_16[i] = f32_to_f16(y_[i]);
+    }
     return STATUS_SUCCESS;
 }
 

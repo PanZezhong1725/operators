@@ -36,14 +36,19 @@ class MatmulDescriptor(Structure):
 
 infiniopMatmulDescriptor_t = POINTER(MatmulDescriptor)
 
-def matmul(c, beta, a, b, alpha):
+def matmul(_c, beta, _a, _b, alpha):
+    a = _a.clone()
+    b = _b.clone()
+    c = _c.clone()
     input_dtype = c.dtype
     ans = (
         alpha * torch.matmul(a.to(torch.float32), b.to(torch.float32)).to(input_dtype)
         + beta * c
     )
     if PROFILE:
-        torch.cuda.synchronize()
+        if _c.device.type == "cuda":
+            torch.cuda.synchronize()
+        # TODO: add synchronization function for other devices
     return ans
 
 
@@ -70,6 +75,8 @@ def test(
     b = torch.rand(b_shape, dtype=dtype).to(torch_device)
     c = torch.ones(c_shape, dtype=dtype).to(torch_device)
 
+    ans = matmul(c, beta, a, b, alpha)
+    
     if a_stride is not None:
         a = rearrange_tensor(a, a_stride)
     if b_stride is not None:
@@ -77,16 +84,6 @@ def test(
     if c_stride is not None:
         c = rearrange_tensor(c, c_stride)
 
-    for i in range(NUM_PRERUN if PROFILE else 1):
-        ans = matmul(c.clone(), beta, a, b, alpha)
-
-    if PROFILE:
-        start_time = time.time()
-        for i in range(NUM_ITERATIONS):
-            _ = matmul(c, beta, a, b, alpha)
-        elapsed = (time.time() - start_time) / NUM_ITERATIONS
-        print(f"pytorch time: {elapsed :6f}")
-    
     a_tensor = to_tensor(a, lib)
     b_tensor = to_tensor(b, lib)
     c_tensor = to_tensor(c, lib)
@@ -109,8 +106,8 @@ def test(
     )
     workspace = create_workspace(workspace_size.value, a.device)
 
-    for i in range(NUM_PRERUN if PROFILE else 1):
-        check_error(
+
+    check_error(
         lib.infiniopMatmul(
             descriptor,
             workspace.data_ptr() if workspace is not None else None,
@@ -121,7 +118,27 @@ def test(
             None,
         )
     )
+
+    assert torch.allclose(c, ans, atol=0, rtol=1e-2)
+    
     if PROFILE:
+        for i in range(NUM_PRERUN):
+            _ = matmul(c, beta, a, b, alpha)
+        start_time = time.time()
+        for i in range(NUM_ITERATIONS):
+            _ = matmul(c, beta, a, b, alpha)
+        elapsed = (time.time() - start_time) / NUM_ITERATIONS
+        print(f"pytorch time: {elapsed :6f}")
+        for i in range(NUM_PRERUN):
+                lib.infiniopMatmul(
+                    descriptor,
+                    workspace.data_ptr() if workspace is not None else None,
+                    workspace_size.value,
+                    c_tensor.data,
+                    a_tensor.data,
+                    b_tensor.data,
+                    None,
+            )
         start_time = time.time()
         for i in range(NUM_ITERATIONS):
                 lib.infiniopMatmul(
@@ -135,8 +152,6 @@ def test(
             )
         elapsed = (time.time() - start_time) / NUM_ITERATIONS
         print(f"    lib time: {elapsed :6f}")
-
-    assert torch.allclose(c, ans, atol=0, rtol=1e-2)
 
     check_error(lib.infiniopDestroyMatmulDescriptor(descriptor))
 
@@ -283,7 +298,10 @@ if __name__ == "__main__":
         (1.0, 0.0, (2, 4, 2048), (2, 2048, 2048), (2, 4, 2048), None, None, None, torch.float32),
         (1.0, 0.0, (1, 2048), (2048, 2048), (1, 2048), (4096, 1), (4096, 1), (4096, 1), torch.float16),
         (1.0, 0.0, (1, 2048), (2048, 2048), (1, 2048), (4096, 1), (4096, 1), (4096, 1), torch.float32),
-        (1.0, 1.0, (6, 2048), (2048, 2560), (6, 2560), (2048, 1), (1, 2048), (2560, 1), torch.float16)
+        (1.0, 1.0, (6, 2048), (2048, 2560), (6, 2560), (2048, 1), (1, 2048), (2560, 1), torch.float16),
+        (1.0, 1.0, (6, 2048), (2048, 2560), (6, 2560), (2048, 1), (1, 2048), (2560, 1), torch.float32),
+        (1.0 / 8.0, 0.0, (4, 8 * 6, 64), (4, 64, 6), (4, 8 * 6, 6), None, None, None, torch.float16),
+        (1.0 / 8.0, 0.0, (4, 8 * 6, 64), (4, 64, 6), (4, 8 * 6, 6), None, None, None, torch.float32),
     ]
     args = get_args()
     lib = open_lib()

@@ -14,23 +14,22 @@
 // used to build aclTensor
 struct aclnnTensorDescriptor {
     uint64_t ndim;
-    int64_t *shape;
-    int64_t *strides;
+    std::vector<int64_t> shape;
+    std::vector<int64_t> strides;
     int64_t offset;
     aclDataType dataType;
     aclFormat format;
-    int64_t *storageShape;
+    std::vector<int64_t> storageShape;
     int64_t storageNdim;
 
     aclTensor *t;
 
+    infiniopStatus_t setDescriptor(DT dtype, const std::vector<int64_t> &shape, const std::vector<int64_t> &strides);
+    infiniopStatus_t inferStorageShape();
     // Convert form InfiniOpTensorDescriptor
     infiniopStatus_t fromInfiniOpTensorDescriptor(infiniopTensorDescriptor_t y_desc);
     infiniopStatus_t createTensor();
     infiniopStatus_t destroyTensor();
-    infiniopStatus_t
-    inferOriginInfiniOpTensorDescriptor(infiniopTensorDescriptor_t y,
-                                        infiniopTensorDescriptor_t *ori_ptr);
     ~aclnnTensorDescriptor();
 
     char *toString();

@@ -30,6 +30,7 @@ infiniopStatus_t aclnnCreateRMSNormDescriptor(AscendHandle_t handle,
     auto &xDesc = (*desc_ptr)->xDesc;
     auto &wDesc = (*desc_ptr)->wDesc;
     auto &castDesc = (*desc_ptr)->castDesc;
+    auto &rstdDesc = (*desc_ptr)->rstdDesc;
 
     CHECK_STATUS(yDesc->fromInfiniOpTensorDescriptor(y), STATUS_SUCCESS);
     CHECK_STATUS(xDesc->fromInfiniOpTensorDescriptor(x), STATUS_SUCCESS);
@@ -52,25 +53,16 @@ infiniopStatus_t aclnnCreateRMSNormDescriptor(AscendHandle_t handle,
         }
     }
 
-    auto rstd_shape = new std::vector<int64_t>(xDesc->ndim, 1);
-    auto rstd_strides = new std::vector<int64_t>(xDesc->ndim, 1);
+    auto rstd_shape = std::vector<int64_t>(xDesc->ndim, 1);
+    auto rstd_strides = std::vector<int64_t>(xDesc->ndim, 1);
 
     for (uint64_t i = 0; i < rstd_dim; ++i) {
-        (*rstd_shape)[i] = (xDesc->shape)[i];
+        rstd_shape[i] = (xDesc->shape)[i];
     }
     for (int64_t i = xDesc->ndim - 2; i >= 0; --i) {
-        (*rstd_strides)[i] = (*rstd_strides)[i + 1] * (*rstd_shape)[i + 1];
+        rstd_strides[i] = rstd_strides[i + 1] * rstd_shape[i + 1];
     }
-
-    auto &rstdDesc = (*desc_ptr)->rstdDesc;
-    rstdDesc->ndim = rstd_shape->size();
-    rstdDesc->shape = rstd_shape->data();
-    rstdDesc->strides = rstd_strides->data();
-    rstdDesc->offset = 0;
-    // Only support FLOAT
-    rstdDesc->dataType = aclDataType::ACL_FLOAT;
-    rstdDesc->storageShape = rstd_shape->data();
-    rstdDesc->storageNdim = rstd_shape->size();
+    CHECK_STATUS(rstdDesc->setDescriptor(F32, rstd_shape, rstd_strides), STATUS_SUCCESS);
 
     if (wDesc->dataType != xDesc->dataType) {
         castDesc = new aclnnTensorDescriptor();
@@ -131,11 +123,11 @@ infiniopStatus_t aclnnGetRMSNormWorkspaceSize(RMSNormAclnnDescriptor_t desc,
     auto &castDesc = desc->castDesc;
 
     *size = desc->workspaceSize +
-            numElements(rstdDesc->shape, rstdDesc->ndim) * aclDataTypeSize(rstdDesc->dataType);
+            numElements(rstdDesc->shape.data(), rstdDesc->ndim) * aclDataTypeSize(rstdDesc->dataType);
 
     if (castDesc != nullptr) {
         *size += desc->castWorkspaceSize;
-        *size += numElements(castDesc->shape, castDesc->ndim) * aclDataTypeSize(castDesc->dataType);
+        *size += numElements(castDesc->shape.data(), castDesc->ndim) * aclDataTypeSize(castDesc->dataType);
     }
 
     return STATUS_SUCCESS;
@@ -176,7 +168,7 @@ infiniopStatus_t aclnnRMSNorm(RMSNormAclnnDescriptor_t desc,
     // Cast w 
     if (castDesc != nullptr) {
         aclTensor *tcast = castDesc->t;
-        castPtr = (void *) ((float *) rstd + numElements(rstdDesc->shape, rstdDesc->ndim));
+        castPtr = (void *) ((float *) rstd + numElements(rstdDesc->shape.data(), rstdDesc->ndim));
 
         AclSetTensorAddr(castExecutor, 0, tw, (void *) w);
         AclSetTensorAddr(castExecutor, 1, tcast, castPtr);

@@ -15,9 +15,9 @@ __C __export infiniopStatus_t infiniopCreateConvDescriptor(infiniopHandle_t hand
                                                            infiniopTensorDescriptor_t y,
                                                            infiniopTensorDescriptor_t x,
                                                            infiniopTensorDescriptor_t w,
-                                                           void *pads,
-                                                           void *strides,
-                                                           void *dilations,
+                                                           uint64_t const *pads,
+                                                           int64_t const *strides,
+                                                           uint64_t const *dilations,
                                                            uint64_t n);
 
 __C __export infiniopStatus_t infiniopGetConvWorkspaceSize(infiniopConvDescriptor_t desc, uint64_t *size);

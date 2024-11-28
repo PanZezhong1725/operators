@@ -13,6 +13,7 @@ struct ConvCpuDescriptor {
     uint64_t ndim;
     uint64_t y_size;
     uint64_t padded_x_size;
+    uint64_t const *padded_shape;
     uint64_t const *x_shape;
     uint64_t const *w_shape;
     uint64_t const *y_shape;
@@ -28,9 +29,9 @@ infiniopStatus_t cpuCreateConvDescriptor(infiniopHandle_t,
                                          infiniopTensorDescriptor_t y,
                                          infiniopTensorDescriptor_t x,
                                          infiniopTensorDescriptor_t w,
-                                         void const *pads,
-                                         void const *strides,
-                                         void const *dilations,
+                                         uint64_t const *pads,
+                                         int64_t const *strides,
+                                         uint64_t const *dilations,
                                          uint64_t n);
 
 infiniopStatus_t cpuGetConvWorkspaceSize(ConvCpuDescriptor_t desc, uint64_t *size);

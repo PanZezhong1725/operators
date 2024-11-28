@@ -16,9 +16,9 @@ __C infiniopStatus_t infiniopCreateConvDescriptor(
     infiniopTensorDescriptor_t y,
     infiniopTensorDescriptor_t x,
     infiniopTensorDescriptor_t w,
-    void *pads,
-    void *strides,
-    void *dilations,
+    uint64_t const *pads,
+    int64_t const *strides,
+    uint64_t const *dilations,
     uint64_t n) {
     switch (handle->device) {
 #ifdef ENABLE_CPU

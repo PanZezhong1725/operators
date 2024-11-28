@@ -39,22 +39,25 @@ infiniopConvDescriptor_t = POINTER(ConvDescriptor)
 
 
 def conv(x, w, stride, padding, dilation):
-    match len(x.shape) - 2:
-        case 1:
-            return F.conv1d(
-                x, w, stride=stride, padding=padding, dilation=dilation
-            )
-        case 2:
-            return F.conv2d(
-                x, w, stride=stride, padding=padding, dilation=dilation
-            )
-        case 3:
-            return F.conv3d(
-                x, w, stride=stride, padding=padding, dilation=dilation
-            )
-        case _:
-            print("Error: Pytorch -> Unsupported tensor dimension")
-            return None
+    ndim = len(x.shape) - 2
+    conv_func_map = {
+        1: F.conv1d,
+        2: F.conv2d,
+        3: F.conv3d
+    }
+
+    if ndim not in conv_func_map:
+        print("Error: Pytorch -> Unsupported tensor dimension")
+        return None
+
+    # Select the appropriate convolution function
+    conv_func = conv_func_map[ndim]
+
+    if PROFILE:
+        ans = conv_func(x, w, stride=stride, padding=padding, dilation=dilation)
+        torch.cuda.synchronize()
+        return ans
+    return conv_func(x, w, stride=stride, padding=padding, dilation=dilation)
 
 
 # infer the shape of the output given the inputs for a N-ary convolution

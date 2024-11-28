@@ -7,9 +7,9 @@ infiniopStatus_t cudaCreateConvDescriptor(CudaHandle_t handle,
                                           infiniopTensorDescriptor_t y,
                                           infiniopTensorDescriptor_t x,
                                           infiniopTensorDescriptor_t w,
-                                          void const *pads,
-                                          void const *strides,
-                                          void const *dilations,
+                                          uint64_t const *pads,
+                                          int64_t const *strides,
+                                          uint64_t const *dilations,
                                           uint64_t n) {
     uint64_t ndim = y->ndim;
     if (ndim < 3 || ndim != x->ndim || ndim != w->ndim) {
@@ -25,7 +25,7 @@ infiniopStatus_t cudaCreateConvDescriptor(CudaHandle_t handle,
         return STATUS_BAD_TENSOR_DTYPE;
     }
 
-    const uint64_t new_ndim = std::max(ndim, (uint64_t)4);
+    const uint64_t new_ndim = std::max(ndim, (uint64_t) 4);
     // convert pads, strides, dilations into int32[]
     int32_t *pad = new int32_t[new_ndim];
     int32_t *stride = new int32_t[new_ndim];
@@ -33,13 +33,10 @@ infiniopStatus_t cudaCreateConvDescriptor(CudaHandle_t handle,
     int32_t *x_shape = new int32_t[new_ndim];
     int32_t *w_shape = new int32_t[new_ndim];
     int32_t *y_shape = new int32_t[new_ndim];
-    auto pads_ = reinterpret_cast<uint64_t const *>(pads);
-    auto strides_ = reinterpret_cast<int64_t const *>(strides);
-    auto dilations_ = reinterpret_cast<uint64_t const *>(dilations);
     for (size_t i = 0; i < new_ndim; ++i) {
-        pad[i] = i < ndim - 2 ? static_cast<int32_t>(pads_[i]) : 0;
-        stride[i] = i < ndim - 2 ? static_cast<int32_t>(strides_[i]) : 1;
-        dilation[i] = i < ndim - 2 ? static_cast<int32_t>(dilations_[i]) : 1;
+        pad[i] = i < ndim - 2 ? static_cast<int32_t>(pads[i]) : 0;
+        stride[i] = i < ndim - 2 ? static_cast<int32_t>(strides[i]) : 1;
+        dilation[i] = i < ndim - 2 ? static_cast<int32_t>(dilations[i]) : 1;
         x_shape[i] = i < ndim ? static_cast<int32_t>(x->shape[i]) : 1;
         w_shape[i] = i < ndim ? static_cast<int32_t>(w->shape[i]) : 1;
         y_shape[i] = i < ndim ? static_cast<int32_t>(y->shape[i]) : 1;
@@ -92,6 +89,8 @@ infiniopStatus_t cudaCreateConvDescriptor(CudaHandle_t handle,
     checkCudnnError(cudnnGetConvolutionNdForwardOutputDim(op_desc, x_desc, w_desc, new_ndim, outDim));
     checkCudnnError(cudnnCreateTensorDescriptor(&y_desc));
     checkCudnnError(cudnnSetTensorNdDescriptorEx(y_desc, CUDNN_TENSOR_NCHW, static_cast<cudnnDataType_t>(tensor_dt), new_ndim, y_shape));
+
+    cudnnSetConvolutionMathType(op_desc, CUDNN_TENSOR_OP_MATH_ALLOW_CONVERSION);
 
     // tuning: get the best algorithm
     int requestedAlgoCount = 1;

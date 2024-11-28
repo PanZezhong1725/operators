@@ -115,12 +115,26 @@ __device__ __forceinline__ Tdata binary_op(const Tdata &a, const Tdata &b, int m
                 return a * b;
             }
         case BinaryMode::Divide:
-            return a / b;
+            if constexpr (std::is_same_v<Tdata, half2>) {
+                return __h2div(a, b);
+            } else if constexpr (std::is_same_v<Tdata, float>) {
+                return __fdividef(a, b);
+            } else {
+                return a / b;
+            }
+            // return a / b;
         case BinaryMode::Pow:
             if constexpr (std::is_arithmetic_v<Tdata>) {
-                return std::pow(a, b);
+                if constexpr (std::is_same_v<Tdata, float>) {
+                    return __powf(a, b);
+                } else {
+                    return std::pow(a, b);
+                }
             } else if constexpr (std::is_same_v<Tdata, half>) {
-                return __float2half(std::pow(__half2float(a), __half2float(b)));
+                float a_ = __half2float(a);
+                float b_ = __half2float(b);
+                float ans_f = __powf(a_, b_);
+                return __float2half(isnan(ans_f) ? std::pow(a_, b_) : ans_f);
             } else if constexpr (!std::is_same_v<Tdata, half2>) {
                 return a.pow(b);
             }
@@ -128,10 +142,10 @@ __device__ __forceinline__ Tdata binary_op(const Tdata &a, const Tdata &b, int m
         case BinaryMode::Mod:
             if constexpr (std::is_floating_point_v<Tdata>) {
                 return std::fmod(a, b);
-            } else if constexpr (std::is_arithmetic_v<Tdata>) {
-                return a % b;
             } else if constexpr (std::is_same_v<Tdata, half>) {
                 return __float2half(std::fmod(__half2float(a), __half2float(b)));
+            } else if constexpr (std::is_arithmetic_v<Tdata>) {
+                return a % b;
             } else if constexpr (!std::is_same_v<Tdata, half2>) {
                 return a.mod(b);
             }
@@ -144,8 +158,10 @@ __device__ __forceinline__ Tdata binary_op(const Tdata &a, const Tdata &b, int m
                     return std::max(a, b);
                 }
             } else if constexpr (std::is_same_v<Tdata, half>) {
-                return __half2float(a) > __half2float(b) ? a : b;
-            } else if constexpr (!std::is_same_v<Tdata, half2>) {
+                return __hmax(a, b);
+            } else if constexpr (std::is_same_v<Tdata, half2>) {
+                return __hmax2(a, b);
+            } else {
                 return a.max(b);
             }
         case BinaryMode::Min:
@@ -156,35 +172,37 @@ __device__ __forceinline__ Tdata binary_op(const Tdata &a, const Tdata &b, int m
                     return std::min(a, b);
                 }
             } else if constexpr (std::is_same_v<Tdata, half>) {
-                return __half2float(a) < __half2float(b) ? a : b;
-            } else if constexpr (!std::is_same_v<Tdata, half2>) {
+                return __hmin(a, b);
+            } else if constexpr (std::is_same_v<Tdata, half2>) {
+                return __hmin2(a, b);
+            } else {
                 return a.min(b);
             }
         case BinaryMode::BitwiseAnd:
             if constexpr (std::is_integral_v<Tdata>) {
                 return a & b;
             } else {
-                printf("Error: Non-integral input to bitwise operatior\n");
+                printf("Error: Non-integral input to bitwise operator\n");
                 return a;
             }
         case BinaryMode::BitwiseOr:
             if constexpr (std::is_integral_v<Tdata>) {
                 return a | b;
             } else {
-                printf("Error: Non-integral input to bitwise operatior\n");
+                printf("Error: Non-integral input to bitwise operator\n");
                 return a;
             }
         case BinaryMode::BitwiseXor:
             if constexpr (std::is_integral_v<Tdata>) {
                 return a ^ b;
             } else {
-                printf("Error: Non-integral input to bitwise operatior\n");
+                printf("Error: Non-integral input to bitwise operator\n");
                 return a;
             }
         // Logical operations:
         // TODO. Currently Not supported yet
         default:
-            printf("Unrecognized binary operation: how did you get here??\n");
+            printf("Unrecognized binary operation\n");
             return a;
     }
 }
@@ -282,7 +300,10 @@ infiniopStatus_t cudaBinary(BinaryCudaDescriptor_t desc,
             case BinaryMode::Divide:
                 return binary_nv_gpu<vecN<float2, half2, 2>, half, 256>(desc, c, a, b, stream, 8);
             case BinaryMode::Pow:
-                return binary_nv_gpu<vecN<float4, half, 1>, half, 128>(desc, c, a, b, stream, 8);
+                return binary_nv_gpu<vecN<float4, half, 2>, half, 128>(desc, c, a, b, stream, 16);
+            case BinaryMode::Max:
+            case BinaryMode::Min:
+                return binary_nv_gpu<vecN<float2, half2, 2>, half, 256>(desc, c, a, b, stream, 8);
             default:
                 return binary_nv_gpu<vecN<float4, half, 1>, half, 64>(desc, c, a, b, stream, 8);
         }
@@ -295,7 +316,6 @@ infiniopStatus_t cudaBinary(BinaryCudaDescriptor_t desc,
             case BinaryMode::Divide:
                 return binary_nv_gpu<vecN<float2, float, 2>, float, 256>(desc, c, a, b, stream, 4);
             case BinaryMode::Pow:
-                return binary_nv_gpu<vecN<float4, float, 2>, float, 256>(desc, c, a, b, stream, 8);
             case BinaryMode::Mod:
                 return binary_nv_gpu<vecN<float4, float, 1>, float, 128>(desc, c, a, b, stream, 4);
             case BinaryMode::Max:

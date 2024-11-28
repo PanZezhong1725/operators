@@ -27,6 +27,7 @@ PROFILE = False
 NUM_PRERUN = 10
 NUM_ITERATIONS = 1000
 
+
 class Inplace(Enum):
     OUT_OF_PLACE = auto()
     INPLACE_A = auto()
@@ -40,9 +41,8 @@ class ModDescriptor(Structure):
 
 infiniopModDescriptor_t = POINTER(ModDescriptor)
 
-def find_and_print_differing_indices(
-    a, b, c, ans, atol=0, rtol=1e-2
-):
+
+def find_and_print_differing_indices(a, b, c, ans, atol=0, rtol=1e-2):
     if c.shape != ans.shape:
         raise ValueError("Tensors must have the same shape to compare.")
 
@@ -63,7 +63,7 @@ def find_and_print_differing_indices(
 def mod(x, y):
     if PROFILE:
         ans = torch.fmod(x, y)
-        torch.cuda.synchronize() 
+        torch.cuda.synchronize()
         return ans
     return torch.fmod(x, y)
 
@@ -72,8 +72,8 @@ def test(
     lib,
     handle,
     torch_device,
-    c_shape, 
-    a_shape, 
+    c_shape,
+    a_shape,
     b_shape,
     tensor_dtype=torch.float16,
     inplace=Inplace.OUT_OF_PLACE,
@@ -86,9 +86,17 @@ def test(
         return
 
     a = torch.rand(a_shape, dtype=tensor_dtype).to(torch_device) * 10
-    b = torch.rand(b_shape, dtype=tensor_dtype).to(torch_device) if inplace != Inplace.INPLACE_AB else a
-    c = torch.rand(c_shape, dtype=tensor_dtype).to(torch_device) if inplace == Inplace.OUT_OF_PLACE else (a if inplace == Inplace.INPLACE_A else b)
-    
+    b = (
+        torch.rand(b_shape, dtype=tensor_dtype).to(torch_device)
+        if inplace != Inplace.INPLACE_AB
+        else a
+    )
+    c = (
+        torch.rand(c_shape, dtype=tensor_dtype).to(torch_device)
+        if inplace == Inplace.OUT_OF_PLACE
+        else (a if inplace == Inplace.INPLACE_A else b)
+    )
+
     for i in range(NUM_PRERUN if PROFILE else 1):
         ans = mod(a, b)
     if PROFILE:
@@ -100,7 +108,11 @@ def test(
 
     a_tensor = to_tensor(a, lib)
     b_tensor = to_tensor(b, lib) if inplace != Inplace.INPLACE_AB else a_tensor
-    c_tensor = to_tensor(c, lib) if inplace == Inplace.OUT_OF_PLACE else (a_tensor if inplace == Inplace.INPLACE_A else b_tensor)
+    c_tensor = (
+        to_tensor(c, lib)
+        if inplace == Inplace.OUT_OF_PLACE
+        else (a_tensor if inplace == Inplace.INPLACE_A else b_tensor)
+    )
     descriptor = infiniopModDescriptor_t()
 
     check_error(
@@ -112,16 +124,20 @@ def test(
             b_tensor.descriptor,
         )
     )
-    
+
     for i in range(NUM_PRERUN if PROFILE else 1):
-        lib.infiniopMod(
-            descriptor, c_tensor.data, a_tensor.data, b_tensor.data, None
+        check_error(
+            lib.infiniopMod(
+                descriptor, c_tensor.data, a_tensor.data, b_tensor.data, None
+            )
         )
     if PROFILE:
         start_time = time.time()
         for i in range(NUM_ITERATIONS):
-            lib.infiniopMod(
-                descriptor, c_tensor.data, a_tensor.data, b_tensor.data, None
+            check_error(
+                lib.infiniopMod(
+                    descriptor, c_tensor.data, a_tensor.data, b_tensor.data, None
+                )
             )
         elapsed = (time.time() - start_time) / NUM_ITERATIONS
         print(f"    lib time: {elapsed :6f}")
@@ -134,8 +150,26 @@ def test_cpu(lib, test_cases):
     device = DeviceEnum.DEVICE_CPU
     handle = create_handle(lib, device)
     for c_shape, a_shape, b_shape, inplace in test_cases:
-        test(lib, handle, "cpu", c_shape, a_shape, b_shape, tensor_dtype=torch.float16, inplace=inplace)
-        test(lib, handle, "cpu", c_shape, a_shape, b_shape, tensor_dtype=torch.float32, inplace=inplace)
+        test(
+            lib,
+            handle,
+            "cpu",
+            c_shape,
+            a_shape,
+            b_shape,
+            tensor_dtype=torch.float16,
+            inplace=inplace,
+        )
+        test(
+            lib,
+            handle,
+            "cpu",
+            c_shape,
+            a_shape,
+            b_shape,
+            tensor_dtype=torch.float32,
+            inplace=inplace,
+        )
     destroy_handle(lib, handle)
 
 
@@ -143,8 +177,26 @@ def test_cuda(lib, test_cases):
     device = DeviceEnum.DEVICE_CUDA
     handle = create_handle(lib, device)
     for c_shape, a_shape, b_shape, inplace in test_cases:
-        test(lib, handle, "cuda", c_shape, a_shape, b_shape, tensor_dtype=torch.float16, inplace=inplace)
-        test(lib, handle, "cuda", c_shape, a_shape, b_shape, tensor_dtype=torch.float32, inplace=inplace)
+        test(
+            lib,
+            handle,
+            "cuda",
+            c_shape,
+            a_shape,
+            b_shape,
+            tensor_dtype=torch.float16,
+            inplace=inplace,
+        )
+        test(
+            lib,
+            handle,
+            "cuda",
+            c_shape,
+            a_shape,
+            b_shape,
+            tensor_dtype=torch.float32,
+            inplace=inplace,
+        )
     destroy_handle(lib, handle)
 
 
@@ -154,8 +206,26 @@ def test_bang(lib, test_cases):
     device = DeviceEnum.DEVICE_BANG
     handle = create_handle(lib, device)
     for c_shape, a_shape, b_shape, inplace in test_cases:
-        test(lib, handle, "mlu", c_shape, a_shape, b_shape, tensor_dtype=torch.float16, inplace=inplace)
-        test(lib, handle, "mlu", c_shape, a_shape, b_shape, tensor_dtype=torch.float32, inplace=inplace)
+        test(
+            lib,
+            handle,
+            "mlu",
+            c_shape,
+            a_shape,
+            b_shape,
+            tensor_dtype=torch.float16,
+            inplace=inplace,
+        )
+        test(
+            lib,
+            handle,
+            "mlu",
+            c_shape,
+            a_shape,
+            b_shape,
+            tensor_dtype=torch.float32,
+            inplace=inplace,
+        )
     destroy_handle(lib, handle)
 
 
@@ -169,10 +239,41 @@ if __name__ == "__main__":
         ((2, 3, 4, 5), (2, 3, 4, 5), (5,), Inplace.OUT_OF_PLACE),
         ((3, 2, 4, 5), (4, 5), (3, 2, 1, 1), Inplace.OUT_OF_PLACE),
         ((3, 20, 33), (3, 20, 33), (3, 20, 33), Inplace.OUT_OF_PLACE),
-        ((3, 20, 33), (3, 20, 33), (3, 20, 33), Inplace.INPLACE_A) if not PROFILE else ((32, 10, 100), (32, 10, 100), (32, 10, 100), Inplace.OUT_OF_PLACE),
-        ((3, 20, 33), (3, 20, 33), (3, 20, 33), Inplace.INPLACE_B) if not PROFILE else ((32, 15, 510), (32, 15, 510), (32, 15, 510), Inplace.OUT_OF_PLACE),
-        ((3, 20, 33), (3, 20, 33), (3, 20, 33), Inplace.INPLACE_AB) if not PROFILE else ((32, 256, 112, 112), (32, 256, 112, 1), (32, 256, 112, 112), Inplace.OUT_OF_PLACE),
-        ((32, 3, 112, 112), (32, 3, 112, 112), (32, 3, 112, 112), Inplace.OUT_OF_PLACE) if not PROFILE else ((32, 256, 112, 112), (32, 256, 112, 112), (32, 256, 112, 112), Inplace.OUT_OF_PLACE),
+        (
+            ((3, 20, 33), (3, 20, 33), (3, 20, 33), Inplace.INPLACE_A)
+            if not PROFILE
+            else ((32, 10, 100), (32, 10, 100), (32, 10, 100), Inplace.OUT_OF_PLACE)
+        ),
+        (
+            ((3, 20, 33), (3, 20, 33), (3, 20, 33), Inplace.INPLACE_B)
+            if not PROFILE
+            else ((32, 15, 510), (32, 15, 510), (32, 15, 510), Inplace.OUT_OF_PLACE)
+        ),
+        (
+            ((3, 20, 33), (3, 20, 33), (3, 20, 33), Inplace.INPLACE_AB)
+            if not PROFILE
+            else (
+                (32, 256, 112, 112),
+                (32, 256, 112, 1),
+                (32, 256, 112, 112),
+                Inplace.OUT_OF_PLACE,
+            )
+        ),
+        (
+            (
+                (32, 3, 112, 112),
+                (32, 3, 112, 112),
+                (32, 3, 112, 112),
+                Inplace.OUT_OF_PLACE,
+            )
+            if not PROFILE
+            else (
+                (32, 256, 112, 112),
+                (32, 256, 112, 112),
+                (32, 256, 112, 112),
+                Inplace.OUT_OF_PLACE,
+            )
+        ),
     ]
     args = get_args()
     lib = open_lib()
@@ -187,22 +288,4 @@ if __name__ == "__main__":
     lib.infiniopMod.restype = c_int32
     lib.infiniopMod.argtypes = [
         infiniopModDescriptor_t,
-        c_void_p,
-        c_void_p,
-        c_void_p,
-        c_void_p,
-    ]
-    lib.infiniopDestroyModDescriptor.restype = c_int32
-    lib.infiniopDestroyModDescriptor.argtypes = [
-        infiniopModDescriptor_t,
-    ]
-
-    if args.cpu:
-        test_cpu(lib, test_cases)
-    if args.cuda:
-        test_cuda(lib, test_cases)
-    if args.bang:
-        test_bang(lib, test_cases)
-    if not (args.cpu or args.cuda or args.bang):
-        test_cpu(lib, test_cases)
-    print("\033[92mTest passed!\033[0m")
+   

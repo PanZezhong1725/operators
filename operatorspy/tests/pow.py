@@ -92,14 +92,18 @@ def test(
     )
     
     for i in range(NUM_PRERUN if PROFILE else 1):
-        lib.infiniopPow(
-            descriptor, c_tensor.data, a_tensor.data, b_tensor.data, None
+        check_error(
+            lib.infiniopPow(
+                descriptor, c_tensor.data, a_tensor.data, b_tensor.data, None
+            )
         )
     if PROFILE:
         start_time = time.time()
         for i in range(NUM_ITERATIONS):
-            lib.infiniopPow(
-                descriptor, c_tensor.data, a_tensor.data, b_tensor.data, None
+            check_error(
+                lib.infiniopPow(
+                    descriptor, c_tensor.data, a_tensor.data, b_tensor.data, None
+                )
             )
         elapsed = (time.time() - start_time) / NUM_ITERATIONS
         print(f"    lib time: {elapsed :6f}")

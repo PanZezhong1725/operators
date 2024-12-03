@@ -34,7 +34,7 @@ __global__ void softmax(
     int topk,
     float temperature, int voc) {
     float sum_s = 0.0f;
-    for (int i = threadIdx.x; i < topk; i += BLOCK_DIM) {
+    for (int i = threadIdx.x; i < voc; i += BLOCK_DIM) {
         sum_s += __expf(static_cast<float>(val_out[i] - val_out[0]) / temperature);
     }
     __shared__ float sum_inverse_total;

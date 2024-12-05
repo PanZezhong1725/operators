@@ -33,19 +33,38 @@ class Inplace(Enum):
     INPLACE_X = auto()
 
 
-class ReluDescriptor(Structure):
+class RoundDescriptor(Structure):
     _fields_ = [("device", c_int32)]
 
 
-infiniopReluDescriptor_t = POINTER(ReluDescriptor)
+infiniopRoundDescriptor_t = POINTER(RoundDescriptor)
+
+def find_and_print_differing_indices(
+    x, tensor1, tensor2, atol=0, rtol=1e-2
+):
+    if tensor1.shape != tensor2.shape:
+        raise ValueError("Tensors must have the same shape to compare.")
+
+    # Calculate the difference mask based on atol and rtol
+    diff_mask = torch.abs(tensor1 - tensor2) > (atol + rtol * torch.abs(tensor2))
+    diff_indices = torch.nonzero(diff_mask, as_tuple=False)
+
+    # Print the indices and the differing elements
+    for idx in diff_indices:
+        index_tuple = tuple(idx.tolist())
+        print(
+            f"Index: {index_tuple}, x: {x[index_tuple]}, y element: {tensor1[index_tuple]}, ans element: {tensor2[index_tuple]}"
+        )
+
+    return diff_indices
 
 
-def relu(x):
+def round(x):
     if PROFILE:
-        ans = torch.nn.functional.relu(x).to(x.dtype)
+        ans = torch.round(x).to(x.dtype)
         torch.cuda.synchronize()
         return ans
-    return torch.nn.functional.relu(x).to(x.dtype)
+    return torch.round(x).to(x.dtype)
 
 
 def test(
@@ -57,27 +76,27 @@ def test(
     inplace=Inplace.OUT_OF_PLACE,
 ):
     print(
-        f"Testing Relu on {torch_device} with tensor_shape:{tensor_shape} dtype:{tensor_dtype} inplace: {inplace.name}"
+        f"Testing Round on {torch_device} with tensor_shape:{tensor_shape} dtype:{tensor_dtype} inplace: {inplace.name}"
     )
 
-    x = torch.rand(tensor_shape, dtype=tensor_dtype).to(torch_device) * 4 - 2
+    x = torch.rand(tensor_shape, dtype=tensor_dtype).to(torch_device) * 10 - 20
     y = torch.rand(tensor_shape, dtype=tensor_dtype).to(torch_device) if inplace == Inplace.OUT_OF_PLACE else x
 
     for i in range(NUM_PRERUN if PROFILE else 1):
-        ans = relu(x)
+        ans = round(x)
     if PROFILE:
         start_time = time.time()
         for i in range(NUM_ITERATIONS):
-            _ = relu(x)
-        elapsed = (time.time() - start_time) / NUM_ITERATIONS * 1000
-        print(f"pytorch time: {elapsed :6f} ms")
+            _ = round(x)
+        elapsed = (time.time() - start_time) / NUM_ITERATIONS
+        print(f"pytorch time: {elapsed :6f}")
 
     x_tensor = to_tensor(x, lib)
     y_tensor = to_tensor(y, lib) if inplace == Inplace.OUT_OF_PLACE else x_tensor
-    descriptor = infiniopReluDescriptor_t()
+    descriptor = infiniopRoundDescriptor_t()
 
     check_error(
-        lib.infiniopCreateReluDescriptor(
+        lib.infiniopCreateRoundDescriptor(
             handle,
             ctypes.byref(descriptor),
             y_tensor.descriptor,
@@ -85,18 +104,18 @@ def test(
         )
     )
     for i in range(NUM_PRERUN if PROFILE else 1):
-        check_error(lib.infiniopRelu(descriptor, y_tensor.data, x_tensor.data, None))
+        check_error(lib.infiniopRound(descriptor, y_tensor.data, x_tensor.data, None))
     if PROFILE:
         start_time = time.time()
         for i in range(NUM_ITERATIONS):
             check_error(
-                lib.infiniopRelu(descriptor, y_tensor.data, x_tensor.data, None)
+                lib.infiniopRound(descriptor, y_tensor.data, x_tensor.data, None)
             )
-        elapsed = (time.time() - start_time) / NUM_ITERATIONS * 1000
-        print(f"    lib time: {elapsed :6f} ms")
+        elapsed = (time.time() - start_time) / NUM_ITERATIONS
+        print(f"    lib time: {elapsed :6f}")
 
-    assert torch.allclose(y, ans, atol=0, rtol=1e-3)
-    check_error(lib.infiniopDestroyReluDescriptor(descriptor))
+    assert torch.allclose(y, ans, atol=0, rtol=1e-3, equal_nan=True)
+    check_error(lib.infiniopDestroyRoundDescriptor(descriptor))
 
 
 def test_cpu(lib, test_cases):
@@ -136,29 +155,29 @@ if __name__ == "__main__":
         ((1, 3), Inplace.OUT_OF_PLACE),
         ((3, 3), Inplace.OUT_OF_PLACE),
         ((3, 3, 13, 9, 17), Inplace.INPLACE_X),
-        ((32, 15, 512), Inplace.INPLACE_X),
+        ((32, 20, 512), Inplace.INPLACE_X),
         ((33, 333, 333), Inplace.OUT_OF_PLACE),
-        # ((32, 256, 112, 112), Inplace.OUT_OF_PLACE),
+        ((32, 256, 112, 112), Inplace.OUT_OF_PLACE),
     ]
     args = get_args()
     lib = open_lib()
-    lib.infiniopCreateReluDescriptor.restype = c_int32
-    lib.infiniopCreateReluDescriptor.argtypes = [
+    lib.infiniopCreateRoundDescriptor.restype = c_int32
+    lib.infiniopCreateRoundDescriptor.argtypes = [
         infiniopHandle_t,
-        POINTER(infiniopReluDescriptor_t),
+        POINTER(infiniopRoundDescriptor_t),
         infiniopTensorDescriptor_t,
         infiniopTensorDescriptor_t,
     ]
-    lib.infiniopRelu.restype = c_int32
-    lib.infiniopRelu.argtypes = [
-        infiniopReluDescriptor_t,
+    lib.infiniopRound.restype = c_int32
+    lib.infiniopRound.argtypes = [
+        infiniopRoundDescriptor_t,
         c_void_p,
         c_void_p,
         c_void_p,
     ]
-    lib.infiniopDestroyReluDescriptor.restype = c_int32
-    lib.infiniopDestroyReluDescriptor.argtypes = [
-        infiniopReluDescriptor_t,
+    lib.infiniopDestroyRoundDescriptor.restype = c_int32
+    lib.infiniopDestroyRoundDescriptor.argtypes = [
+        infiniopRoundDescriptor_t,
     ]
 
     if args.cpu:

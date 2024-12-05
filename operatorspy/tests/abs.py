@@ -33,19 +33,19 @@ class Inplace(Enum):
     INPLACE_X = auto()
 
 
-class ReluDescriptor(Structure):
+class AbsDescriptor(Structure):
     _fields_ = [("device", c_int32)]
 
 
-infiniopReluDescriptor_t = POINTER(ReluDescriptor)
+infiniopAbsDescriptor_t = POINTER(AbsDescriptor)
 
 
-def relu(x):
+def abs(x):
     if PROFILE:
-        ans = torch.nn.functional.relu(x).to(x.dtype)
+        ans = torch.abs(x).to(x.dtype)
         torch.cuda.synchronize()
         return ans
-    return torch.nn.functional.relu(x).to(x.dtype)
+    return torch.abs(x).to(x.dtype)
 
 
 def test(
@@ -57,27 +57,27 @@ def test(
     inplace=Inplace.OUT_OF_PLACE,
 ):
     print(
-        f"Testing Relu on {torch_device} with tensor_shape:{tensor_shape} dtype:{tensor_dtype} inplace: {inplace.name}"
+        f"Testing Abs on {torch_device} with tensor_shape:{tensor_shape} dtype:{tensor_dtype} inplace: {inplace.name}"
     )
 
-    x = torch.rand(tensor_shape, dtype=tensor_dtype).to(torch_device) * 4 - 2
+    x = torch.rand(tensor_shape, dtype=tensor_dtype).to(torch_device) * 2 - 1
     y = torch.rand(tensor_shape, dtype=tensor_dtype).to(torch_device) if inplace == Inplace.OUT_OF_PLACE else x
 
     for i in range(NUM_PRERUN if PROFILE else 1):
-        ans = relu(x)
+        ans = abs(x)
     if PROFILE:
         start_time = time.time()
         for i in range(NUM_ITERATIONS):
-            _ = relu(x)
+            _ = abs(x)
         elapsed = (time.time() - start_time) / NUM_ITERATIONS * 1000
         print(f"pytorch time: {elapsed :6f} ms")
 
     x_tensor = to_tensor(x, lib)
     y_tensor = to_tensor(y, lib) if inplace == Inplace.OUT_OF_PLACE else x_tensor
-    descriptor = infiniopReluDescriptor_t()
+    descriptor = infiniopAbsDescriptor_t()
 
     check_error(
-        lib.infiniopCreateReluDescriptor(
+        lib.infiniopCreateAbsDescriptor(
             handle,
             ctypes.byref(descriptor),
             y_tensor.descriptor,
@@ -85,18 +85,18 @@ def test(
         )
     )
     for i in range(NUM_PRERUN if PROFILE else 1):
-        check_error(lib.infiniopRelu(descriptor, y_tensor.data, x_tensor.data, None))
+        check_error(lib.infiniopAbs(descriptor, y_tensor.data, x_tensor.data, None))
     if PROFILE:
         start_time = time.time()
         for i in range(NUM_ITERATIONS):
             check_error(
-                lib.infiniopRelu(descriptor, y_tensor.data, x_tensor.data, None)
+                lib.infiniopAbs(descriptor, y_tensor.data, x_tensor.data, None)
             )
         elapsed = (time.time() - start_time) / NUM_ITERATIONS * 1000
         print(f"    lib time: {elapsed :6f} ms")
 
     assert torch.allclose(y, ans, atol=0, rtol=1e-3)
-    check_error(lib.infiniopDestroyReluDescriptor(descriptor))
+    check_error(lib.infiniopDestroyAbsDescriptor(descriptor))
 
 
 def test_cpu(lib, test_cases):
@@ -142,23 +142,23 @@ if __name__ == "__main__":
     ]
     args = get_args()
     lib = open_lib()
-    lib.infiniopCreateReluDescriptor.restype = c_int32
-    lib.infiniopCreateReluDescriptor.argtypes = [
+    lib.infiniopCreateAbsDescriptor.restype = c_int32
+    lib.infiniopCreateAbsDescriptor.argtypes = [
         infiniopHandle_t,
-        POINTER(infiniopReluDescriptor_t),
+        POINTER(infiniopAbsDescriptor_t),
         infiniopTensorDescriptor_t,
         infiniopTensorDescriptor_t,
     ]
-    lib.infiniopRelu.restype = c_int32
-    lib.infiniopRelu.argtypes = [
-        infiniopReluDescriptor_t,
+    lib.infiniopAbs.restype = c_int32
+    lib.infiniopAbs.argtypes = [
+        infiniopAbsDescriptor_t,
         c_void_p,
         c_void_p,
         c_void_p,
     ]
-    lib.infiniopDestroyReluDescriptor.restype = c_int32
-    lib.infiniopDestroyReluDescriptor.argtypes = [
-        infiniopReluDescriptor_t,
+    lib.infiniopDestroyAbsDescriptor.restype = c_int32
+    lib.infiniopDestroyAbsDescriptor.argtypes = [
+        infiniopAbsDescriptor_t,
     ]
 
     if args.cpu:

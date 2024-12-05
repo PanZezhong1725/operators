@@ -33,19 +33,19 @@ class Inplace(Enum):
     INPLACE_X = auto()
 
 
-class ReluDescriptor(Structure):
+class CosDescriptor(Structure):
     _fields_ = [("device", c_int32)]
 
 
-infiniopReluDescriptor_t = POINTER(ReluDescriptor)
+infiniopCosDescriptor_t = POINTER(CosDescriptor)
 
 
-def relu(x):
+def cos(x):
     if PROFILE:
-        ans = torch.nn.functional.relu(x).to(x.dtype)
+        ans = torch.cos(x).to(x.dtype)
         torch.cuda.synchronize()
         return ans
-    return torch.nn.functional.relu(x).to(x.dtype)
+    return torch.cos(x).to(x.dtype)
 
 
 def test(
@@ -57,27 +57,27 @@ def test(
     inplace=Inplace.OUT_OF_PLACE,
 ):
     print(
-        f"Testing Relu on {torch_device} with tensor_shape:{tensor_shape} dtype:{tensor_dtype} inplace: {inplace.name}"
+        f"Testing Cos on {torch_device} with tensor_shape:{tensor_shape} dtype:{tensor_dtype} inplace: {inplace.name}"
     )
 
-    x = torch.rand(tensor_shape, dtype=tensor_dtype).to(torch_device) * 4 - 2
+    x = torch.rand(tensor_shape, dtype=tensor_dtype).to(torch_device) * 100 - 200
     y = torch.rand(tensor_shape, dtype=tensor_dtype).to(torch_device) if inplace == Inplace.OUT_OF_PLACE else x
 
     for i in range(NUM_PRERUN if PROFILE else 1):
-        ans = relu(x)
+        ans = cos(x)
     if PROFILE:
         start_time = time.time()
         for i in range(NUM_ITERATIONS):
-            _ = relu(x)
-        elapsed = (time.time() - start_time) / NUM_ITERATIONS * 1000
-        print(f"pytorch time: {elapsed :6f} ms")
+            _ = cos(x)
+        elapsed = (time.time() - start_time) / NUM_ITERATIONS
+        print(f"pytorch time: {elapsed :6f}")
 
     x_tensor = to_tensor(x, lib)
     y_tensor = to_tensor(y, lib) if inplace == Inplace.OUT_OF_PLACE else x_tensor
-    descriptor = infiniopReluDescriptor_t()
+    descriptor = infiniopCosDescriptor_t()
 
     check_error(
-        lib.infiniopCreateReluDescriptor(
+        lib.infiniopCreateCosDescriptor(
             handle,
             ctypes.byref(descriptor),
             y_tensor.descriptor,
@@ -85,18 +85,18 @@ def test(
         )
     )
     for i in range(NUM_PRERUN if PROFILE else 1):
-        check_error(lib.infiniopRelu(descriptor, y_tensor.data, x_tensor.data, None))
+        check_error(lib.infiniopCos(descriptor, y_tensor.data, x_tensor.data, None))
     if PROFILE:
         start_time = time.time()
         for i in range(NUM_ITERATIONS):
             check_error(
-                lib.infiniopRelu(descriptor, y_tensor.data, x_tensor.data, None)
+                lib.infiniopCos(descriptor, y_tensor.data, x_tensor.data, None)
             )
-        elapsed = (time.time() - start_time) / NUM_ITERATIONS * 1000
-        print(f"    lib time: {elapsed :6f} ms")
+        elapsed = (time.time() - start_time) / NUM_ITERATIONS
+        print(f"    lib time: {elapsed :6f}")
 
-    assert torch.allclose(y, ans, atol=0, rtol=1e-3)
-    check_error(lib.infiniopDestroyReluDescriptor(descriptor))
+    assert torch.allclose(y, ans, atol=1e-4, rtol=1e-2, equal_nan=True)
+    check_error(lib.infiniopDestroyCosDescriptor(descriptor))
 
 
 def test_cpu(lib, test_cases):
@@ -136,29 +136,29 @@ if __name__ == "__main__":
         ((1, 3), Inplace.OUT_OF_PLACE),
         ((3, 3), Inplace.OUT_OF_PLACE),
         ((3, 3, 13, 9, 17), Inplace.INPLACE_X),
-        ((32, 15, 512), Inplace.INPLACE_X),
+        ((32, 20, 512), Inplace.INPLACE_X),
         ((33, 333, 333), Inplace.OUT_OF_PLACE),
-        # ((32, 256, 112, 112), Inplace.OUT_OF_PLACE),
+        ((32, 256, 112, 112), Inplace.OUT_OF_PLACE),
     ]
     args = get_args()
     lib = open_lib()
-    lib.infiniopCreateReluDescriptor.restype = c_int32
-    lib.infiniopCreateReluDescriptor.argtypes = [
+    lib.infiniopCreateCosDescriptor.restype = c_int32
+    lib.infiniopCreateCosDescriptor.argtypes = [
         infiniopHandle_t,
-        POINTER(infiniopReluDescriptor_t),
+        POINTER(infiniopCosDescriptor_t),
         infiniopTensorDescriptor_t,
         infiniopTensorDescriptor_t,
     ]
-    lib.infiniopRelu.restype = c_int32
-    lib.infiniopRelu.argtypes = [
-        infiniopReluDescriptor_t,
+    lib.infiniopCos.restype = c_int32
+    lib.infiniopCos.argtypes = [
+        infiniopCosDescriptor_t,
         c_void_p,
         c_void_p,
         c_void_p,
     ]
-    lib.infiniopDestroyReluDescriptor.restype = c_int32
-    lib.infiniopDestroyReluDescriptor.argtypes = [
-        infiniopReluDescriptor_t,
+    lib.infiniopDestroyCosDescriptor.restype = c_int32
+    lib.infiniopDestroyCosDescriptor.argtypes = [
+        infiniopCosDescriptor_t,
     ]
 
     if args.cpu:

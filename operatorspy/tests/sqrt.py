@@ -33,19 +33,38 @@ class Inplace(Enum):
     INPLACE_X = auto()
 
 
-class ReluDescriptor(Structure):
+class SqrtDescriptor(Structure):
     _fields_ = [("device", c_int32)]
 
 
-infiniopReluDescriptor_t = POINTER(ReluDescriptor)
+infiniopSqrtDescriptor_t = POINTER(SqrtDescriptor)
+
+def find_and_print_differing_indices(
+    x, tensor1, tensor2, atol=0, rtol=1e-2
+):
+    if tensor1.shape != tensor2.shape:
+        raise ValueError("Tensors must have the same shape to compare.")
+
+    # Calculate the difference mask based on atol and rtol
+    diff_mask = torch.abs(tensor1 - tensor2) > (atol + rtol * torch.abs(tensor2))
+    diff_indices = torch.nonzero(diff_mask, as_tuple=False)
+
+    # Print the indices and the differing elements
+    for idx in diff_indices:
+        index_tuple = tuple(idx.tolist())
+        print(
+            f"Index: {index_tuple}, x: {x[index_tuple]}, y element: {tensor1[index_tuple]}, ans element: {tensor2[index_tuple]}"
+        )
+
+    return diff_indices
 
 
-def relu(x):
+def sqrt(x):
     if PROFILE:
-        ans = torch.nn.functional.relu(x).to(x.dtype)
+        ans = torch.sqrt(x).to(x.dtype)
         torch.cuda.synchronize()
         return ans
-    return torch.nn.functional.relu(x).to(x.dtype)
+    return torch.sqrt(x).to(x.dtype)
 
 
 def test(
@@ -57,27 +76,27 @@ def test(
     inplace=Inplace.OUT_OF_PLACE,
 ):
     print(
-        f"Testing Relu on {torch_device} with tensor_shape:{tensor_shape} dtype:{tensor_dtype} inplace: {inplace.name}"
+        f"Testing Sqrt on {torch_device} with tensor_shape:{tensor_shape} dtype:{tensor_dtype} inplace: {inplace.name}"
     )
 
-    x = torch.rand(tensor_shape, dtype=tensor_dtype).to(torch_device) * 4 - 2
+    x = torch.rand(tensor_shape, dtype=tensor_dtype).to(torch_device) * 100
     y = torch.rand(tensor_shape, dtype=tensor_dtype).to(torch_device) if inplace == Inplace.OUT_OF_PLACE else x
 
     for i in range(NUM_PRERUN if PROFILE else 1):
-        ans = relu(x)
+        ans = sqrt(x)
     if PROFILE:
         start_time = time.time()
         for i in range(NUM_ITERATIONS):
-            _ = relu(x)
-        elapsed = (time.time() - start_time) / NUM_ITERATIONS * 1000
-        print(f"pytorch time: {elapsed :6f} ms")
+            _ = sqrt(x)
+        elapsed = (time.time() - start_time) / NUM_ITERATIONS
+        print(f"pytorch time: {elapsed :6f}")
 
     x_tensor = to_tensor(x, lib)
     y_tensor = to_tensor(y, lib) if inplace == Inplace.OUT_OF_PLACE else x_tensor
-    descriptor = infiniopReluDescriptor_t()
+    descriptor = infiniopSqrtDescriptor_t()
 
     check_error(
-        lib.infiniopCreateReluDescriptor(
+        lib.infiniopCreateSqrtDescriptor(
             handle,
             ctypes.byref(descriptor),
             y_tensor.descriptor,
@@ -85,18 +104,18 @@ def test(
         )
     )
     for i in range(NUM_PRERUN if PROFILE else 1):
-        check_error(lib.infiniopRelu(descriptor, y_tensor.data, x_tensor.data, None))
+        check_error(lib.infiniopSqrt(descriptor, y_tensor.data, x_tensor.data, None))
     if PROFILE:
         start_time = time.time()
         for i in range(NUM_ITERATIONS):
             check_error(
-                lib.infiniopRelu(descriptor, y_tensor.data, x_tensor.data, None)
+                lib.infiniopSqrt(descriptor, y_tensor.data, x_tensor.data, None)
             )
-        elapsed = (time.time() - start_time) / NUM_ITERATIONS * 1000
-        print(f"    lib time: {elapsed :6f} ms")
+        elapsed = (time.time() - start_time) / NUM_ITERATIONS
+        print(f"    lib time: {elapsed :6f}")
 
-    assert torch.allclose(y, ans, atol=0, rtol=1e-3)
-    check_error(lib.infiniopDestroyReluDescriptor(descriptor))
+    assert torch.allclose(y, ans, atol=0, rtol=1e-3, equal_nan=True)
+    check_error(lib.infiniopDestroySqrtDescriptor(descriptor))
 
 
 def test_cpu(lib, test_cases):
@@ -136,29 +155,29 @@ if __name__ == "__main__":
         ((1, 3), Inplace.OUT_OF_PLACE),
         ((3, 3), Inplace.OUT_OF_PLACE),
         ((3, 3, 13, 9, 17), Inplace.INPLACE_X),
-        ((32, 15, 512), Inplace.INPLACE_X),
+        ((32, 20, 512), Inplace.INPLACE_X),
         ((33, 333, 333), Inplace.OUT_OF_PLACE),
-        # ((32, 256, 112, 112), Inplace.OUT_OF_PLACE),
+        ((32, 256, 112, 112), Inplace.OUT_OF_PLACE),
     ]
     args = get_args()
     lib = open_lib()
-    lib.infiniopCreateReluDescriptor.restype = c_int32
-    lib.infiniopCreateReluDescriptor.argtypes = [
+    lib.infiniopCreateSqrtDescriptor.restype = c_int32
+    lib.infiniopCreateSqrtDescriptor.argtypes = [
         infiniopHandle_t,
-        POINTER(infiniopReluDescriptor_t),
+        POINTER(infiniopSqrtDescriptor_t),
         infiniopTensorDescriptor_t,
         infiniopTensorDescriptor_t,
     ]
-    lib.infiniopRelu.restype = c_int32
-    lib.infiniopRelu.argtypes = [
-        infiniopReluDescriptor_t,
+    lib.infiniopSqrt.restype = c_int32
+    lib.infiniopSqrt.argtypes = [
+        infiniopSqrtDescriptor_t,
         c_void_p,
         c_void_p,
         c_void_p,
     ]
-    lib.infiniopDestroyReluDescriptor.restype = c_int32
-    lib.infiniopDestroyReluDescriptor.argtypes = [
-        infiniopReluDescriptor_t,
+    lib.infiniopDestroySqrtDescriptor.restype = c_int32
+    lib.infiniopDestroySqrtDescriptor.argtypes = [
+        infiniopSqrtDescriptor_t,
     ]
 
     if args.cpu:

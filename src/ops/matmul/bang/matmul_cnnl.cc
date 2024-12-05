@@ -11,7 +11,7 @@ infiniopStatus_t bangCreateMatmulDescriptor(BangHandle_t handle,
                                             infiniopTensorDescriptor_t b_desc,
                                             float beta) {
     infiniopStatus_t *status = new infiniopStatus_t{STATUS_EXECUTION_FAILED};
-    auto info = MatmulInfo(c_desc, a_desc, b_desc, status);
+    auto info = MatmulInfo(c_desc, a_desc, b_desc, status, false);
     if (*status != STATUS_SUCCESS) {
         return *status;
     }
@@ -20,9 +20,9 @@ infiniopStatus_t bangCreateMatmulDescriptor(BangHandle_t handle,
     cnnlCreateTensorDescriptor(&bDesc);
     cnnlCreateTensorDescriptor(&cDesc);
 
-    setMatrixTensorEx(aDesc, info.a_matrix);
-    setMatrixTensorEx(bDesc, info.b_matrix);
-    setMatrixTensorEx(cDesc, info.c_matrix);
+    setMatrixTensorEx(aDesc, a_desc->dt, info.a_matrix);
+    setMatrixTensorEx(bDesc, b_desc->dt, info.b_matrix);
+    setMatrixTensorEx(cDesc, c_desc->dt, info.c_matrix);
 
     cnnlMatMulDescriptor_t opDesc;
     cnnlMatMulAlgo_t algo;
@@ -94,9 +94,6 @@ infiniopStatus_t bangMatmul(MatmulBangDescriptor_t desc, void *workspace, uint64
     }
     float alpha = desc->alpha;
     float beta = desc->beta;
-    if (dtype_eq(desc->dtype, F16)) {
-        matmul_cnnl_f16(desc, workspace, c, beta, a, b, alpha, stream);
-        return STATUS_SUCCESS;
-    }
-    return STATUS_BAD_TENSOR_DTYPE;
+    matmul_cnnl_f16(desc, workspace, c, beta, a, b, alpha, stream);
+    return STATUS_SUCCESS;
 }

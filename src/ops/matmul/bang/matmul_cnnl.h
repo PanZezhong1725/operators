@@ -1,6 +1,7 @@
 #ifndef __CNNL_MATMUL_H__
 #define __CNNL_MATMUL_H__
 #include "../../../devices/bang/bang_handle.h"
+#include "../../../devices/bang/common_bang.h"
 #include "../blas.h"
 #include "cnnl.h"
 #include "cnnl_extra.h"
@@ -37,7 +38,7 @@ infiniopStatus_t bangMatmul(MatmulBangDescriptor_t desc, void *workspace, uint64
 
 infiniopStatus_t bangDestroyMatmulDescriptor(MatmulBangDescriptor_t desc);
 
-inline void setMatrixTensorEx(cnnlTensorDescriptor_t desc, const BlasMatrix &matrix, bool trans = false) {
+inline void setMatrixTensorEx(cnnlTensorDescriptor_t desc, DT dtype, const BlasMatrix &matrix, bool trans = false) {
     int ndim = matrix.ndim;
     int batch = matrix.batch;
     int stride = static_cast<int>(matrix.stride);
@@ -49,12 +50,12 @@ inline void setMatrixTensorEx(cnnlTensorDescriptor_t desc, const BlasMatrix &mat
     if (ndim == 3) {
         std::vector<int> dim_size = {batch, rows, cols};
         std::vector<int> dim_stride = {stride, row_stride, col_stride};
-        cnnlSetTensorDescriptorEx(desc, CNNL_LAYOUT_ARRAY, CNNL_DTYPE_HALF,
+        cnnlSetTensorDescriptorEx(desc, CNNL_LAYOUT_ARRAY, cnnlDataTypeConvert(dtype),
                                   dim_size.size(), dim_size.data(), dim_stride.data());
     } else if (ndim == 2) {
         std::vector<int> dim_size = {rows, cols};
         std::vector<int> dim_stride = {row_stride, col_stride};
-        cnnlSetTensorDescriptorEx(desc, CNNL_LAYOUT_ARRAY, CNNL_DTYPE_HALF,
+        cnnlSetTensorDescriptorEx(desc, CNNL_LAYOUT_ARRAY, cnnlDataTypeConvert(dtype),
                                   dim_size.size(), dim_size.data(), dim_stride.data());
     }
 }

@@ -7,7 +7,6 @@ infiniopStatus_t batch_norm_nv_gpu(BatchNormCudaDescriptor_t desc, void *y, void
                               [&](cudnnHandle_t handle) { return cudnnBatchNormalizationForwardInference(handle, desc->mode, &desc->alpha, &desc->beta,
                                                                                                          desc->x_desc, x, desc->y_desc, y, desc->bn_desc,
                                                                                                          scale, b, mean, var, desc->eps); }));
-    cudaDeviceSynchronize();
     return STATUS_SUCCESS;
 }
 

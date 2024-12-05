@@ -103,7 +103,6 @@ infiniopStatus_t cudaCreateBatchNormDescriptor(CudaHandle_t handle,
         beta,
         eps,
         mode,
-        std::accumulate(y->shape, y->shape + y->ndim, 1ULL, std::multiplies<uint64_t>()),
     };
 
     return STATUS_SUCCESS;

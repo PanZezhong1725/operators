@@ -19,7 +19,6 @@ struct BatchNormCudaDescriptor {
     const float beta;
     const double eps;
     cudnnBatchNormMode_t mode;
-    uint64_t data_size;
 };
 
 typedef struct BatchNormCudaDescriptor *BatchNormCudaDescriptor_t;

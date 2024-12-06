@@ -117,7 +117,8 @@ if __name__ == "__main__":
     test_cases = [
         # x_shape, axis
         # cnnllayernorm不支持axis=0, cpu torch.layernorm不支持half
-        # ((32, 20, 512), 0, torch.float16),
+        #手写layernorm在float16上精度不足，但是在float32上可以通过测试
+        #((32, 20, 512), 0, torch.float16),
         ((32, 20, 512), 1, torch.float16), 
         ((32, 20, 512), 2, torch.float16),
 

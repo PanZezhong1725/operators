@@ -324,7 +324,8 @@ __mlu_global__ void layer_norm(T const *input, T const *scale, T const *bias, T 
     }
 }
 template<typename T>
-void layer_normUnion(cnrtQueue_t queue, void const *input, void const *scale, void const *bias, void *output, float eps, int size, int behindsize){
+void layer_normUnion(cnrtQueue_t queue, void *workspace,
+                                          uint64_t workspace_size, void const *input, void const *scale, void const *bias, void *output, float eps, int size, int behindsize){
     int wSize = 128 / sizeof(T);
     int bSize;
     float mi = log2(behindsize);
@@ -351,26 +352,26 @@ void layer_normUnion(cnrtQueue_t queue, void const *input, void const *scale, vo
     k_dim.x = 4;
     k_dim.y = 1;
     k_dim.z = 1;
-    int taskNum = k_dim.x * k_dim.y * k_dim.z;
 
     k_type = CNRT_FUNC_TYPE_UNION1;
-    T *tmpGdram;
-    CNRT_CHECK(cnrtMalloc((void **)&tmpGdram, taskNum * sizeof(T)));
+    T *tmpGdram = reinterpret_cast<T *>(workspace);
+    
     layer_norm<T><<<k_dim, k_type, queue>>>(source, weight, _bias, destination, tmpGdram, eps, size, behindsize, bSize);
-    cnrtFree(tmpGdram);
+    
     cnrtQueueSync(queue);
 }
-void layer_norm_bang(LayerNormBangDescriptor_t desc, void const *x, void const *w, void const *b, void *y, 
+void layer_norm_bang(LayerNormBangDescriptor_t desc, void *workspace,
+                                          uint64_t workspace_size, void const *x, void const *w, void const *b, void *y, 
                              void *stream){
     auto queue = reinterpret_cast<cnrtQueue_t>(stream);                            
     auto eps = desc->epsilon;//float
     int size = desc->size;
     int behindsize = desc->behindsize;
     if (dtype_eq(desc->dtype, F16)){
-        layer_normUnion<half>(queue, x, w, b, y, eps, size, behindsize);
+        layer_normUnion<half>(queue, workspace, workspace_size, x, w, b, y, eps, size, behindsize);
     }
     else if (dtype_eq(desc->dtype, F32)){
-        layer_normUnion<float>(queue, x, w, b, y, eps, size, behindsize);
+        layer_normUnion<float>(queue, workspace, workspace_size, x, w, b, y, eps, size, behindsize);
     }
 }
 infiniopStatus_t bangLayerNorm(LayerNormBangDescriptor_t desc, void *workspace,
@@ -384,7 +385,7 @@ infiniopStatus_t bangLayerNorm(LayerNormBangDescriptor_t desc, void *workspace,
         return STATUS_BAD_DEVICE;
     }
     if (dtype_eq(desc->dtype, F16) || dtype_eq(desc->dtype, F32)) {
-        layer_norm_bang(desc, x, w, b, y, stream);
+        layer_norm_bang(desc, workspace, workspace_size, x, w, b, y, stream);
         return STATUS_SUCCESS;
     }
     return STATUS_BAD_TENSOR_DTYPE;

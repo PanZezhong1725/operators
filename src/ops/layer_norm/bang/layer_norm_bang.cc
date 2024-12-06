@@ -43,7 +43,7 @@ infiniopStatus_t bangCreateLayerNormDescriptor(BangHandle_t handle, LayerNormBan
     return STATUS_SUCCESS;
 }
 infiniopStatus_t bangGetLayerNormWorkspaceSize(LayerNormBangDescriptor_t desc, unsigned long int *size) {
-    *size = 0;
+    *size = 32 * sizeof(desc->dtype);//taskDim * sizeof(T),taskDim不超过32
     return STATUS_SUCCESS;
 }
 

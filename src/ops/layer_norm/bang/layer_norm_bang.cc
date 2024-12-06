@@ -42,6 +42,10 @@ infiniopStatus_t bangCreateLayerNormDescriptor(BangHandle_t handle, LayerNormBan
 
     return STATUS_SUCCESS;
 }
+infiniopStatus_t bangGetLayerNormWorkspaceSize(LayerNormBangDescriptor_t desc, unsigned long int *size) {
+    *size = 0;
+    return STATUS_SUCCESS;
+}
 
 infiniopStatus_t bangDestroyLayerNormDescriptor(LayerNormBangDescriptor_t desc) {
     delete desc;

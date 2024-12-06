@@ -373,7 +373,8 @@ void layer_norm_bang(LayerNormBangDescriptor_t desc, void const *x, void const *
         layer_normUnion<float>(queue, x, w, b, y, eps, size, behindsize);
     }
 }
-infiniopStatus_t bangLayerNorm(LayerNormBangDescriptor_t desc,
+infiniopStatus_t bangLayerNorm(LayerNormBangDescriptor_t desc, void *workspace,
+                                          uint64_t workspace_size,
                                    void const *x, 
                                    void const *w, 
                                    void const *b, 

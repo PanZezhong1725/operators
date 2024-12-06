@@ -13,6 +13,7 @@
 #ifdef ENABLE_CAMBRICON_MLU
 #include "../../devices/bang/bang_handle.h"
 #include "bang/layer_norm_bang.h"
+#include "bang/layer_norm_cnnl.h"
 #endif
 
 __C infiniopStatus_t infiniopCreateLayerNormDescriptor(
@@ -36,28 +37,51 @@ __C infiniopStatus_t infiniopCreateLayerNormDescriptor(
 #ifdef ENABLE_CAMBRICON_MLU
         case DevCambriconMlu: {
             return bangCreateLayerNormDescriptor((BangHandle_t) handle, (LayerNormBangDescriptor_t *) desc_ptr, x_desc, w_desc, b_desc, y_desc, epsilon);
+            //return cnnlCreateLayerNormDescriptor((BangHandle_t) handle, (LayerNormCnnlDescriptor_t *) desc_ptr, x_desc, w_desc, b_desc, y_desc, epsilon);
         }
 #endif
     }
     return STATUS_BAD_DEVICE;
 }
-
-__C infiniopStatus_t infiniopLayerNorm(infiniopLayerNormDescriptor_t desc,
-                                     void const *x, void const *w, void const *b, void *y, void *stream) {
+__C infiniopStatus_t infiniopGetLayerNormWorkspaceSize(infiniopLayerNormDescriptor_t desc, uint64_t *size) {
     switch (desc->device) {
 #ifdef ENABLE_CPU
         case DevCpu:
-            return cpuLayerNorm((LayerNormCpuDescriptor_t) desc, x, w, b, y, stream);
+            return cpuGetLayerNormWorkspaceSize((LayerNormCpuDescriptor_t) desc, size);
 #endif
 #ifdef ENABLE_NV_GPU
         case DevNvGpu: {
-            return cudaLayerNorm((LayerNormCudaDescriptor_t) desc, x, w, b, y, stream);
+            return cudaGetLayerNormWorkspaceSize((LayerNormCudaDescriptor_t) desc, size);
         }
 
 #endif
 #ifdef ENABLE_CAMBRICON_MLU
         case DevCambriconMlu: {
-            return bangLayerNorm((LayerNormBangDescriptor_t) desc, x, w, b, y, stream);
+            return bangGetLayerNormWorkspaceSize((LayerNormBangDescriptor_t) desc, size);
+            //return cnnlGetLayerNormWorkspaceSize((LayerNormCnnlDescriptor_t) desc, size);
+        }
+#endif
+    }
+    return STATUS_BAD_DEVICE;
+}
+__C infiniopStatus_t infiniopLayerNorm(infiniopLayerNormDescriptor_t desc, void *workspace,
+                                          uint64_t workspace_size,
+                                     void const *x, void const *w, void const *b, void *y, void *stream) {
+    switch (desc->device) {
+#ifdef ENABLE_CPU
+        case DevCpu:
+            return cpuLayerNorm((LayerNormCpuDescriptor_t) desc, workspace, workspace_size, x, w, b, y, stream);
+#endif
+#ifdef ENABLE_NV_GPU
+        case DevNvGpu: {
+            return cudaLayerNorm((LayerNormCudaDescriptor_t) desc, workspace, workspace_size, x, w, b, y, stream);
+        }
+
+#endif
+#ifdef ENABLE_CAMBRICON_MLU
+        case DevCambriconMlu: {
+            return bangLayerNorm((LayerNormBangDescriptor_t) desc, workspace, workspace_size, x, w, b, y, stream);
+            //return cnnlLayerNorm((LayerNormCnnlDescriptor_t) desc, workspace, workspace_size, x, w, b, y, stream);
         }
 #endif
     }
@@ -79,6 +103,7 @@ __C infiniopStatus_t infiniopDestroyLayerNormDescriptor(infiniopLayerNormDescrip
 #ifdef ENABLE_CAMBRICON_MLU
         case DevCambriconMlu: {
             return bangDestroyLayerNormDescriptor((LayerNormBangDescriptor_t) desc);
+            //return cnnlDestroyLayerNormDescriptor((LayerNormCnnlDescriptor_t) desc);
         }
 #endif
     }

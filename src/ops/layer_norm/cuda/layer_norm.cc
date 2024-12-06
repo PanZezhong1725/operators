@@ -45,7 +45,10 @@ infiniopStatus_t cudaCreateLayerNormDescriptor(CudaHandle_t handle,
 
     return STATUS_SUCCESS;
 }
-
+infiniopStatus_t cudaGetLayerNormWorkspaceSize(LayerNormCudaDescriptor_t desc, unsigned long int *size) {
+    *size = 0;
+    return STATUS_SUCCESS;
+}
 
 infiniopStatus_t cudaDestroyLayerNormDescriptor(LayerNormCudaDescriptor_t desc) {
     delete desc;

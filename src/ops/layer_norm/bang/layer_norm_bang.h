@@ -24,8 +24,10 @@ infiniopStatus_t bangCreateLayerNormDescriptor(BangHandle_t handle,
                                              infiniopTensorDescriptor_t y_desc,
                                              float epsilon);
 
+infiniopStatus_t bangGetLayerNormWorkspaceSize(LayerNormBangDescriptor_t desc, unsigned long int *size);
 
-infiniopStatus_t bangLayerNorm(LayerNormBangDescriptor_t desc,                        
+infiniopStatus_t bangLayerNorm(LayerNormBangDescriptor_t desc, void *workspace,
+                                          uint64_t workspace_size,                       
                              void const *x, void const *w, void const *b, void *y, 
                              void *stream);
 

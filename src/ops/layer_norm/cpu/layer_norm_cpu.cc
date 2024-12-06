@@ -112,8 +112,12 @@ void layer_norm_cpu(LayerNormCpuDescriptor_t desc, void const *x, void const *w,
         }
     }
 }
-
-infiniopStatus_t cpuLayerNorm(LayerNormCpuDescriptor_t desc,
+infiniopStatus_t cpuGetLayerNormWorkspaceSize(LayerNormCpuDescriptor_t desc, unsigned long int *size) {
+    *size = 0;
+    return STATUS_SUCCESS;
+}
+infiniopStatus_t cpuLayerNorm(LayerNormCpuDescriptor_t desc, void *workspace,
+                                          uint64_t workspace_size,
                             void const *x, void const *w, void const *b, void *y,
                             void *stream) {
     if (dtype_eq(desc->dtype, F16) || dtype_eq(desc->dtype, F32)) {

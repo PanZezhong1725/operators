@@ -135,7 +135,8 @@ void layer_norm_nv_gpu(LayerNormCudaDescriptor_t desc, void const *input, void c
     }
 }
 
-infiniopStatus_t cudaLayerNorm(LayerNormCudaDescriptor_t desc,
+infiniopStatus_t cudaLayerNorm(LayerNormCudaDescriptor_t desc, void *workspace,
+                                          uint64_t workspace_size,
                                void const *x, void const *w, void const *b, void *y,
                                void *stream) {
     if (cudaSetDevice(desc->device_id) != cudaSuccess) {

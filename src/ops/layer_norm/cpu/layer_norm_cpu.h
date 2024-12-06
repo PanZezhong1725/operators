@@ -19,7 +19,11 @@ infiniopStatus_t cpuCreateLayerNormDescriptor(infiniopHandle_t handle, LayerNorm
                                             infiniopTensorDescriptor_t b_desc,
                                             infiniopTensorDescriptor_t y_desc,
                                             float epsilon);
-infiniopStatus_t cpuLayerNorm(LayerNormCpuDescriptor_t desc,
+
+infiniopStatus_t cpuGetLayerNormWorkspaceSize(LayerNormCpuDescriptor_t desc, unsigned long int *size);
+
+infiniopStatus_t cpuLayerNorm(LayerNormCpuDescriptor_t desc, void *workspace,
+                                          uint64_t workspace_size,
                             void const *x, void const *w, void const *b, void *y,
                             void *stream);
 infiniopStatus_t cpuDestroyLayerNormDescriptor(LayerNormCpuDescriptor_t desc);

@@ -22,8 +22,11 @@ infiniopStatus_t cudaCreateLayerNormDescriptor(CudaHandle_t handle,
                                             infiniopTensorDescriptor_t b_desc,
                                             infiniopTensorDescriptor_t y_desc,
                                              float epsilon);
+                                             
+infiniopStatus_t cudaGetLayerNormWorkspaceSize(LayerNormCudaDescriptor_t desc, unsigned long int *size);
 
-infiniopStatus_t cudaLayerNorm(LayerNormCudaDescriptor_t desc,
+infiniopStatus_t cudaLayerNorm(LayerNormCudaDescriptor_t desc, void *workspace,
+                                          uint64_t workspace_size,
                             void const *x, void const *w, void const *b, void *y,
                              void *stream);
 

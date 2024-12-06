@@ -20,8 +20,9 @@ __C __export infiniopStatus_t infiniopCreateLayerNormDescriptor(
     float epsilon);
 
 
-
-__C __export infiniopStatus_t infiniopLayerNorm(infiniopLayerNormDescriptor_t desc, 
+__C infiniopStatus_t infiniopGetLayerNormWorkspaceSize(infiniopLayerNormDescriptor_t desc, uint64_t *size);
+__C __export infiniopStatus_t infiniopLayerNorm(infiniopLayerNormDescriptor_t desc, void *workspace,
+                                          uint64_t workspace_size,
                                               void const *x, void const *w, void const *b, void *y, void *stream);
 
 __C __export infiniopStatus_t infiniopDestroyLayerNormDescriptor(infiniopLayerNormDescriptor_t desc);

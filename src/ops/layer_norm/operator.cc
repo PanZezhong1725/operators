@@ -36,8 +36,8 @@ __C infiniopStatus_t infiniopCreateLayerNormDescriptor(
 #endif
 #ifdef ENABLE_CAMBRICON_MLU
         case DevCambriconMlu: {
-            return bangCreateLayerNormDescriptor((BangHandle_t) handle, (LayerNormBangDescriptor_t *) desc_ptr, x_desc, w_desc, b_desc, y_desc, epsilon);
-            //return cnnlCreateLayerNormDescriptor((BangHandle_t) handle, (LayerNormCnnlDescriptor_t *) desc_ptr, x_desc, w_desc, b_desc, y_desc, epsilon);
+            //return bangCreateLayerNormDescriptor((BangHandle_t) handle, (LayerNormBangDescriptor_t *) desc_ptr, x_desc, w_desc, b_desc, y_desc, epsilon);
+            return cnnlCreateLayerNormDescriptor((BangHandle_t) handle, (LayerNormCnnlDescriptor_t *) desc_ptr, x_desc, w_desc, b_desc, y_desc, epsilon);
         }
 #endif
     }
@@ -57,8 +57,8 @@ __C infiniopStatus_t infiniopGetLayerNormWorkspaceSize(infiniopLayerNormDescript
 #endif
 #ifdef ENABLE_CAMBRICON_MLU
         case DevCambriconMlu: {
-            return bangGetLayerNormWorkspaceSize((LayerNormBangDescriptor_t) desc, size);
-            //return cnnlGetLayerNormWorkspaceSize((LayerNormCnnlDescriptor_t) desc, size);
+            //return bangGetLayerNormWorkspaceSize((LayerNormBangDescriptor_t) desc, size);
+            return cnnlGetLayerNormWorkspaceSize((LayerNormCnnlDescriptor_t) desc, size);
         }
 #endif
     }
@@ -80,8 +80,8 @@ __C infiniopStatus_t infiniopLayerNorm(infiniopLayerNormDescriptor_t desc, void 
 #endif
 #ifdef ENABLE_CAMBRICON_MLU
         case DevCambriconMlu: {
-            return bangLayerNorm((LayerNormBangDescriptor_t) desc, workspace, workspace_size, x, w, b, y, stream);
-            //return cnnlLayerNorm((LayerNormCnnlDescriptor_t) desc, workspace, workspace_size, x, w, b, y, stream);
+            //return bangLayerNorm((LayerNormBangDescriptor_t) desc, workspace, workspace_size, x, w, b, y, stream);
+            return cnnlLayerNorm((LayerNormCnnlDescriptor_t) desc, workspace, workspace_size, x, w, b, y, stream);
         }
 #endif
     }
@@ -102,8 +102,8 @@ __C infiniopStatus_t infiniopDestroyLayerNormDescriptor(infiniopLayerNormDescrip
 #endif
 #ifdef ENABLE_CAMBRICON_MLU
         case DevCambriconMlu: {
-            return bangDestroyLayerNormDescriptor((LayerNormBangDescriptor_t) desc);
-            //return cnnlDestroyLayerNormDescriptor((LayerNormCnnlDescriptor_t) desc);
+            //return bangDestroyLayerNormDescriptor((LayerNormBangDescriptor_t) desc);
+            return cnnlDestroyLayerNormDescriptor((LayerNormCnnlDescriptor_t) desc);
         }
 #endif
     }

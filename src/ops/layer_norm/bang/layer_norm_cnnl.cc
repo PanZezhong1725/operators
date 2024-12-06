@@ -90,7 +90,7 @@ infiniopStatus_t cnnlCreateLayerNormDescriptor(BangHandle_t handle, LayerNormCnn
                  cnnlGetLayerNormOpWorkspaceSize(handle, axis, xDesc, &wsSize);
              });
     CNRT_CHECK(cnrtQueueDestroy(queue));
-    printf("%ld, %ld\n", size_mean_rstd, wsSize);
+    
     *desc_ptr = new LayerNormCnnlDescriptor{
         handle->device,
         handle->device_id,
@@ -147,9 +147,7 @@ void layerNorm_cnnl(LayerNormCnnlDescriptor_t desc, void *workspace,
                         mean_dev,
                         rstd_dev);
              });
-    cnrtFree(workspace);
-    cnrtFree(mean_dev);
-    cnrtFree(rstd_dev);
+    
 }
 infiniopStatus_t cnnlLayerNorm(LayerNormCnnlDescriptor_t desc, void *workspace,
                                           uint64_t workspace_size,                       

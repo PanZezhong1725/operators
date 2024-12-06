@@ -118,8 +118,8 @@ if __name__ == "__main__":
         # x_shape, axis
         # cnnllayernorm不支持axis=0, cpu torch.layernorm不支持half
         # ((32, 20, 512), 0, torch.float16),
-        # ((32, 20, 512), 1, torch.float16), 
-        # ((32, 20, 512), 2, torch.float16),
+        ((32, 20, 512), 1, torch.float16), 
+        ((32, 20, 512), 2, torch.float16),
 
         #((32, 20, 512), 0, torch.float32),
         ((32, 20, 512), 1, torch.float32), 

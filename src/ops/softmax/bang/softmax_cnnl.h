@@ -24,8 +24,9 @@ infiniopStatus_t cnnlCreateSoftmaxDescriptor(BangHandle_t handle,
                                              int axis,
                                              infiniopTensorDescriptor_t output_desc);
 
-
-infiniopStatus_t cnnlSoftmax(SoftmaxCnnlDescriptor_t desc, void const *input, void *output, void *stream);
+infiniopStatus_t cnnlGetSoftmaxWorkspaceSize(SoftmaxCnnlDescriptor_t desc, unsigned long int *size);
+infiniopStatus_t cnnlSoftmax(SoftmaxCnnlDescriptor_t desc, void *workspace,
+                                          uint64_t workspace_size, void const *input, void *output, void *stream);
 
 infiniopStatus_t cnnlDestroySoftmaxDescriptor(SoftmaxCnnlDescriptor_t desc);
 

@@ -3,7 +3,6 @@ import ctypes
 import sys
 import os
 
-
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 from operatorspy import (
     open_lib,
@@ -13,6 +12,7 @@ from operatorspy import (
     infiniopTensorDescriptor_t,
     create_handle,
     destroy_handle,
+    create_workspace,
     check_error,
     rearrange_tensor,
 )
@@ -47,10 +47,18 @@ def test(lib, handle, torch_device, x_shape, axis, x_dtype=torch.float16):
             handle, ctypes.byref(descriptor), x_tensor.descriptor, axis, y_tensor.descriptor
         )
     )
-    
+    workspace_size = c_uint64(0)
+    check_error(
+        lib.infiniopGetSoftmaxWorkspaceSize(
+            descriptor, ctypes.byref(workspace_size)
+        )
+    )
+    workspace = create_workspace(workspace_size.value, torch_device) 
     check_error(
         lib.infiniopSoftmax(
             descriptor,
+            workspace.data_ptr() if workspace is not None else None,
+            workspace_size.value,
             x_tensor.data,
             y_tensor.data,
             None,
@@ -113,6 +121,8 @@ if __name__ == "__main__":
     lib.infiniopSoftmax.restype = c_int32
     lib.infiniopSoftmax.argtypes = [
         infiniopSoftmaxDescriptor_t,
+        c_void_p,
+        c_uint64,
         c_void_p,
         c_void_p,
         c_void_p,

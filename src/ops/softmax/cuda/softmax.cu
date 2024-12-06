@@ -315,7 +315,8 @@ void softmax_nv_gpu(SoftmaxCudaDescriptor_t desc, void const *input, void *outpu
             <<<grid_dim, block_dim, 0, (cudaStream_t) stream>>>((T *) input, (T *) output, num_blocks, dimsize, stride);
     }
 }
-infiniopStatus_t cudaSoftmax(SoftmaxCudaDescriptor_t desc,
+infiniopStatus_t cudaSoftmax(SoftmaxCudaDescriptor_t desc, void *workspace,
+                                          uint64_t workspace_size,
                              void const *input,
                              void *output,
                              void *stream) {

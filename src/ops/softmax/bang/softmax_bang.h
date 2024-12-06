@@ -23,8 +23,9 @@ infiniopStatus_t bangCreateSoftmaxDescriptor(BangHandle_t handle,
                                              SoftmaxBangDescriptor_t *desc_ptr,
                                              infiniopTensorDescriptor_t input_desc, int axis, infiniopTensorDescriptor_t output_desc);
 
-
-infiniopStatus_t bangSoftmax(SoftmaxBangDescriptor_t desc,
+infiniopStatus_t bangGetSoftmaxWorkspaceSize(SoftmaxBangDescriptor_t desc, unsigned long int *size);
+infiniopStatus_t bangSoftmax(SoftmaxBangDescriptor_t desc, void *workspace,
+                                          uint64_t workspace_size,
                              void const *input,
                              void *output,
                              void *stream);

@@ -41,24 +41,45 @@ __C infiniopStatus_t infiniopCreateSoftmaxDescriptor(
     }
     return STATUS_BAD_DEVICE;
 }
-
-
-__C infiniopStatus_t infiniopSoftmax(infiniopSoftmaxDescriptor_t desc, void const *input, void *output, void *stream) {
+__C infiniopStatus_t infiniopGetSoftmaxWorkspaceSize(infiniopSoftmaxDescriptor_t desc, uint64_t *size) {
     switch (desc->device) {
 #ifdef ENABLE_CPU
         case DevCpu:
-            return cpuSoftmax((SoftmaxCpuDescriptor_t) desc, input, output, stream);
+            return cpuGetSoftmaxWorkspaceSize((SoftmaxCpuDescriptor_t) desc, size);
 #endif
 #ifdef ENABLE_NV_GPU
         case DevNvGpu: {
-            return cudaSoftmax((SoftmaxCudaDescriptor_t) desc, input, output, stream);
+            return cudaGetSoftmaxWorkspaceSize((SoftmaxCudaDescriptor_t) desc, size);
         }
 
 #endif
 #ifdef ENABLE_CAMBRICON_MLU
         case DevCambriconMlu: {
-            //return bangSoftmax((SoftmaxBangDescriptor_t) desc, input, output, stream);
-            return cnnlSoftmax((SoftmaxCnnlDescriptor_t) desc, input, output, stream);
+            //return bangGetSoftmaxWorkspaceSize((SoftmaxBangDescriptor_t) desc, size);
+            return cnnlGetSoftmaxWorkspaceSize((SoftmaxCnnlDescriptor_t) desc, size);
+        }
+#endif
+    }
+    return STATUS_BAD_DEVICE;
+}
+
+__C infiniopStatus_t infiniopSoftmax(infiniopSoftmaxDescriptor_t desc, void *workspace,
+                                          uint64_t workspace_size, void const *input, void *output, void *stream) {
+    switch (desc->device) {
+#ifdef ENABLE_CPU
+        case DevCpu:
+            return cpuSoftmax((SoftmaxCpuDescriptor_t) desc, workspace, workspace_size, input, output, stream);
+#endif
+#ifdef ENABLE_NV_GPU
+        case DevNvGpu: {
+            return cudaSoftmax((SoftmaxCudaDescriptor_t) desc, workspace, workspace_size, input, output, stream);
+        }
+
+#endif
+#ifdef ENABLE_CAMBRICON_MLU
+        case DevCambriconMlu: {
+            //return bangSoftmax((SoftmaxBangDescriptor_t) desc, workspace, workspace_size, input, output, stream);
+            return cnnlSoftmax((SoftmaxCnnlDescriptor_t) desc, workspace, workspace_size, input, output, stream);
         }
 #endif
     }

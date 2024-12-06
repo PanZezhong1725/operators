@@ -14,8 +14,9 @@ __C __export infiniopStatus_t infiniopCreateSoftmaxDescriptor(infiniopHandle_t h
                                                               infiniopSoftmaxDescriptor_t *desc_ptr,
                                                               infiniopTensorDescriptor_t input_desc, int axis, infiniopTensorDescriptor_t output_desc);
 
-
-__C __export infiniopStatus_t infiniopSoftmax(infiniopSoftmaxDescriptor_t desc,
+__C infiniopStatus_t infiniopGetSoftmaxWorkspaceSize(infiniopSoftmaxDescriptor_t desc, uint64_t *size);
+__C __export infiniopStatus_t infiniopSoftmax(infiniopSoftmaxDescriptor_t desc, void *workspace,
+                                          uint64_t workspace_size,
                                               void const *input,
                                               void *output,
                                               void *stream);

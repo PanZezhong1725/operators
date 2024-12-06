@@ -5,7 +5,9 @@ infiniopStatus_t cudaCreateSoftmaxDescriptor(CudaHandle_t handle,
                                              SoftmaxCudaDescriptor_t *desc_ptr,
                                              infiniopTensorDescriptor_t input_desc, int axis, infiniopTensorDescriptor_t output_desc) {
 
-    ASSERT_EQ(input_desc->ndim, output_desc->ndim);
+    if (input_desc->ndim != output_desc->ndim) {
+        return STATUS_BAD_TENSOR_SHAPE;
+    }
     if (!dtype_eq(input_desc->dt, F16) && !dtype_eq(input_desc->dt, F32)) {
         return STATUS_BAD_TENSOR_DTYPE;
     }
@@ -40,7 +42,10 @@ infiniopStatus_t cudaCreateSoftmaxDescriptor(CudaHandle_t handle,
 
     return STATUS_SUCCESS;
 }
-
+infiniopStatus_t cudaGetSoftmaxWorkspaceSize(SoftmaxCudaDescriptor_t desc, unsigned long int *size) {
+    *size = 0;
+    return STATUS_SUCCESS;
+}
 
 infiniopStatus_t cudaDestroySoftmaxDescriptor(SoftmaxCudaDescriptor_t desc) {
 

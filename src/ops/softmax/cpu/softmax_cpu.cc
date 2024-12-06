@@ -6,7 +6,9 @@
 infiniopStatus_t cpuCreateSoftmaxDescriptor(infiniopHandle_t handle,
                                             SoftmaxCpuDescriptor_t *desc_ptr,
                                             infiniopTensorDescriptor_t input_desc, int axis, infiniopTensorDescriptor_t output_desc) {
-    ASSERT_EQ(input_desc->ndim, output_desc->ndim);
+    if (input_desc->ndim != output_desc->ndim) {
+        return STATUS_BAD_TENSOR_SHAPE;
+    }
 
     if (!dtype_eq(input_desc->dt, F16) && !dtype_eq(input_desc->dt, F32)) {
         return STATUS_BAD_TENSOR_DTYPE;
@@ -40,7 +42,10 @@ infiniopStatus_t cpuDestroySoftmaxDescriptor(SoftmaxCpuDescriptor_t desc) {
     delete desc;
     return STATUS_SUCCESS;
 }
-
+infiniopStatus_t cpuGetSoftmaxWorkspaceSize(SoftmaxCpuDescriptor_t desc, unsigned long int *size) {
+    *size = 0;
+    return STATUS_SUCCESS;
+}
 void softmax_cpu(SoftmaxCpuDescriptor_t desc,
                  void const *input, void *output) {
     int ndim = desc->ndim;
@@ -103,7 +108,8 @@ void softmax_cpu(SoftmaxCpuDescriptor_t desc,
         }
     }
 }
-infiniopStatus_t cpuSoftmax(SoftmaxCpuDescriptor_t desc,
+infiniopStatus_t cpuSoftmax(SoftmaxCpuDescriptor_t desc, void *workspace,
+                                          uint64_t workspace_size,
                             void const *input, void *output,
                             void *stream) {
     if (dtype_eq(desc->dtype, F16) || dtype_eq(desc->dtype, F32)) {

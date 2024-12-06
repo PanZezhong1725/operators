@@ -8,7 +8,9 @@ infiniopStatus_t cnnlCreateSoftmaxDescriptor(BangHandle_t handle,
                                              infiniopTensorDescriptor_t input_desc,
                                              int axis,
                                              infiniopTensorDescriptor_t output_desc) {
-    ASSERT_EQ(input_desc->ndim, output_desc->ndim);
+    if (input_desc->ndim != output_desc->ndim) {
+        return STATUS_BAD_TENSOR_SHAPE;
+    }
     if (!dtype_eq(input_desc->dt, F16) && !dtype_eq(input_desc->dt, F32)) {
         return STATUS_BAD_TENSOR_DTYPE;
     }
@@ -110,7 +112,10 @@ infiniopStatus_t cnnlCreateSoftmaxDescriptor(BangHandle_t handle,
         beta};
     return STATUS_SUCCESS;
 }
-
+infiniopStatus_t cnnlGetSoftmaxWorkspaceSize(SoftmaxCnnlDescriptor_t desc, unsigned long int *size) {
+    *size = 0;
+    return STATUS_SUCCESS;
+}
 
 infiniopStatus_t cnnlDestroySoftmaxDescriptor(SoftmaxCnnlDescriptor_t desc) {
     desc->cnnl_handles = nullptr;
@@ -134,7 +139,8 @@ void softmax_cnnl(SoftmaxCnnlDescriptor_t desc, void const *input, void *output,
                                        &alpha, aDesc, input, &beta, cDesc, output);
              });
 }
-infiniopStatus_t cnnlSoftmax(SoftmaxCnnlDescriptor_t desc, void const *input, void *output, void *stream) {
+infiniopStatus_t cnnlSoftmax(SoftmaxCnnlDescriptor_t desc, void *workspace,
+                                          uint64_t workspace_size, void const *input, void *output, void *stream) {
     if (cnrtSetDevice(desc->device_id) != cnrtSuccess) {
         return STATUS_BAD_DEVICE;
     }

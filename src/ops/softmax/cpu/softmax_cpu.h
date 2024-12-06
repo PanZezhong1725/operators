@@ -19,8 +19,10 @@ infiniopStatus_t cpuCreateSoftmaxDescriptor(infiniopHandle_t handle,
                                             SoftmaxCpuDescriptor_t *desc_ptr,
                                             infiniopTensorDescriptor_t input_desc, int axis, infiniopTensorDescriptor_t output_desc);
 
+infiniopStatus_t cpuGetSoftmaxWorkspaceSize(SoftmaxCpuDescriptor_t desc, unsigned long int *size);
 
-infiniopStatus_t cpuSoftmax(SoftmaxCpuDescriptor_t desc,
+infiniopStatus_t cpuSoftmax(SoftmaxCpuDescriptor_t desc, void *workspace,
+                                          uint64_t workspace_size,
                             void const *input,
                             void *output,
                             void *stream);

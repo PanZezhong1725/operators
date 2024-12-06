@@ -905,7 +905,8 @@ __mlu_global__ void softmaxKernelAxis_m(T *destination, T const *source, int fro
 }
 
 template<typename T>
-void softmaxUnion1(cnrtQueue_t queue, void const *input, void *output, int othersize, int dimsize, int frontsize, int stride, int axis, int ndim) {
+void softmaxUnion1(cnrtQueue_t queue, void *workspace,
+                                          uint64_t workspace_size, void const *input, void *output, int othersize, int dimsize, int frontsize, int stride, int axis, int ndim) {
     auto mlu_destination = reinterpret_cast<T *>(output);
     auto mlu_src = reinterpret_cast<T const *>(input);
     const int wSize = 128 / sizeof(T);
@@ -918,7 +919,6 @@ void softmaxUnion1(cnrtQueue_t queue, void const *input, void *output, int other
     k_dim.z = 1;
     k_type = CNRT_FUNC_TYPE_UNION1;
     
-    int taskNum = k_dim.x * k_dim.y * k_dim.z;
 
     if(axis == ndim - 1){
         int dimS;
@@ -938,10 +938,9 @@ void softmaxUnion1(cnrtQueue_t queue, void const *input, void *output, int other
         softmaxKernelAxis_e<T><<<k_dim, k_type, queue>>>(mlu_destination, mlu_src, othersize, dimsize, dimS);
     }
     else if(axis == 0){
-        T *tmpGdram;
-        CNRT_CHECK(cnrtMalloc((void **)&tmpGdram, taskNum * othersize * sizeof(T)));
+        T *tmpGdram = reinterpret_cast<T *>(workspace);
         softmaxKernelAxis_s<T><<<k_dim, k_type, queue>>>(mlu_destination, mlu_src, tmpGdram, othersize, dimsize, stride);
-        cnrtFree(tmpGdram);
+        
     }
     else{
         float mi = log2(stride);
@@ -960,7 +959,8 @@ void softmaxUnion1(cnrtQueue_t queue, void const *input, void *output, int other
 
 
 
-void softmax_bang(SoftmaxBangDescriptor_t desc, void const *input, void *output, void *stream) {
+void softmax_bang(SoftmaxBangDescriptor_t desc, void *workspace,
+                                          uint64_t workspace_size, void const *input, void *output, void *stream) {
     auto queue = reinterpret_cast<cnrtQueue_t>(stream);
 
     int ndim = desc->ndim;
@@ -972,15 +972,16 @@ void softmax_bang(SoftmaxBangDescriptor_t desc, void const *input, void *output,
 
     
     if (dtype_eq(desc->dtype, F16)) {
-        softmaxUnion1<half>(queue, input, output, othersize, dimsize, frontsize, stride, axis, ndim);
+        softmaxUnion1<half>(queue, workspace, workspace_size, input, output, othersize, dimsize, frontsize, stride, axis, ndim);
     }
     else if (dtype_eq(desc->dtype, F32)) {
-        softmaxUnion1<float>(queue, input, output, othersize, dimsize, frontsize, stride, axis, ndim);
+        softmaxUnion1<float>(queue, workspace, workspace_size, input, output, othersize, dimsize, frontsize, stride, axis, ndim);
     }
     
 }
 
-infiniopStatus_t bangSoftmax(SoftmaxBangDescriptor_t desc,
+infiniopStatus_t bangSoftmax(SoftmaxBangDescriptor_t desc, void *workspace,
+                                          uint64_t workspace_size,
                                    void const *input,
                                    void *output,
                                    void *stream) {
@@ -988,7 +989,7 @@ infiniopStatus_t bangSoftmax(SoftmaxBangDescriptor_t desc,
         return STATUS_BAD_DEVICE;
     }
     if (dtype_eq(desc->dtype, F16) || dtype_eq(desc->dtype, F32)) {
-        softmax_bang(desc,input, output, stream);
+        softmax_bang(desc, workspace, workspace_size, input, output, stream);
         return STATUS_SUCCESS;
     }
     return STATUS_BAD_TENSOR_DTYPE;

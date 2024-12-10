@@ -30,7 +30,10 @@ infiniopRandomSampleDescriptor_t = POINTER(RandomSampleDescriptor)
 
 
 def random_sample(data, random_val, topp, topk, voc, temperature, torch_device):
-    indices = torch.zeros([topk], dtype = torch.int64)
+    if(torch_device == "cuda"):
+        indices = torch.zeros([topk], dtype = torch.uint64)
+    else:
+        indices = torch.zeros([topk], dtype = torch.int64)
     dataNp = data.clone().detach()
     sorted_indices = torch.arange(voc)
     
@@ -52,7 +55,7 @@ def random_sample(data, random_val, topp, topk, voc, temperature, torch_device):
     
     globalM = dataNp[0]
     dataNp = (dataNp - globalM) / temperature
-    dataNp = torch.softmax(dataNp.float(), dim = 0)
+    dataNp = torch.softmax(dataNp, dim = 0)
     sum_s = 0
     for end in range(topk):
         sum_s += dataNp[end]
@@ -88,7 +91,7 @@ def test(lib, handle, torch_device, voc, random_val, topp, topk, temperature, x_
         ans = random_sample(data.to("cpu"), random_val, topp, topk, voc, temperature, "cpu")
     else:
         ans = random_sample_0(data)
-    if(torch_device == 'mlu' or torch_device == 'npu'):
+    if(torch_device != "cuda"):
         
         indices = torch.zeros([1], dtype = torch.int64).to(torch_device)
     else:
@@ -96,7 +99,7 @@ def test(lib, handle, torch_device, voc, random_val, topp, topk, temperature, x_
         indices = torch.zeros([1], dtype = torch.uint64).to(torch_device)
     x_tensor = to_tensor(data, lib)
     indices_tensor = to_tensor(indices, lib)
-    if(torch_device == 'mlu' or torch_device == 'npu'):
+    if(torch_device == 'mlu'):
         indices_tensor.descriptor.contents.dt = U64 # treat int64 as uint64
     
     

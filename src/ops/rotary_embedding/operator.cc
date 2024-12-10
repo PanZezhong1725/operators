@@ -11,6 +11,7 @@
 #endif
 #ifdef ENABLE_CAMBRICON_MLU
 #include "bang/rotary_embedding_bang.h"
+#include "bang/rotary_embedding_cnnl.h"
 #endif
 #ifdef ENABLE_ASCEND_NPU
 #include "ascend/rotary_embedding.h"
@@ -40,7 +41,8 @@ __C infiniopStatus_t infiniopCreateRoPEDescriptor(infiniopHandle_t handle,
 #endif
 #ifdef ENABLE_CAMBRICON_MLU
         case DevCambriconMlu: {
-            return bangCreateRoPEDescriptor((BangHandle_t) handle, (RoPEBangDescriptor_t *) desc_ptr, t, pos_ids, sin_table, cos_table);
+            // return bangCreateRoPEDescriptor((BangHandle_t) handle, (RoPEBangDescriptor_t *) desc_ptr, t, pos_ids, sin_table, cos_table);
+            return cnnlCreateRoPEDescriptor((BangHandle_t) handle, (RoPECnnlDescriptor_t *) desc_ptr, t, pos_ids, sin_table, cos_table);
         }
 #endif
 #ifdef ENABLE_ASCEND_NPU
@@ -71,7 +73,8 @@ __C infiniopStatus_t infiniopGetRoPEWorkspaceSize(infiniopRoPEDescriptor_t desc,
 #endif
 #ifdef ENABLE_CAMBRICON_MLU
         case DevCambriconMlu: {
-            return bangGetRoPEWorkspaceSize((RoPEBangDescriptor_t) desc, size);
+            // return bangGetRoPEWorkspaceSize((RoPEBangDescriptor_t) desc, size);
+            return cnnlGetRoPEWorkspaceSize((RoPECnnlDescriptor_t) desc, size);
         }
 #endif
 #ifdef ENABLE_ASCEND_NPU
@@ -105,7 +108,8 @@ __C infiniopStatus_t infiniopRoPE(infiniopRoPEDescriptor_t desc,
 #endif
 #ifdef ENABLE_CAMBRICON_MLU
         case DevCambriconMlu: {
-            return bangRoPE((RoPEBangDescriptor_t) desc, workspace, workspace_size, t, pos_ids, sin_table, cos_table, stream);
+            // return bangRoPE((RoPEBangDescriptor_t) desc, workspace, workspace_size, t, pos_ids, sin_table, cos_table, stream);
+            return cnnlRoPE((RoPECnnlDescriptor_t) desc, workspace, workspace_size, t, pos_ids, sin_table, cos_table, stream);
         }
 #endif
 #ifdef ENABLE_ASCEND_NPU
@@ -138,7 +142,8 @@ __C infiniopStatus_t infiniopDestroyRoPEDescriptor(infiniopRoPEDescriptor_t desc
 #endif
 #ifdef ENABLE_CAMBRICON_MLU
         case DevCambriconMlu: {
-            return bangDestroyRoPEDescriptor((RoPEBangDescriptor_t) desc);
+            // return bangDestroyRoPEDescriptor((RoPEBangDescriptor_t) desc);
+            return cnnlDestroyRoPEDescriptor((RoPECnnlDescriptor_t) desc);
         }
 #endif
 #ifdef ENABLE_ASCEND_NPU

@@ -39,14 +39,22 @@ inline cnnlDataType_t cnnlDataTypeConvert(DT dataType) {
         return CNNL_DTYPE_HALF;
     } else if (dtype_eq(dataType, I8)) {
         return CNNL_DTYPE_INT8;
+    } else if (dtype_eq(dataType, I16)) {
+        return CNNL_DTYPE_INT16;
     } else if (dtype_eq(dataType, I32)) {
         return CNNL_DTYPE_INT32;
-    } else if (dtype_eq(dataType, U8)) {
-        return CNNL_DTYPE_UINT8;
-    } else if (dtype_eq(dataType, BF16)) {
-        return CNNL_DTYPE_BFLOAT16;
     } else if (dtype_eq(dataType, I64)) {
         return CNNL_DTYPE_INT64;
+    } else if (dtype_eq(dataType, U8)) {
+        return CNNL_DTYPE_UINT8;
+    } else if (dtype_eq(dataType, U16)) {
+        return CNNL_DTYPE_UINT16;
+    } else if (dtype_eq(dataType, U32)) {
+        return CNNL_DTYPE_UINT32;
+    } else if (dtype_eq(dataType, U64)) {
+        return CNNL_DTYPE_UINT64;
+    } else if (dtype_eq(dataType, BF16)) {
+        return CNNL_DTYPE_BFLOAT16;
     } else {
         return CNNL_DTYPE_INVALID;
     }

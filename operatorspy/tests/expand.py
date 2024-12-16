@@ -64,7 +64,7 @@ def test(
         x = rearrange_tensor(x, x_stride)
     if y_stride is not None:
         y = rearrange_tensor(y, y_stride)
-    
+
     for i in range(NUM_PRERUN if PROFILE else 1):
         ans = expand(x, y)
     if PROFILE:
@@ -86,16 +86,14 @@ def test(
             x_tensor.descriptor,
         )
     )
-    
+
     for i in range(NUM_PRERUN if PROFILE else 1):
-        lib.infiniopExpand(
-            descriptor, y_tensor.data, x_tensor.data, None
-        )
+        check_error(lib.infiniopExpand(descriptor, y_tensor.data, x_tensor.data, None))
     if PROFILE:
         start_time = time.time()
         for i in range(NUM_ITERATIONS):
-            lib.infiniopExpand(
-                descriptor, y_tensor.data, x_tensor.data, None
+            check_error(
+                lib.infiniopExpand(descriptor, y_tensor.data, x_tensor.data, None)
             )
         elapsed = (time.time() - start_time) / NUM_ITERATIONS
         print(f"    lib time: {elapsed :6f}")

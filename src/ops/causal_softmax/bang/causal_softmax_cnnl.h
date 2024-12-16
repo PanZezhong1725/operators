@@ -22,7 +22,7 @@ infiniopStatus_t cnnlCreateCausalSoftmaxDescriptor(BangHandle_t handle,
                                                    CausalSoftmaxCnnlDescriptor_t *desc_ptr,
                                                    infiniopTensorDescriptor_t y_desc);
 
-infiniopStatus_t cnnlGetCausalSoftmaxWorkspaceSize(CausalSoftmaxCnnlDescriptor_t desc, unsigned long int *size);
+infiniopStatus_t cnnlGetCausalSoftmaxWorkspaceSize(CausalSoftmaxCnnlDescriptor_t desc, uint64_t *size);
 
 infiniopStatus_t cnnlCausalSoftmax(CausalSoftmaxCnnlDescriptor_t desc,
                                    void *workspace,

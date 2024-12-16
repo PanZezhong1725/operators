@@ -62,7 +62,7 @@ def test(
 
     x = torch.rand(tensor_shape, dtype=tensor_dtype).to(torch_device) * 2 - 1
     y = torch.rand(tensor_shape, dtype=tensor_dtype).to(torch_device) if inplace == Inplace.OUT_OF_PLACE else x
-    
+
     for i in range(NUM_PRERUN if PROFILE else 1):
         ans = relu(x)
     if PROFILE:
@@ -85,18 +85,16 @@ def test(
         )
     )
     for i in range(NUM_PRERUN if PROFILE else 1):
-        lib.infiniopRelu(
-            descriptor, y_tensor.data, x_tensor.data, None
-        )
+        check_error(lib.infiniopRelu(descriptor, y_tensor.data, x_tensor.data, None))
     if PROFILE:
         start_time = time.time()
         for i in range(NUM_ITERATIONS):
-            lib.infiniopRelu(
-                descriptor, y_tensor.data, x_tensor.data, None
+            check_error(
+                lib.infiniopRelu(descriptor, y_tensor.data, x_tensor.data, None)
             )
         elapsed = (time.time() - start_time) / NUM_ITERATIONS
         print(f"    lib time: {elapsed :6f}")
-    
+
     assert torch.allclose(y, ans, atol=0, rtol=1e-3)
     check_error(lib.infiniopDestroyReluDescriptor(descriptor))
 
@@ -172,4 +170,3 @@ if __name__ == "__main__":
     if not (args.cpu or args.cuda or args.bang):
         test_cpu(lib, test_cases)
     print("\033[92mTest passed!\033[0m")
-

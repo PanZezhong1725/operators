@@ -18,8 +18,8 @@ __C __export infiniopStatus_t infiniopCreateGEMMDescriptor(infiniopHandle_t hand
                                                            infiniopTensorDescriptor_t c_desc,
                                                            float alpha,
                                                            float beta,
-                                                           bool transA,
-                                                           bool transB);
+                                                           char transA,
+                                                           char transB);
 
 __C __export infiniopStatus_t infiniopGetGEMMWorkspaceSize(infiniopGEMMDescriptor_t desc, uint64_t *size);
 

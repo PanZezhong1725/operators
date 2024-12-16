@@ -26,7 +26,7 @@ infiniopStatus_t bangCreateRMSNormDescriptor(BangHandle_t handle,
                                              infiniopTensorDescriptor_t w_desc,
                                              float epsilon);
 
-infiniopStatus_t bangGetRMSNormWorkspaceSize(RMSNormBangDescriptor_t desc, unsigned long int *size);
+infiniopStatus_t bangGetRMSNormWorkspaceSize(RMSNormBangDescriptor_t desc, uint64_t *size);
 
 infiniopStatus_t bangRMSNorm(RMSNormBangDescriptor_t desc,
                              void *workspace,

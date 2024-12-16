@@ -21,8 +21,8 @@ __C __export infiniopStatus_t infiniopCreateGEMMDescriptor(infiniopHandle_t hand
                                                            infiniopTensorDescriptor_t c_desc,
                                                            float alpha,
                                                            float beta,
-                                                           bool transA,
-                                                           bool transB) {
+                                                           char transA,
+                                                           char transB) {
     // transpose a and b if needed
     a_desc = transA ? permute(a_desc, {1, 0}) : a_desc;
     b_desc = transB ? permute(b_desc, {1, 0}) : b_desc;

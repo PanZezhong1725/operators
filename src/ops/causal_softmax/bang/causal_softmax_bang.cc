@@ -33,7 +33,7 @@ infiniopStatus_t bangCreateCausalSoftmaxDescriptor(BangHandle_t handle,
     return STATUS_SUCCESS;
 }
 
-infiniopStatus_t bangGetCausalSoftmaxWorkspaceSize(CausalSoftmaxBangDescriptor_t desc, unsigned long int *size) {
+infiniopStatus_t bangGetCausalSoftmaxWorkspaceSize(CausalSoftmaxBangDescriptor_t desc, uint64_t *size) {
     if (desc->ndim > 3) {
         *size = desc->ndim * sizeof(int) * 2;
     } else {

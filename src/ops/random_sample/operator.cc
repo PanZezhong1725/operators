@@ -11,6 +11,9 @@
 #ifdef ENABLE_CAMBRICON_MLU
 #include "bang/random_sample_bang.h"
 #endif
+#ifdef ENABLE_ASCEND_NPU
+#include "ascend/random_sample.h"
+#endif
 
 __C infiniopStatus_t infiniopCreateRandomSampleDescriptor(infiniopHandle_t handle, infiniopRandomSampleDescriptor_t *desc_ptr, infiniopTensorDescriptor_t result, infiniopTensorDescriptor_t probs) {
     switch (handle->device) {
@@ -27,6 +30,12 @@ __C infiniopStatus_t infiniopCreateRandomSampleDescriptor(infiniopHandle_t handl
             return bangCreateRandomSampleDescriptor((BangHandle_t) handle,
                                                     (RandomSampleBangDescriptor_t *) desc_ptr, result,
                                                     probs);
+        }
+#endif
+#ifdef ENABLE_ASCEND_NPU
+        case DevAscendNpu: {
+            return ascendCreateRandomSampleDescriptor((AscendHandle_t) handle,
+                                                     (RandomSampleAscendDescriptor_t *) desc_ptr, result, probs);
         }
 #endif
     }
@@ -50,7 +59,11 @@ __C infiniopStatus_t infiniopGetRandomSampleWorkspaceSize(infiniopRandomSampleDe
             return bangGetRandomSampleWorkspaceSize((RandomSampleBangDescriptor_t) desc, size);
             // return cnnlGetRandomSampleWorkspaceSize((RandomSampleCnnlDescriptor_t) desc, size);
         }
-
+#endif
+#ifdef ENABLE_ASCEND_NPU
+        case DevAscendNpu: {
+            return ascendGetRandomSampleWorkspaceSize((RandomSampleAscendDescriptor_t) desc, size);
+        }
 #endif
     }
     return STATUS_BAD_DEVICE;
@@ -80,6 +93,11 @@ __C infiniopStatus_t infiniopRandomSample(infiniopRandomSampleDescriptor_t desc,
             return bangRandomSample((RandomSampleBangDescriptor_t) desc, workspace, workspace_size, result, probs, random_val, topp, topk, temperature, stream);
         }
 #endif
+#ifdef ENABLE_ASCEND_NPU
+        case DevAscendNpu: {
+            return ascendRandomSample((RandomSampleAscendDescriptor_t) desc, workspace, workspace_size, result, probs, random_val, topp, topk, temperature, stream);
+        }
+#endif
     }
     return STATUS_BAD_DEVICE;
 }
@@ -97,6 +115,11 @@ __C infiniopStatus_t infiniopDestroyRandomSampleDescriptor(infiniopRandomSampleD
 #ifdef ENABLE_CAMBRICON_MLU
         case DevCambriconMlu: {
             return bangDestroyRandomSampleDescriptor((RandomSampleBangDescriptor_t) desc);
+        }
+#endif
+#ifdef ENABLE_ASCEND_NPU
+        case DevAscendNpu: {
+            return ascendDestroyRandomSampleDescriptor((RandomSampleAscendDescriptor_t) desc);
         }
 #endif
     }

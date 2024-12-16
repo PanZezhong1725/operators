@@ -7,6 +7,7 @@
 #include <cuda_fp16.h>
 #include <cuda_runtime.h>
 #include <numeric>
+#include <vector>
 
 struct GlobalAvgPoolCudaDescriptor {
     Device device;

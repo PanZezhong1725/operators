@@ -57,7 +57,7 @@ def test(
     a = torch.rand(a_shape, dtype=tensor_dtype).to(torch_device)
     b = torch.rand(b_shape, dtype=tensor_dtype).to(torch_device)
     c = torch.rand(c_shape, dtype=tensor_dtype).to(torch_device) if inplace == Inplace.OUT_OF_PLACE else (a if inplace == Inplace.INPLACE_A else b)
-    
+
     ans = add(a, b)
 
     a_tensor = to_tensor(a, lib)
@@ -74,8 +74,8 @@ def test(
             b_tensor.descriptor,
         )
     )
-    lib.infiniopAdd(
-        descriptor, c_tensor.data, a_tensor.data, b_tensor.data, None
+    check_error(
+        lib.infiniopAdd(descriptor, c_tensor.data, a_tensor.data, b_tensor.data, None)
     )
     assert torch.allclose(c, ans, atol=0, rtol=1e-3)
     check_error(lib.infiniopDestroyAddDescriptor(descriptor))

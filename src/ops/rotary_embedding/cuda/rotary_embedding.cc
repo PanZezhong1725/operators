@@ -64,7 +64,7 @@ infiniopStatus_t cudaCreateRoPEDescriptor(CudaHandle_t handle,
     return STATUS_SUCCESS;
 }
 
-infiniopStatus_t cudaGetRoPEWorkspaceSize(RoPECudaDescriptor_t desc, unsigned long int *size) {
+infiniopStatus_t cudaGetRoPEWorkspaceSize(RoPECudaDescriptor_t desc, uint64_t *size) {
     *size = 0;
     return STATUS_SUCCESS;
 }

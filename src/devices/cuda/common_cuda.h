@@ -5,20 +5,30 @@
 #define MAX_WARP_PER_BLOCK 32
 #define WARP_SIZE 32
 
-#define checkCudaErrorWithCode(call, errorCode)          \
-    do {                                                 \
-        if (auto status = call; status != cudaSuccess) { \
-            return errorCode;                            \
-        }                                                \
+#include <iostream>
+
+#define checkCudaErrorWithCode(call, errorCode)                       \
+    do {                                                              \
+        if (auto status = call; status != cudaSuccess) {              \
+            std::cerr << "CUDA error: " << cudaGetErrorString(status) \
+                      << " in file " << __FILE__                      \
+                      << ", function " << __func__                    \
+                      << ", line " << __LINE__ << std::endl;          \
+            return errorCode;                                         \
+        }                                                             \
     } while (0)
 
 #define checkCudaError(call) checkCudaErrorWithCode(call, STATUS_BAD_DEVICE)
 
-#define checkCudnnError(call)                                     \
-    do {                                                          \
-        if (auto status = call; status != CUDNN_STATUS_SUCCESS) { \
-            return STATUS_EXECUTION_FAILED;                       \
-        }                                                         \
+#define checkCudnnError(call)                                           \
+    do {                                                                \
+        if (auto status = call; status != CUDNN_STATUS_SUCCESS) {       \
+            std::cerr << "CUDNN error: " << cudnnGetErrorString(status) \
+                      << " in file " << __FILE__                        \
+                      << ", function " << __func__                      \
+                      << ", line " << __LINE__ << std::endl;            \
+            return STATUS_EXECUTION_FAILED;                             \
+        }                                                               \
     } while (0)
 
 #include "data_type.h"
@@ -30,7 +40,7 @@ typedef struct DTCudnnMapping {
 } DTCudnnMapping;
 
 // DT cudnnDataType_t mapping table
-constexpr DTCudnnMapping dtMappings[] = {
+const DTCudnnMapping dtMappings[] = {
     {F16, CUDNN_DATA_HALF},
     {F32, CUDNN_DATA_FLOAT},
     {F64, CUDNN_DATA_DOUBLE},

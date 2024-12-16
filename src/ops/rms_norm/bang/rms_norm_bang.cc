@@ -33,7 +33,7 @@ infiniopStatus_t bangCreateRMSNormDescriptor(BangHandle_t handle, RMSNormBangDes
     return STATUS_SUCCESS;
 }
 
-infiniopStatus_t bangGetRMSNormWorkspaceSize(RMSNormBangDescriptor_t desc, unsigned long int *size) {
+infiniopStatus_t bangGetRMSNormWorkspaceSize(RMSNormBangDescriptor_t desc, uint64_t *size) {
     *size = 0;
     return STATUS_SUCCESS;
 }

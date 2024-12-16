@@ -33,14 +33,14 @@ jobs:
     - name: configure xmake
       run: xmake f --cpu=true -cv
 
-    - name: Build with XMake
-      run: xmake
-
-    - name: Find and Set INFINI_ROOT
-      id: set_infini_root
+    - name: Set INFINI_ROOT
       run: |
-        export INFINI_ROOT=$GITHUB_WORKSPACE
+        export INFINI_ROOT=$GITHUB_WORKSPACE/.infini
+        mkdir -p $INFINI_ROOT
         echo "INFINI_ROOT=$INFINI_ROOT" >> $GITHUB_ENV
+
+    - name: Build with XMake
+      run: xmake build && xmake install
 
     - name: Run Python Tests
       run: |

@@ -38,7 +38,7 @@ infiniopStatus_t cnnlCreateCausalSoftmaxDescriptor(BangHandle_t handle,
     return STATUS_SUCCESS;
 }
 
-infiniopStatus_t cnnlGetCausalSoftmaxWorkspaceSize(CausalSoftmaxCnnlDescriptor_t desc, unsigned long int *size) {
+infiniopStatus_t cnnlGetCausalSoftmaxWorkspaceSize(CausalSoftmaxCnnlDescriptor_t desc, uint64_t *size) {
     *size = sizeof(bool) * desc->dims[0] * desc->dims[1] * desc->dims[2] * desc->dims[3];
     return STATUS_SUCCESS;
 }

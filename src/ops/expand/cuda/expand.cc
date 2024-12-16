@@ -24,7 +24,7 @@ infiniopStatus_t cudaCreateExpandDescriptor(CudaHandle_t handle,
 
     int64_t *x_strides_d, *y_strides_d;
     char *strides_and_shape_d;
-    checkCudaErrorWithCode(cudaMalloc(&strides_and_shape_d, ndim * (2 * sizeof(int64_t) + sizeof(uint64_t))), STATUS_MEMORY_NOT_ALLOCATED);
+    checkCudaErrorWithCode(cudaMalloc((void **) &strides_and_shape_d, ndim * (2 * sizeof(int64_t) + sizeof(uint64_t))), STATUS_MEMORY_NOT_ALLOCATED);
     checkCudaErrorWithCode(cudaMemcpy(strides_and_shape_d, x_strides, ndim * sizeof(int64_t), cudaMemcpyHostToDevice), STATUS_EXECUTION_FAILED);
     checkCudaErrorWithCode(cudaMemcpy(strides_and_shape_d + ndim * sizeof(int64_t), y->strides, ndim * sizeof(int64_t), cudaMemcpyHostToDevice), STATUS_EXECUTION_FAILED);
     checkCudaErrorWithCode(cudaMemcpy(strides_and_shape_d + 2 * ndim * sizeof(int64_t), y->shape, ndim * sizeof(uint64_t), cudaMemcpyHostToDevice), STATUS_EXECUTION_FAILED);

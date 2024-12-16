@@ -26,7 +26,7 @@ __C __export infiniopStatus_t infiniopCreateMLPDescriptor(infiniopHandle_t handl
                                                           infiniopTensorDescriptor_t w12_desc,
                                                           infiniopTensorDescriptor_t w3_desc,
                                                           float alpha,
-                                                          bool residual) {
+                                                          char residual) {
     if (y_desc->ndim != 2 || x_desc->ndim != 2 || w12_desc->ndim != 2 || w3_desc->ndim != 2) {
         return STATUS_BAD_TENSOR_SHAPE;
     }

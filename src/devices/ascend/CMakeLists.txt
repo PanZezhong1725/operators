@@ -23,5 +23,6 @@ include(${ASCENDC_CMAKE_DIR}/ascendc.cmake)
 ascendc_library(ascend_kernels STATIC
     ../../ops/swiglu/ascend/swiglu_kernel.cpp
     ../../ops/rotary_embedding/ascend/rotary_embedding_kernel.cpp
+    ../../ops/random_sample/ascend/random_sample_kernel.cpp
 )
 

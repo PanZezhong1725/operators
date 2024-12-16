@@ -71,7 +71,7 @@ infiniopStatus_t infiniopDestroyTensorDescriptor(infiniopTensorDescriptor_t desc
 
 ## 一、使用说明
 
-### 配置
+### 1. 配置
 
 #### 查看当前配置
 
@@ -99,23 +99,27 @@ xmake f --nv-gpu=true --cuda=$CUDA_HOME -cv
 xmake f --cambricon-mlu=true -cv
 ```
 
-### 编译
+#### 配置 NPU
+
+````xmake
+xmake f --ascend-npu=true -cv
+````
+
+### 2. 编译安装
 
 ```xmake
-xmake
+xmake build && xmake install
 ```
 
-### 将编译好的算子库添加至环境变量 `INFINI_ROOT`
+### 3. 设置环境变量
 
-```bash
-export INFINI_ROOT=[PATH_TO_LIBRARY]
-```
+按输出提示设置 `INFINI_ROOT` 和 `LD_LIBRARY_PATH` 环境变量。
 
-### 运行算子测试
+### 4. 运行算子测试
 
 ```bash
 cd operatorspy/tests
-python operator_name.py
+python operator_name.py [--cpu | --cuda | --cambricon | --ascend]
 ```
 
 ## 二、开发说明

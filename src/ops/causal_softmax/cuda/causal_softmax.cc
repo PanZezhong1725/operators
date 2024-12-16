@@ -1,6 +1,6 @@
 #include "causal_softmax.cuh"
-#include "../../utils.h"
 #include "../../../devices/cuda/common_cuda.h"
+#include "../../utils.h"
 
 infiniopStatus_t cudaCreateCausalSoftmaxDescriptor(CudaHandle_t handle,
                                                    CausalSoftmaxCudaDescriptor_t *desc_ptr,
@@ -44,7 +44,7 @@ infiniopStatus_t cudaCreateCausalSoftmaxDescriptor(CudaHandle_t handle,
     return STATUS_SUCCESS;
 }
 
-infiniopStatus_t cudaGetCausalSoftmaxWorkspaceSize(CausalSoftmaxCudaDescriptor_t desc, unsigned long int *size) {
+infiniopStatus_t cudaGetCausalSoftmaxWorkspaceSize(CausalSoftmaxCudaDescriptor_t desc, uint64_t *size) {
     *size = 0;
     return STATUS_SUCCESS;
 }

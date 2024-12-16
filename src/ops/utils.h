@@ -4,6 +4,7 @@
 #include "../../include/data_type.h"
 #include "../../include/tensor.h"
 #include <algorithm>
+#include <iostream>
 #include <numeric>
 #include <stdio.h>
 #include <stdlib.h>
@@ -29,21 +30,32 @@ inline void assert_true(int expr, const char *msg, const char *file, int line) {
 
 #define ROUND_UP_DIV(x, y) ((x + y - 1) / y)
 
-#define CHECK_ERROR(call, target, errCode)            \
-    do {                                              \
-        if (auto value = (call); value == (target)) { \
-            return (errCode);                         \
-        }                                             \
+#define CHECK_ERROR(call, target, errCode)                   \
+    do {                                                     \
+        if (auto value = (call); value == (target)) {        \
+            std::cerr << "Error: expected " << (target)      \
+                      << " but got " << value                \
+                      << " in file " << __FILE__             \
+                      << ", function " << __func__           \
+                      << ", line " << __LINE__ << std::endl; \
+            return (errCode);                                \
+        }                                                    \
     } while (0)
+
 #define CREATE_CHECK_ERROR(expr, value, target, errCode) \
     expr;                                                \
     CHECK_ERROR(value, target, errCode)
 
-#define CHECK_STATUS(call, target)                    \
-    do {                                              \
-        if (auto value = (call); value != (target)) { \
-            return value;                             \
-        }                                             \
+#define CHECK_STATUS(call, target)                           \
+    do {                                                     \
+        if (auto value = (call); value != (target)) {        \
+            std::cerr << "Error: expected " << (target)      \
+                      << " but got " << value                \
+                      << " in file " << __FILE__             \
+                      << ", function " << __func__           \
+                      << ", line " << __LINE__ << std::endl; \
+            return value;                                    \
+        }                                                    \
     } while (0)
 
 // check if two data layouts (types) are equal
@@ -94,7 +106,14 @@ inline bool getBroadcastShape(const uint64_t *shape1, uint64_t ndim1,
 
 // check if the shape of tensor c is valid after broadcasting tensors a and b and also get the broadcasted shapes
 inline bool isValidBroadcastShape(infiniopTensorDescriptor_t a, infiniopTensorDescriptor_t b, infiniopTensorDescriptor_t c,
-                                  uint64_t *broadcast_shape, uint64_t *padded_shape1, uint64_t *padded_shape2, uint64_t broadcast_ndim) {
+                                  uint64_t broadcast_ndim) {
+    std::vector<uint64_t>
+        broadcast_shape_(broadcast_ndim),
+        padded_shape1_(broadcast_ndim),
+        padded_shape2_(broadcast_ndim);
+    auto broadcast_shape = broadcast_shape_.data(),
+         padded_shape1 = padded_shape1_.data(),
+         padded_shape2 = padded_shape2_.data();
     if (broadcast_ndim != c->ndim || !getBroadcastShape(a->shape, a->ndim, b->shape, b->ndim, broadcast_shape, padded_shape1, padded_shape2, broadcast_ndim)) {
         return false;
     }
@@ -106,7 +125,8 @@ inline bool isValidBroadcastShape(infiniopTensorDescriptor_t dst, infiniopTensor
     if (dst->ndim < src->ndim) {
         return false;
     }
-    uint64_t padded_shape[dst->ndim];
+    std::vector<uint64_t> padded_shape_(dst->ndim);
+    auto padded_shape = padded_shape_.data();
     std::fill(padded_shape, padded_shape + dst->ndim, 1);
     std::copy(src->shape, src->shape + src->ndim, padded_shape + dst->ndim - src->ndim);
     for (size_t i = 0; i < dst->ndim; ++i) {
@@ -119,11 +139,7 @@ inline bool isValidBroadcastShape(infiniopTensorDescriptor_t dst, infiniopTensor
 
 // check if the shape of tensor c is valid after broadcasting tensors a and b
 inline bool isValidBroadcastShape(infiniopTensorDescriptor_t a, infiniopTensorDescriptor_t b, infiniopTensorDescriptor_t c) {
-    uint64_t broadcast_ndim = std::max(a->ndim, b->ndim);
-    uint64_t broadcast_shape[broadcast_ndim];
-    uint64_t padded_shape1[broadcast_ndim];
-    uint64_t padded_shape2[broadcast_ndim];
-    return isValidBroadcastShape(a, b, c, broadcast_shape, padded_shape1, padded_shape2, broadcast_ndim);
+    return isValidBroadcastShape(a, b, c, std::max(a->ndim, b->ndim));
 }
 
 inline uint64_t get_byte_size(infiniopTensorDescriptor_t desc) {
@@ -208,7 +224,7 @@ inline infiniopTensorDescriptor_t dim_merge(infiniopTensorDescriptor_t desc, uin
 // split the dimension dim of a tensor descriptor into multiple dimensions
 inline infiniopTensorDescriptor_t dim_split(infiniopTensorDescriptor_t desc, uint64_t dim, const std::vector<uint64_t> &dims) {
     uint64_t ndim = desc->ndim;
-    if (static_cast<int64_t>(desc->shape[dim]) != std::accumulate(dims.begin(), dims.end(), 1, std::multiplies<uint64_t>())) {
+    if (desc->shape[dim] != std::accumulate(dims.begin(), dims.end(), (uint64_t)1, std::multiplies{})) {
         return nullptr;
     }
     uint64_t new_ndim = ndim + dims.size() - 1;

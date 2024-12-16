@@ -25,7 +25,7 @@ infiniopStatus_t cudaCreateConvDescriptor(CudaHandle_t handle,
         return STATUS_BAD_TENSOR_DTYPE;
     }
 
-    const auto new_ndim = std::max(4UL, ndim);
+    const uint64_t new_ndim = std::max(ndim, (uint64_t)4);
     // convert pads, strides, dilations into int32[]
     int32_t *pad = new int32_t[new_ndim];
     int32_t *stride = new int32_t[new_ndim];
@@ -87,11 +87,11 @@ infiniopStatus_t cudaCreateConvDescriptor(CudaHandle_t handle,
 
     // create and set tensor descriptors for y
     cudnnTensorDescriptor_t y_desc;
-    int outDim[new_ndim];
+    std::vector<int> outDim_(new_ndim);
+    auto outDim = outDim_.data();
     checkCudnnError(cudnnGetConvolutionNdForwardOutputDim(op_desc, x_desc, w_desc, new_ndim, outDim));
     checkCudnnError(cudnnCreateTensorDescriptor(&y_desc));
     checkCudnnError(cudnnSetTensorNdDescriptorEx(y_desc, CUDNN_TENSOR_NCHW, static_cast<cudnnDataType_t>(tensor_dt), new_ndim, y_shape));
-
 
     // tuning: get the best algorithm
     int requestedAlgoCount = 1;
@@ -101,7 +101,8 @@ infiniopStatus_t cudaCreateConvDescriptor(CudaHandle_t handle,
     int chosenAlgoIndex = 0;
     bool chosen = false;
     size_t workspace_size = 0;
-    cudnnConvolutionFwdAlgoPerf_t perf_results[requestedAlgoCount];
+    std::vector<cudnnConvolutionFwdAlgoPerf_t> perf_results_(requestedAlgoCount);
+    auto perf_results = perf_results_.data();
     checkCudnnError(use_cudnn(handle->cudnn_handles_t, handle->device_id, nullptr,
                               [&](cudnnHandle_t handle) { return cudnnFindConvolutionForwardAlgorithm(handle, x_desc, w_desc, op_desc, y_desc, requestedAlgoCount, &algoCounts, perf_results); }));
     if (algoCounts < 1) {

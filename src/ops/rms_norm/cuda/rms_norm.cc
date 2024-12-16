@@ -1,12 +1,12 @@
 #include "rms_norm.cuh"
-#include "../../utils.h"
 #include "../../../devices/cuda/common_cuda.h"
+#include "../../utils.h"
 
 infiniopStatus_t cudaCreateRMSNormDescriptor(CudaHandle_t handle, RMSNormCudaDescriptor_t *desc_ptr,
-                                    infiniopTensorDescriptor_t y_desc,
-                                    infiniopTensorDescriptor_t x_desc,
-                                    infiniopTensorDescriptor_t w_desc,
-                                    float epsilon) {
+                                             infiniopTensorDescriptor_t y_desc,
+                                             infiniopTensorDescriptor_t x_desc,
+                                             infiniopTensorDescriptor_t w_desc,
+                                             float epsilon) {
     if (y_desc->ndim != 2 || x_desc->ndim != 2 || w_desc->ndim != 1) {
         return STATUS_BAD_TENSOR_SHAPE;
     }
@@ -18,8 +18,8 @@ infiniopStatus_t cudaCreateRMSNormDescriptor(CudaHandle_t handle, RMSNormCudaDes
         return STATUS_BAD_TENSOR_SHAPE;
     }
 
-    unsigned long int stride_y = y_desc->strides[0];
-    unsigned long int stride_x = x_desc->strides[0];
+    int64_t stride_y = y_desc->strides[0];
+    int64_t stride_x = x_desc->strides[0];
     auto w_datatype = w_desc->dt;
     *desc_ptr = new RMSNormCudaDescriptor{
         handle->device,
@@ -35,7 +35,7 @@ infiniopStatus_t cudaCreateRMSNormDescriptor(CudaHandle_t handle, RMSNormCudaDes
     return STATUS_SUCCESS;
 }
 
-infiniopStatus_t cudaGetRMSNormWorkspaceSize(RMSNormCudaDescriptor_t desc, unsigned long int *size) {
+infiniopStatus_t cudaGetRMSNormWorkspaceSize(RMSNormCudaDescriptor_t desc, uint64_t *size) {
     *size = 0;
     return STATUS_SUCCESS;
 }

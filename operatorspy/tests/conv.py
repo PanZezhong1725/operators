@@ -116,7 +116,6 @@ def test(
             _ = conv(x, w, strides, pads, dilations)
         elapsed = (time.time() - start_time) / NUM_ITERATIONS
         print(f"pytorch time: {elapsed :6f}")
-    
 
     x_tensor = to_tensor(x, lib)
     w_tensor = to_tensor(w, lib)
@@ -144,18 +143,7 @@ def test(
     workspace_ptr = ctypes.cast(workspace.data_ptr(), ctypes.POINTER(ctypes.c_uint8))
 
     for i in range(NUM_PRERUN if PROFILE else 1):
-        lib.infiniopConv(
-            descriptor,
-            workspace_ptr,
-            workspaceSize,
-            y_tensor.data,
-            x_tensor.data,
-            w_tensor.data,
-            None,
-        )
-    if PROFILE:
-        start_time = time.time()
-        for i in range(NUM_ITERATIONS):
+        check_error(
             lib.infiniopConv(
                 descriptor,
                 workspace_ptr,
@@ -165,9 +153,24 @@ def test(
                 w_tensor.data,
                 None,
             )
+        )
+    if PROFILE:
+        start_time = time.time()
+        for i in range(NUM_ITERATIONS):
+            check_error(
+                lib.infiniopConv(
+                    descriptor,
+                    workspace_ptr,
+                    workspaceSize,
+                    y_tensor.data,
+                    x_tensor.data,
+                    w_tensor.data,
+                    None,
+                )
+            )
         elapsed = (time.time() - start_time) / NUM_ITERATIONS
         print(f"    lib time: {elapsed :6f}")
-    
+
     if (tensor_dtype == torch.float16):
         assert torch.allclose(y, ans, atol=0, rtol=1e-2)
     else:

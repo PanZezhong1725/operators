@@ -9,6 +9,7 @@ typedef struct DataLayout {
         mantissa : 8,
         exponent : 8;
 
+#ifdef __cplusplus
     bool operator==(const DataLayout &other) const {
         union TypePun {
             DataLayout layout;
@@ -24,12 +25,13 @@ typedef struct DataLayout {
     bool operator!=(const DataLayout &other) const {
         return !(*this == other);
     }
+#endif
 } DataLayout;
 
 typedef struct DataLayout DT;
 
 // clang-format off
-constexpr static struct DataLayout
+const static struct DataLayout
     I8   = {1, 1, 1,  7,  0},
     I16  = {1, 1, 2, 15,  0},
     I32  = {1, 1, 4, 31,  0},

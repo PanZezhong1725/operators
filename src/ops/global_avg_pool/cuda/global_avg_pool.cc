@@ -82,13 +82,13 @@ infiniopStatus_t cudaCreateGlobalAvgPoolDescriptor(CudaHandle_t handle,
         };
 
     } else if (x->ndim <= 5) {
-        int x_shape[ndim];
-        int x_strides[ndim];
-        int y_shape[ndim];
-        int y_strides[ndim];
-        int k_shape[ndim - 2];
-        int pads[ndim - 2];
-        int strides[ndim - 2];
+        std::vector<int> x_shape(ndim);
+        std::vector<int> x_strides(ndim);
+        std::vector<int> y_shape(ndim);
+        std::vector<int> y_strides(ndim);
+        std::vector<int> k_shape(ndim - 2);
+        std::vector<int> pads(ndim - 2);
+        std::vector<int> strides(ndim - 2);
 
 #pragma omp parallel for
         for (size_t i = 0; i < ndim; ++i) {
@@ -109,7 +109,7 @@ infiniopStatus_t cudaCreateGlobalAvgPoolDescriptor(CudaHandle_t handle,
         // create and set tensor descriptors for x
         cudnnTensorDescriptor_t x_desc;
         checkCudnnError(cudnnCreateTensorDescriptor(&x_desc));
-        checkCudnnError(cudnnSetTensorNdDescriptor(x_desc, static_cast<cudnnDataType_t>(tensor_dt), ndim, x_shape, x_strides));
+        checkCudnnError(cudnnSetTensorNdDescriptor(x_desc, static_cast<cudnnDataType_t>(tensor_dt), ndim, x_shape.data(), x_strides.data()));
 
         // Create and set pooling descriptor for average pooling
         cudnnPoolingDescriptor_t pool_desc;
@@ -118,14 +118,14 @@ infiniopStatus_t cudaCreateGlobalAvgPoolDescriptor(CudaHandle_t handle,
                                                     CUDNN_POOLING_AVERAGE_COUNT_INCLUDE_PADDING,
                                                     CUDNN_NOT_PROPAGATE_NAN,
                                                     ndim - 2,
-                                                    k_shape,
-                                                    pads,
-                                                    strides));
+                                                    k_shape.data(),
+                                                    pads.data(),
+                                                    strides.data()));
         // create and set tensor descriptors for y
         cudnnTensorDescriptor_t y_desc;
         checkCudnnError(cudnnCreateTensorDescriptor(&y_desc));
-        checkCudnnError(cudnnGetPoolingNdForwardOutputDim(pool_desc, x_desc, ndim, y_shape));
-        checkCudnnError(cudnnSetTensorNdDescriptor(y_desc, static_cast<cudnnDataType_t>(tensor_dt), ndim, y_shape, y_strides));
+        checkCudnnError(cudnnGetPoolingNdForwardOutputDim(pool_desc, x_desc, ndim, y_shape.data()));
+        checkCudnnError(cudnnSetTensorNdDescriptor(y_desc, static_cast<cudnnDataType_t>(tensor_dt), ndim, y_shape.data(), y_strides.data()));
 
         float alpha = 1.0f, beta = 0.0f;
 

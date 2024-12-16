@@ -24,7 +24,7 @@ infiniopStatus_t cudaCreateRoPEDescriptor(CudaHandle_t handle,
                                           infiniopTensorDescriptor_t sin_table,
                                           infiniopTensorDescriptor_t cos_table);
 
-infiniopStatus_t cudaGetRoPEWorkspaceSize(RoPECudaDescriptor_t desc, unsigned long int *size);
+infiniopStatus_t cudaGetRoPEWorkspaceSize(RoPECudaDescriptor_t desc, uint64_t *size);
 
 infiniopStatus_t cudaRoPE(RoPECudaDescriptor_t desc,
                           void *workspace,

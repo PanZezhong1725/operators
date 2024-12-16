@@ -91,7 +91,6 @@ def test(
             _ = gemm(a, b, c, transA, transB, alpha, beta, dtype)
         elapsed = (time.time() - start_time) / NUM_ITERATIONS
         print(f"pytorch time: {elapsed :6f}")
-    
 
     a_tensor = to_tensor(a, lib)
     b_tensor = to_tensor(b, lib)
@@ -140,15 +139,17 @@ def test(
     if PROFILE:
         start_time = time.time()
         for i in range(NUM_ITERATIONS):
-            lib.infiniopGEMM(
-                descriptor,
-                workspace_ptr,
-                workspace_size,
-                y_tensor.data,
-                a_tensor.data,
-                b_tensor.data,
-                c_tensor.data if c_tensor else None,
-                None,
+            check_error(
+                lib.infiniopGEMM(
+                    descriptor,
+                    workspace_ptr,
+                    workspace_size,
+                    y_tensor.data,
+                    a_tensor.data,
+                    b_tensor.data,
+                    c_tensor.data if c_tensor else None,
+                    None,
+                )
             )
         elapsed = (time.time() - start_time) / NUM_ITERATIONS
         print(f"    lib time: {elapsed :6f}")

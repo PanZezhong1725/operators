@@ -56,8 +56,9 @@ def test(
             handle, ctypes.byref(descriptor), y_tensor.descriptor, x_tensor.descriptor
         )
     )
-    lib.infiniopRearrange(descriptor, y_tensor.data, x_tensor.data, None)
-    
+    check_error(
+        lib.infiniopRearrange(descriptor, y_tensor.data, x_tensor.data, None)
+    )
     assert torch.allclose(x, y, atol=0, rtol=1e-3)
     print("Test passed!")
     check_error(lib.infiniopDestroyRearrangeDescriptor(descriptor))
@@ -91,7 +92,7 @@ def test_bang(lib, test_cases):
         y_shape, y_stride = test_case[1]
         test(lib, handle, "mlu", x_shape, x_stride, y_shape, y_stride)
     destroy_handle(lib, handle)
-    
+
 def test_ascend(lib, test_cases):
     import torch_npu
 
@@ -114,7 +115,15 @@ def test_ilu(lib, test_cases):
 
 if __name__ == "__main__":
     args = get_args()
-    test_cases = [(((2, 4, 32), None), ((2, 4, 32), (256, 64, 1)))]
+    test_cases = [
+        # ((src_shape, src_stride), (dst_shape, dst_stride))
+        (((2, 4, 32), None), ((2, 4, 32), (256, 64, 1))),
+        (((32, 6, 64), (64, 2560, 1)), ((32, 6, 64), None)),
+        (((4, 6, 64), (64, 2560, 1)), ((4, 6, 64), (131072, 64, 1))),
+        (((1, 32, 64), (2048, 64, 1)), ((1, 32, 64), (2048, 64, 1))),
+        (((32, 1, 64), (64, 2560, 1)), ((32, 1, 64), (64, 64, 1))),
+        (((4, 1, 64), (64, 2560, 1)), ((4, 1, 64), (64, 11264, 1))),
+        ]
     lib = open_lib()
     lib.infiniopCreateRearrangeDescriptor.restype = c_int32
     lib.infiniopCreateRearrangeDescriptor.argtypes = [

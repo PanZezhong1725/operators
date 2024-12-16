@@ -6,7 +6,6 @@
 #include "device.h"
 #include "status.h"
 #include <cublas_v2.h>
-#include <cuda_runtime.h>
 #include <cudnn.h>
 #include <memory>
 

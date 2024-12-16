@@ -1,4 +1,8 @@
 add_rules("mode.debug", "mode.release")
+-- Define color codes
+local GREEN = '\27[0;32m'
+local YELLOW = '\27[1;33m'
+local NC = '\27[0m'  -- No Color
 
 add_includedirs("include")
 
@@ -72,6 +76,15 @@ end
 if has_config("nv-gpu") then
 
     add_defines("ENABLE_NV_GPU")
+    local CUDA_ROOT = os.getenv("CUDA_ROOT") or os.getenv("CUDA_HOME") or os.getenv("CUDA_PATH")
+    local CUDNN_ROOT = os.getenv("CUDNN_ROOT") or os.getenv("CUDNN_HOME") or os.getenv("CUDNN_PATH")
+    if CUDA_ROOT ~= nil then
+        add_includedirs(CUDA_ROOT .. "/include")
+    end
+    if CUDNN_ROOT ~= nil then
+        add_includedirs(CUDNN_ROOT .. "/include")
+    end
+
     target("nv-gpu")
         set_kind("static")
         on_install(function (target) end)
@@ -84,6 +97,9 @@ if has_config("nv-gpu") then
 
         if is_plat("windows") then
             add_cuflags("-Xcompiler=/utf-8", "--expt-relaxed-constexpr", "--allow-unsupported-compiler")
+            if CUDNN_ROOT ~= nil then
+                add_linkdirs(CUDNN_ROOT .. "\\lib\\x64")
+            end
         else
             add_cuflags("-Xcompiler=-fPIC")
             add_culdflags("-Xcompiler=-fPIC")
@@ -123,7 +139,7 @@ if has_config("cambricon-mlu") then
 
             local includedirs = table.concat(target:get("includedirs"), " ")
             local args = {"-c", sourcefile, "-o", objectfile, "-I/usr/local/neuware/include", "--bang-mlu-arch=mtp_592", "-O3", "-fPIC", "-Wall", "-Werror", "-std=c++17", "-pthread"}
-            
+
             for _, includedir in ipairs(target:get("includedirs")) do
                 table.insert(args, "-I" .. includedir)
             end
@@ -132,8 +148,7 @@ if has_config("cambricon-mlu") then
             table.insert(target:objectfiles(), objectfile)
         end)
 
-rule_end()
-
+    rule_end()
 
     target("cambricon-mlu")
         set_kind("static")
@@ -159,7 +174,7 @@ if has_config("ascend-npu") then
     add_links("libascendcl.so")
     add_links("libnnopbase.so")
     add_links("libopapi.so")
-    add_links("libruntime.so")  
+    add_links("libruntime.so")
     add_linkdirs(ASCEND_HOME .. "/../../driver/lib64/driver")
     add_links("libascend_hal.so")
     local builddir = string.format(
@@ -176,7 +191,7 @@ if has_config("ascend-npu") then
             os.exec("make")
             os.exec("cp $(projectdir)/src/devices/ascend/build/lib/libascend_kernels.a "..builddir.."/")
             os.cd(os.projectdir())
-            
+
         end)
         after_clean(function ()
             local ascend_build_dir = path.join(os.projectdir(), "src/devices/ascend")
@@ -184,9 +199,9 @@ if has_config("ascend-npu") then
             os.exec("make clean")
             os.cd(os.projectdir())
             os.rm(builddir.. "/libascend_kernels.a")
-            
+
         end)
-        rule_end()
+    rule_end()
 
     target("ascend-npu")
         -- Other configs
@@ -197,7 +212,7 @@ if has_config("ascend-npu") then
         add_files("src/devices/ascend/*.cc", "src/ops/*/ascend/*.cc")
         add_cxflags("-lstdc++ -Wall -Werror -fPIC")
 
-        -- Add operator 
+        -- Add operator
         add_rules("ascend-kernels")
         add_links(builddir.."/libascend_kernels.a")
 
@@ -263,50 +278,10 @@ target("infiniop")
     add_files("src/devices/handle.cc")
     add_files("src/ops/*/operator.cc")
     add_files("src/tensor/*.cc")
+    after_build(function (target) print(YELLOW .. "You can install the libraries with \"xmake install\"" .. NC) end)
 
-    after_build(function (target) 
-        local builddir = string.format(
-            "%s/build/%s/%s/%s",
-            os.projectdir(),
-            get_config("plat"),
-            get_config("arch"),
-            get_config("mode")
-        )
-
-        os.exec("mkdir -p $(projectdir)/lib/")
-        os.exec("cp " ..builddir.. "/libinfiniop.so $(projectdir)/lib/")
-        os.exec("cp -r $(projectdir)/include $(projectdir)/lib/")
-        -- Define color codes
-        local GREEN = '\27[0;32m'
-        local YELLOW = '\27[1;33m'
-        local NC = '\27[0m'  -- No Color
-
-        -- Get the current directory
-        local current_dir = os.curdir()
-
-        -- Output messages with colors
-        os.exec("echo -e '" .. GREEN .. "Compilation completed successfully." .. NC .. "'")
-        os.exec("echo -e '" .. YELLOW .. "Install the libraries with \"xmake install\" or set INFINI_ROOT=" .. current_dir .. NC .. "'")
-    end)
-    
-    on_install(function (target) 
-        local home_dir = os.getenv("HOME")
-        local infini_dir = home_dir .. "/.infini/"
-
-        if os.isdir(infini_dir) then
-            print("~/.infini/ detected, duplicated contents will be overwritten.")
-        else
-            os.mkdir(infini_dir)
-        end
-        os.exec("cp -r " .. "$(projectdir)/lib " .. infini_dir)
-
-        local GREEN = '\27[0;32m'
-        local YELLOW = '\27[1;33m'
-        local NC = '\27[0m'  -- No Color
-        os.exec("echo -e '" .. GREEN .. "Installation completed successfully at ~/.infini/." .. NC .. "'")
-        os.exec("echo -e '" .. YELLOW .. "To set the environment variables, please run the following command:" .. NC .. "'")
-        os.exec("echo -e '" .. YELLOW .. "echo \"export INFINI_ROOT=~/.infini/\" >> ~/.bashrc" .. NC .. "'")
-        os.exec("echo -e '" .. YELLOW .. "echo \"export LD_LIBRARY_PATH=:~/.infini/lib:$LD_LIBRARY_PATH\" >> ~/.bashrc" .. NC .. "'")
-    end)
+    set_installdir(os.getenv("INFINI_ROOT") or (os.getenv(is_host("windows") and "HOMEPATH" or "HOME") .. "/.infini"))
+    add_installfiles("include/(**/*.h)", {prefixdir = "include"})
+    add_installfiles("include/*.h", {prefixdir = "include"})
 
 target_end()

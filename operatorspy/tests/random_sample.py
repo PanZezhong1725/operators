@@ -99,7 +99,7 @@ def test(lib, handle, torch_device, voc, random_val, topp, topk, temperature, x_
         indices = torch.zeros([1], dtype = torch.uint64).to(torch_device)
     x_tensor = to_tensor(data, lib)
     indices_tensor = to_tensor(indices, lib)
-    if(torch_device == 'mlu'):
+    if(torch_device != 'cuda'):
         indices_tensor.descriptor.contents.dt = U64 # treat int64 as uint64
     
     

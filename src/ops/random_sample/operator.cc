@@ -14,6 +14,9 @@
 #ifdef ENABLE_ASCEND_NPU
 #include "ascend/random_sample.h"
 #endif
+#ifdef ENABLE_ILU_BI
+#include "iluvatar/random_sample.cuh"
+#endif
 
 __C infiniopStatus_t infiniopCreateRandomSampleDescriptor(infiniopHandle_t handle, infiniopRandomSampleDescriptor_t *desc_ptr, infiniopTensorDescriptor_t result, infiniopTensorDescriptor_t probs) {
     switch (handle->device) {
@@ -35,8 +38,12 @@ __C infiniopStatus_t infiniopCreateRandomSampleDescriptor(infiniopHandle_t handl
 #ifdef ENABLE_ASCEND_NPU
         case DevAscendNpu: {
             return ascendCreateRandomSampleDescriptor((AscendHandle_t) handle,
-                                                     (RandomSampleAscendDescriptor_t *) desc_ptr, result, probs);
+                                                      (RandomSampleAscendDescriptor_t *) desc_ptr, result, probs);
         }
+#endif
+#ifdef ENABLE_ILU_BI
+        case DevIluvatarBi:
+            return cudaCreateRandomSampleDescriptor((IluHandle_t) handle, (RandomSampleCudaDescriptor_t *) desc_ptr, result, probs);
 #endif
     }
     return STATUS_BAD_DEVICE;
@@ -63,6 +70,11 @@ __C infiniopStatus_t infiniopGetRandomSampleWorkspaceSize(infiniopRandomSampleDe
 #ifdef ENABLE_ASCEND_NPU
         case DevAscendNpu: {
             return ascendGetRandomSampleWorkspaceSize((RandomSampleAscendDescriptor_t) desc, size);
+        }
+#endif
+#ifdef ENABLE_ILU_BI
+        case DevIluvatarBi: {
+            return cudaGetRandomSampleWorkspaceSize((RandomSampleCudaDescriptor_t) desc, size);
         }
 #endif
     }
@@ -98,6 +110,10 @@ __C infiniopStatus_t infiniopRandomSample(infiniopRandomSampleDescriptor_t desc,
             return ascendRandomSample((RandomSampleAscendDescriptor_t) desc, workspace, workspace_size, result, probs, random_val, topp, topk, temperature, stream);
         }
 #endif
+#ifdef ENABLE_ILU_BI
+        case DevIluvatarBi:
+            return cudaRandomSample((RandomSampleCudaDescriptor_t) desc, workspace, workspace_size, result, probs, random_val, topp, topk, temperature, stream);
+#endif
     }
     return STATUS_BAD_DEVICE;
 }
@@ -121,6 +137,10 @@ __C infiniopStatus_t infiniopDestroyRandomSampleDescriptor(infiniopRandomSampleD
         case DevAscendNpu: {
             return ascendDestroyRandomSampleDescriptor((RandomSampleAscendDescriptor_t) desc);
         }
+#endif
+#ifdef ENABLE_ILU_BI
+        case DevIluvatarBi:
+            return cudaDestroyRandomSampleDescriptor((RandomSampleCudaDescriptor_t) desc);
 #endif
     }
     return STATUS_BAD_DEVICE;

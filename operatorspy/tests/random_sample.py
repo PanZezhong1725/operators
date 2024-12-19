@@ -93,7 +93,7 @@ def test(lib, handle, torch_device, voc, random_val, topp, topk, temperature, x_
         indices = torch.zeros([1], dtype = torch.int64).to(torch_device)
     else:
         
-        indices = torch.zeros([1], dtype = torch.uint64).to(torch_device)
+        indices = torch.zeros([1], dtype = torch.int64).to(torch_device) #int64
     x_tensor = to_tensor(data, lib)
     indices_tensor = to_tensor(indices, lib)
     if(torch_device == 'mlu' or torch_device == 'npu'):
@@ -170,9 +170,14 @@ def test_ascend(lib, test_cases):
     for (voc, random_val, topp, topk, temperature) in test_cases:
         test(lib, handle, "npu", voc, random_val, topp, topk, temperature)
     destroy_handle(lib, handle) 
+
+def test_ilu(lib, test_cases):
+    device = DeviceEnum.DEVICE_ILU
+    handle = create_handle(lib, device)
+    for (voc, random_val, topp, topk, temperature) in test_cases:
+        test(lib, handle, "cuda", voc, random_val, topp, topk, temperature)
+    destroy_handle(lib, handle)
     
-
-
 if __name__ == "__main__":
     test_cases = [
         # voc, random_val, topp, topk, temperature
@@ -226,6 +231,8 @@ if __name__ == "__main__":
         test_bang(lib, test_cases)
     if args.ascend:
         test_ascend(lib, test_cases)
+    if args.ilu:
+        test_ilu(lib, test_cases)        
     if not (args.cpu or args.cuda or args.bang or args.ascend):
         test_cpu(lib, test_cases)
     print("Test passed!")

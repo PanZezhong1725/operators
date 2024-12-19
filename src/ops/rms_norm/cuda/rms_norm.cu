@@ -158,7 +158,7 @@ void rms_norm_nv_gpu_f16(RMSNormCudaDescriptor_t desc, void *y, void const *x, v
 
 infiniopStatus_t cudaRMSNorm(RMSNormCudaDescriptor_t desc,
                              void *workspace,
-                             unsigned long int workspace_size,
+                             uint64_t workspace_size,
                              void *y, void const *x, void const *w,
                              void *stream) {
     if (cudaSetDevice(desc->device_id) != cudaSuccess) {

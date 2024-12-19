@@ -29,7 +29,7 @@ infiniopStatus_t cudaGetRMSNormWorkspaceSize(RMSNormCudaDescriptor_t desc, uint6
 
 infiniopStatus_t cudaRMSNorm(RMSNormCudaDescriptor_t desc,
                              void *workspace,
-                             unsigned long int workspace_size,
+                             uint64_t workspace_size,
                              void *y, void const *x, void const *w,
                              void *stream);
 

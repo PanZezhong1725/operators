@@ -25,7 +25,7 @@ infiniopStatus_t bangGetCausalSoftmaxWorkspaceSize(CausalSoftmaxBangDescriptor_t
 
 infiniopStatus_t bangCausalSoftmax(CausalSoftmaxBangDescriptor_t desc,
                                    void *workspace,
-                                   unsigned long int workspace_size,
+                                   uint64_t workspace_size,
                                    void *data,
                                    void *stream);
 

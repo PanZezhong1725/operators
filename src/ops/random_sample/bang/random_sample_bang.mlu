@@ -24,9 +24,9 @@ __mlu_global__ void random_sampleX(T const *source, uint64_t *indices, uint64_t 
     char *nram_bufferInd = nram_buffer + (2 * maxNum + wSize + taskDim * topk) * sizeof(T);
     uint64_t *srcInd = (uint64_t *)nram_bufferInd;//[maxNum],必须要求maxNum >= max{step, topk}
     uint64_t *indGlobal = srcInd + maxNum;//[taskDim * topk]
-    
+
     __sync_all();
-    
+
     T *src = (T *)nram_buffer;//[maxNum],必须要求maxNum >= max{step, topk}
     T *destSum = src + maxNum;//[maxNum]
     T *destSumFinal = destSum + maxNum;//[wSize]
@@ -36,14 +36,14 @@ __mlu_global__ void random_sampleX(T const *source, uint64_t *indices, uint64_t 
     __bang_write_zero(destSumFinal, wSize);
 
     __memcpy(srcInd, indGdram, voc * sizeof(uint64_t), GDRAM2NRAM);
-    
+
     if(step){
         for(int i = 0; i < step; i++){
             srcInd[i] = indStart + i;
         }
         __memcpy(src, source + indStart, step * sizeof(T), GDRAM2NRAM);
         if(step >= topk){
-            for(int i = 0; i < topk; i++){  
+            for(int i = 0; i < topk; i++){
                 for(int j = i + 1; j < step; j++){
                     if(src[i] < src[j]){
                         T tmp = src[i];
@@ -102,9 +102,9 @@ __mlu_global__ void random_sampleX(T const *source, uint64_t *indices, uint64_t 
         for(int strip = segNum/2; strip > 0; strip = strip / 2){//segNum要求是2的幂次即maxNum必须选取2的幂次
             for(int i = 0; i < strip ; i++){
                 __bang_add(destSum + i * wSize, destSum + i * wSize, destSum + (i + strip) * wSize, wSize);
-            } 
+            }
         }
-        
+
         __bang_reduce_sum(destSumFinal, destSum, wSize);
     }
     else{
@@ -116,27 +116,27 @@ __mlu_global__ void random_sampleX(T const *source, uint64_t *indices, uint64_t 
         destSumFinal[0] = destSumFinal[0] - (maxNum - step);//把上面多加的(maxNum - step)减掉
     }
     globalSum[0] = 0.0;
-    
+
     __sync_all();
     __bang_atomic_add(destSumFinal, globalSum, destSumFinal, 1);//globalSum[0]必须初始化为0
-    
+
     T globalSumInv = 1.0 / globalSum[0];//计算出全局数值和
-    
+
     if(taskId == 0){
         __memcpy(srcGlobal, globalTopk, topk * sizeof(T), GDRAM2NRAM);//前topk个元素就是前k个最大值
-        
+
 
         __bang_sub_scalar(srcGlobal, srcGlobal, globalM, topk);
         __bang_mul_scalar(srcGlobal, srcGlobal, temInv, topk);
         __bang_active_exp_less_0(srcGlobal, srcGlobal, topk);
         __bang_mul_scalar(srcGlobal, srcGlobal, globalSumInv, topk);
-        
+
         __bang_write_zero(destSum, 2 * topk);
         destSum[0] = srcGlobal[0];
         for(int i = 1; i < topk; i++){
             destSum[i] = destSum[i - 1] + srcGlobal[i];
         }
-        
+
         int end = 0;
         for(end = 0; end < topk; end++){
             if(destSum[end] >= static_cast<T>(topp)){
@@ -149,7 +149,7 @@ __mlu_global__ void random_sampleX(T const *source, uint64_t *indices, uint64_t 
         else{
             end = topk;
         }
-        
+
         random_val *= destSum[end - 1];
         for(int i = 0; i < end; i++){
             if(random_val < destSum[i]){
@@ -164,7 +164,7 @@ __mlu_global__ void random_sampleX(T const *source, uint64_t *indices, uint64_t 
 template <typename T>
 __mlu_global__ void random_sampleD(T const *source, uint64_t *indices, uint64_t *indGdram, T *globalTopk, T *globalSum, float random_val, float topp, int topk, float temperature, int voc){
     const int maxNum = SRC_MAX_SIZE/sizeof(T);
-    
+
     int wSize = 128 / sizeof(T);
     int segNum = maxNum / wSize;
 
@@ -178,7 +178,7 @@ __mlu_global__ void random_sampleD(T const *source, uint64_t *indices, uint64_t 
     int stepHard = stepEasy + 1;
     int step = (taskId < remainT ? stepHard : stepEasy);
     int indStart = (taskId < remainT ? taskId * stepHard : remainT * stepHard + (taskId - remainT) * stepEasy);
-    
+
     char *nram_bufferInd = nram_buffer + (2 * maxNum + wSize + 2 * topk + taskDim * topk) * sizeof(T);
     uint64_t *srcInd = (uint64_t *)nram_bufferInd;//[maxNum]
     uint64_t *topkInd = srcInd + maxNum;//[2 * topk]
@@ -196,7 +196,7 @@ __mlu_global__ void random_sampleD(T const *source, uint64_t *indices, uint64_t 
             srcInd[j] = r * taskSize + taskId * maxNum + j;
         }
         __memcpy(src, source + r * taskSize + taskId * maxNum, maxNum * sizeof(T), GDRAM2NRAM);
-        for(int i = 0; i < topk; i++){  
+        for(int i = 0; i < topk; i++){
             for(int j = i + 1; j < maxNum; j++){
                 if(src[i] < src[j]){
                     T tmp = src[i];
@@ -230,17 +230,17 @@ __mlu_global__ void random_sampleD(T const *source, uint64_t *indices, uint64_t 
                 }
             }
         }
-        
-        
+
+
     }
-    
+
     if(step){
         for(int j = 0; j < step; j++){
             srcInd[j] = repeat * taskSize + indStart + j;
         }
         __memcpy(src, source + repeat * taskSize + indStart, step * sizeof(T), GDRAM2NRAM);
         if(step >= topk){
-            for(int i = 0; i < topk; i++){  
+            for(int i = 0; i < topk; i++){
                 for(int j = i + 1; j < step; j++){
                     if(src[i] < src[j]){
                         T tmp = src[i];
@@ -289,11 +289,11 @@ __mlu_global__ void random_sampleD(T const *source, uint64_t *indices, uint64_t 
             }
         }
     }
-    
+
     __memcpy(globalTopk + taskId * topk, srcTopk, topk * sizeof(T), NRAM2GDRAM);
     __memcpy(indGdram + taskId * topk, topkInd, topk * sizeof(uint64_t), NRAM2GDRAM);
     __sync_all();
-    
+
     if(taskId == 0){
         __memcpy(srcGlobal, globalTopk, taskDim * topk * sizeof(T), GDRAM2NRAM);
         __memcpy(indGlobal, indGdram, taskDim * topk * sizeof(uint64_t), GDRAM2NRAM);
@@ -337,44 +337,44 @@ __mlu_global__ void random_sampleD(T const *source, uint64_t *indices, uint64_t 
         for(int strip = segNum/2; strip > 0; strip = strip / 2){//segNum要求是2的幂次即maxNum必须选取2的幂次
             for(int i = 0; i < strip ; i++){
                 __bang_add(destSum + i * wSize, destSum + i * wSize, destSum + (i + strip) * wSize, wSize);
-            } 
+            }
         }
-        
+
         __bang_reduce_sum(destSumFinal, destSum, wSize);
     }
-    
+
     else{
         for(int i = 0; i < maxNum; i++){
-            
+
             destSumFinal[0] += destSum[i];
         }
-        
+
     }
     if(step){
         destSumFinal[0] = destSumFinal[0] - (maxNum - step);//把上面多加的(maxNum - step)减掉
     }
     globalSum[0] = 0.0;
-    
+
     __sync_all();
     __bang_atomic_add(destSumFinal, globalSum, destSumFinal, 1);//globalSum[0]必须初始化为0
-    
+
     T globalSumInv = 1.0 / globalSum[0];//计算出全局数值和
-    
+
     if(taskId == 0){
         __memcpy(srcGlobal, globalTopk, topk * sizeof(T), GDRAM2NRAM);//前topk个元素就是前k个最大值
-        
+
 
         __bang_sub_scalar(srcGlobal, srcGlobal, globalM, topk);
         __bang_mul_scalar(srcGlobal, srcGlobal, temInv, topk);
         __bang_active_exp_less_0(srcGlobal, srcGlobal, topk);
         __bang_mul_scalar(srcGlobal, srcGlobal, globalSumInv, topk);
-        
+
         __bang_write_zero(srcTopk, 2 * topk);
         srcTopk[0] = srcGlobal[0];
         for(int i = 1; i < topk; i++){
             srcTopk[i] = srcTopk[i - 1] + srcGlobal[i];
         }
-        
+
         int end = 0;
         for(end = 0; end < topk; end++){
             if(srcTopk[end] >= static_cast<T>(topp)){
@@ -387,7 +387,7 @@ __mlu_global__ void random_sampleD(T const *source, uint64_t *indices, uint64_t 
         else{
             end = topk;
         }
-        
+
         random_val *= srcTopk[end - 1];
         for(int i = 0; i < end; i++){
             if(random_val < srcTopk[i]){
@@ -415,7 +415,7 @@ __mlu_global__ void random_sample(T const *source, uint64_t *indices, uint64_t *
     T *src = (T *)nram_buffer;
     T *srcMax = src + maxNum;
     uint64_t index = 0;
-    
+
     T newMax = -INFINITY;
     for(uint64_t r = 0; r < repeat; r++){
         __memcpy(src, source + r * taskSize + taskId * maxNum, maxNum * sizeof(T), GDRAM2NRAM);
@@ -424,7 +424,7 @@ __mlu_global__ void random_sample(T const *source, uint64_t *indices, uint64_t *
             newMax = srcMax[0];
             index = r * taskSize + taskId * maxNum + *((int64_t*)&srcMax[1]);
         }
-        
+
     }
     if(step){
         __bang_write_value(src, maxNum, -INFINITY);
@@ -434,9 +434,9 @@ __mlu_global__ void random_sample(T const *source, uint64_t *indices, uint64_t *
             newMax = srcMax[0];
             index = indStart + *((int64_t*)&srcMax[1]);
         }
-        
+
     }
-    
+
     indGdram[taskId] = index;
     __sync_all();
     if(taskId == 0){
@@ -462,7 +462,7 @@ void random_sampleUnion(cnrtQueue_t queue, void *workspace, void const *source, 
     k_dim.y = 1;
     k_dim.z = 1;
     k_type = CNRT_FUNC_TYPE_UNION1;
-    
+
     int taskNum = k_dim.x * k_dim.y * k_dim.z;
     if(topp > 0 && topk > 1){
         const int maxNum = SRC_MAX_SIZE/sizeof(T);
@@ -471,7 +471,7 @@ void random_sampleUnion(cnrtQueue_t queue, void *workspace, void const *source, 
         uint64_t *indGdram = (uint64_t *)origin;
         T *globalTopk = (T *)indTmp;
         T *globalSum = globalTopk + taskNum * topk;
-        
+
         if(voc >= taskNum * maxNum){
             random_sampleD<T><<<k_dim, k_type, queue>>>(logits_, index_, indGdram, globalTopk, globalSum, random_val, topp, topk, temperature, voc);
         }
@@ -484,8 +484,8 @@ void random_sampleUnion(cnrtQueue_t queue, void *workspace, void const *source, 
         random_sample<T><<<k_dim, k_type, queue>>>(logits_, index_, indGdram, voc);
     }
     cnrtQueueSync(queue);
-    
-    
+
+
 }
 
 void random_sample_bang_f16(RandomSampleBangDescriptor_t desc, void *workspace, void *result,
@@ -497,12 +497,12 @@ void random_sample_bang_f16(RandomSampleBangDescriptor_t desc, void *workspace, 
                                     void *stream) {
     auto queue = reinterpret_cast<cnrtQueue_t>(stream);
     int voc = desc->voc;
-    
+
     random_sampleUnion<half>(queue, workspace, probs, result, random_val, topp, topk, temperature, voc);
 }
 infiniopStatus_t bangRandomSample(RandomSampleBangDescriptor_t desc,
                                     void *workspace,
-                                    unsigned long int workspace_size,
+                                    uint64_t workspace_size,
                                     void *result,
                                     void const *probs,
                                     float random_val,

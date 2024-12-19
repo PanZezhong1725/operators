@@ -28,7 +28,7 @@ infiniopStatus_t cudaGetRoPEWorkspaceSize(RoPECudaDescriptor_t desc, uint64_t *s
 
 infiniopStatus_t cudaRoPE(RoPECudaDescriptor_t desc,
                           void *workspace,
-                          unsigned long int workspace_size,
+                          uint64_t workspace_size,
                           void *t,
                           void const *pos_ids,
                           void const *sin_table,

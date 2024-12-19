@@ -18,7 +18,7 @@ __mlu_global__ void rms_norm(T *destination, T const *source, float const *weigh
     int indStart = (taskId < remainT ? taskId * stepHard : (taskId - remainT) * stepEasy + remainT * stepHard);
 
     if(dimsize >= maxNum){
-        
+
         char *nram_buffer1 = nram_buffer + (2 * maxNum + 3 * wSize) * sizeof(T);
         T *src = (T *)nram_buffer;//[maxNum]
         T *wet = src + maxNum;//[maxNum]
@@ -43,7 +43,7 @@ __mlu_global__ void rms_norm(T *destination, T const *source, float const *weigh
             for(int s = 0; s < repeat; s++){
                 __memcpy(src, source + inds + s * maxNum, maxNum * sizeof(T), GDRAM2NRAM);
                 __bang_mul(src, src, src, maxNum);//src = src * src
-                
+
                 if(maxNum >= wSize){
                     for(int strip = segNum / 2; strip > 0; strip = strip / 2){
                         for(int j = 0; j < strip; j++){
@@ -111,7 +111,7 @@ __mlu_global__ void rms_norm(T *destination, T const *source, float const *weigh
         __bang_write_zero(srcTmp, wSize);
         float *wetTmp = (float *)nram_buffer1;
 
-        
+
         int segNum = dimS / wSize;
 
         for(int i = indStart; i < indStart + step; i++){
@@ -159,9 +159,9 @@ __mlu_global__ void rms_norm(T *destination, T const *source, T const *weight, i
     int stepHard = stepEasy + 1;
     int step = (taskId < remainT ? stepHard : stepEasy);
     int indStart = (taskId < remainT ? taskId * stepHard : (taskId - remainT) * stepEasy + remainT * stepHard);
-    
+
     if(dimsize >= maxNum){
-        
+
         T *src = (T *)nram_buffer;//[maxNum]
         T *wet = src + maxNum;//[maxNum]
         T *destSumFinal = wet + maxNum;//[wSize]
@@ -184,7 +184,7 @@ __mlu_global__ void rms_norm(T *destination, T const *source, T const *weight, i
             for(int s = 0; s < repeat; s++){
                 __memcpy(src, source + inds + s * maxNum, maxNum * sizeof(T), GDRAM2NRAM);
                 __bang_mul(src, src, src, maxNum);//src = src * src
-                
+
                 if(maxNum >= wSize){
                     for(int strip = segNum / 2; strip > 0; strip = strip / 2){
                         for(int j = 0; j < strip; j++){
@@ -241,14 +241,14 @@ __mlu_global__ void rms_norm(T *destination, T const *source, T const *weight, i
         }
     }
     else{
-        
+
         T *src = (T *)nram_buffer;//[dimsize]
         T *wet = src + dimsize;//[dimsize]
         T *destSumFinal = wet + dimsize;//[wSize]
         T *destSum = destSumFinal + wSize;//[dimS]
         T *srcTmp = destSum + dimS;//[wSize]
 
-        
+
         int segNum = dimS / wSize;
 
         for(int i = indStart; i < indStart + step; i++){
@@ -272,7 +272,7 @@ __mlu_global__ void rms_norm(T *destination, T const *source, T const *weight, i
             else{
                 __memcpy(srcTmp, destSum, dimsize * sizeof(T), NRAM2NRAM);
                 __bang_reduce_sum(destSumFinal, srcTmp, wSize);
-                
+
             }
             destSumFinal[0] /= dimsize;
             destSumFinal[0] += eps;
@@ -309,7 +309,7 @@ void rms_normUnion(cnrtQueue_t queue, T *y, T const *x, Tw const *w, int stride_
 }
 void rms_norm_bang_f16(RMSNormBangDescriptor_t desc, void *y, void const *x, void const *w,
                              void *stream){
-    auto queue = reinterpret_cast<cnrtQueue_t>(stream);                            
+    auto queue = reinterpret_cast<cnrtQueue_t>(stream);
     int n = static_cast<int>(desc->n);
     int d = static_cast<int>(desc->d);
     auto y_ = reinterpret_cast<half *>(y);
@@ -328,11 +328,11 @@ void rms_norm_bang_f16(RMSNormBangDescriptor_t desc, void *y, void const *x, voi
         auto w_ = reinterpret_cast<float const *>(w);
         rms_normUnion<half, float>(queue, y_, x_, w_, stride_y, stride_x, epsilon, n, d);
     }
-    
+
 }
 infiniopStatus_t bangRMSNorm(RMSNormBangDescriptor_t desc,
                              void *workspace,
-                             unsigned long int workspace_size,
+                             uint64_t workspace_size,
                              void *y, void const *x, void const *w,
                              void *stream){
     if (cnrtSetDevice(desc->device_id) != cnrtSuccess) {

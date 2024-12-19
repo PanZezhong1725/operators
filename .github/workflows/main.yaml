@@ -23,6 +23,7 @@ jobs:
 
     - name: Install Python dependencies
       run: |
+        pip install numpy
         pip install torch
 
     - name: Install xmake

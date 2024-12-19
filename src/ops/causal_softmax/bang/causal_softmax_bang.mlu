@@ -787,7 +787,7 @@ void causal_softmax_bang_f16(CausalSoftmaxBangDescriptor_t desc, void *workspace
 
 infiniopStatus_t bangCausalSoftmax(CausalSoftmaxBangDescriptor_t desc,
                                    void *workspace,
-                                   unsigned long int workspace_size,
+                                   uint64_t workspace_size,
                                    void *data,
                                    void *stream) {
     if (cnrtSetDevice(desc->device_id) != cnrtSuccess) {

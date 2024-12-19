@@ -7,7 +7,6 @@ struct RearrangeCpuDescriptor {
     Device device;
     DataLayout dt;
     uint64_t r;
-    uint64_t ndim;
     std::vector<uint64_t> shape;
     std::vector<int64_t> strides_dst;
     std::vector<int64_t> strides_src;

@@ -69,12 +69,11 @@ infiniopStatus_t aclnnCreateMatmulDescriptor(AscendHandle_t handle,
     // aclnnGemm support C = alpha * A @ B + beta * C
     // see https://www.hiascend.com/document/detail/zh/CANNCommunityEdition/80RC3alpha003/apiref/aolapi/context/aclnnGemm.md
     ret = aclnnGemmGetWorkspaceSize(ta, tb, tc, (*desc_ptr)->alpha, (*desc_ptr)->beta, transA, transB, tc,
-                                        (*desc_ptr)->mt, &workspaceSize, &executor);
+                                    (*desc_ptr)->mt, &workspaceSize, &executor);
     CHECK_RET(ret == ACL_SUCCESS,
-            LOG_PRINT("aclnnGemmGetWorkspaceSize failed. ERROR: %d\n", ret);
-            return STATUS_EXECUTION_FAILED);
+              LOG_PRINT("aclnnGemmGetWorkspaceSize failed. ERROR: %d\n", ret);
+              return STATUS_EXECUTION_FAILED);
     aclSetAclOpExecutorRepeatable(executor);
-
 
     return STATUS_SUCCESS;
 }
@@ -109,14 +108,14 @@ infiniopStatus_t aclnnMatmul(MatmulAclnnDescriptor_t desc,
     aclrtSetDevice(desc->device_id);
 
     for (int i = 0; i < batch; i++) {
-        AclSetTensorAddr(executor, 0, ta, (char *)(a) + i * desc->info->a_matrix.stride * desc->dtype.size);
-        AclSetTensorAddr(executor, 1, tb, (char *)(b) + i * desc->info->b_matrix.stride * desc->dtype.size);
-        AclSetTensorAddr(executor, 2, tc, (char *)(c) + i * desc->info->c_matrix.stride * desc->dtype.size);
-        AclSetTensorAddr(executor, 3, tc, (char *)(c) + i * desc->info->c_matrix.stride * desc->dtype.size);
+        AclSetTensorAddr(executor, 0, ta, (char *) (a) + i * desc->info->a_matrix.stride * desc->dtype.size);
+        AclSetTensorAddr(executor, 1, tb, (char *) (b) + i * desc->info->b_matrix.stride * desc->dtype.size);
+        AclSetTensorAddr(executor, 2, tc, (char *) (c) + i * desc->info->c_matrix.stride * desc->dtype.size);
+        AclSetTensorAddr(executor, 3, tc, (char *) (c) + i * desc->info->c_matrix.stride * desc->dtype.size);
         aclnnStatus ret = aclnnGemm(workspace,
-                        workspaceSize,
-                        executor,
-                        stream);
+                                    workspaceSize,
+                                    executor,
+                                    stream);
         CHECK_RET(ret == ACL_SUCCESS,
                   LOG_PRINT("aclnnGemm failed. ERROR: %d\n", ret);
                   return STATUS_EXECUTION_FAILED);

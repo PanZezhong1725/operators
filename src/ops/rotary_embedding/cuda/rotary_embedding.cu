@@ -4,7 +4,7 @@
 
 static __global__ void padding_f16(
     half *__restrict__ x_,
-    unsigned long const *__restrict__ pos_,
+    uint64_t const *__restrict__ pos_,
     float const *__restrict__ sin_,
     float const *__restrict__ cos_,
     long const stride0,
@@ -27,7 +27,7 @@ static __global__ void padding_f16(
 void rotary_embedding_nv_gpu_f16(
     RoPECudaDescriptor_t desc,
     half *t,
-    unsigned long const *pos,
+    uint64_t const *pos,
     float const *sin_, float const *cos_,
     void *stream) {
     auto nt = desc->seq_len,
@@ -44,7 +44,7 @@ void rotary_embedding_nv_gpu_f16(
 
 infiniopStatus_t cudaRoPE(RoPECudaDescriptor_t desc,
                           void *workspace,
-                          unsigned long int workspace_size,
+                          uint64_t workspace_size,
                           void *t,
                           void const *pos_ids,
                           void const *sin_table,
@@ -56,7 +56,7 @@ infiniopStatus_t cudaRoPE(RoPECudaDescriptor_t desc,
     if (dtype_eq(desc->dtype, F16)) {
         rotary_embedding_nv_gpu_f16(desc,
                                     reinterpret_cast<half *>(t),
-                                    reinterpret_cast<unsigned long const *>(pos_ids),
+                                    reinterpret_cast<uint64_t const *>(pos_ids),
                                     reinterpret_cast<float const *>(sin_table),
                                     reinterpret_cast<float const *>(cos_table),
                                     stream);

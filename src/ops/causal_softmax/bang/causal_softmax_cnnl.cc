@@ -52,7 +52,7 @@ infiniopStatus_t cnnlDestroyCausalSoftmaxDescriptor(CausalSoftmaxCnnlDescriptor_
 
 infiniopStatus_t cnnlCausalSoftmax(CausalSoftmaxCnnlDescriptor_t desc,
                                    void *workspace,
-                                   unsigned long int workspace_size,
+                                   uint64_t workspace_size,
                                    void *data,
                                    void *stream) {
     if (cnrtSetDevice(desc->device_id) != cnrtSuccess) {

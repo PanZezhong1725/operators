@@ -11,41 +11,52 @@ infiniopStatus_t cpuCreateRearrangeDescriptor(infiniopHandle_t,
     if (!dtype_eq(dst->dt, src->dt)) {
         return STATUS_BAD_TENSOR_DTYPE;
     }
-    if (dst->ndim != src->ndim || dst->ndim < 2) {
+
+    auto ndim = dst->ndim;
+    if (src->ndim != ndim || ndim == 0) {
         return STATUS_BAD_TENSOR_SHAPE;
     }
-    std::vector<uint64_t> shape;
-    std::vector<int64_t> strides_dst, strides_src;
-    auto ndim = dst->ndim;
     for (int i = 0; i < ndim; ++i) {
         if (dst->shape[i] != src->shape[i]) {
             return STATUS_BAD_TENSOR_SHAPE;
         }
-        shape.push_back(dst->shape[i]);
-        strides_dst.push_back(dst->strides[i]);
-        strides_src.push_back(src->strides[i]);
     }
     if (dst->strides[ndim - 1] != 1 || src->strides[ndim - 1] != 1) {
         return STATUS_BAD_TENSOR_STRIDES;
     }
+
+    std::vector<uint64_t>
+        shape(dst->shape, dst->shape + ndim);
+    std::vector<int64_t>
+        strides_dst(dst->strides, dst->strides + ndim),
+        strides_src(src->strides, src->strides + ndim);
+
     unsigned int r = 0;
-    if (ndim == 2) {
-        r = dst->shape[0];
-    } else if (ndim == 3) {
-        r = dst->shape[0] * dst->shape[1];
-    } else {
-        for (int i = ndim - 3; i >= 1; --i) {
-            if (dst->shape[i] * dst->strides[i] != dst->strides[i - 1] || src->shape[i] * src->strides[i] != src->strides[i - 1]) {
-                return STATUS_BAD_TENSOR_STRIDES;
+    switch (ndim) {
+        case 1:
+            ndim = 2;
+            strides_dst.insert(strides_dst.begin(), shape[0]);
+            strides_src.insert(strides_src.begin(), shape[0]);
+            shape.insert(shape.begin(), 1);
+        case 2:
+            r = shape[0];
+            break;
+        case 3:
+            r = shape[0] * shape[1];
+            break;
+        default:
+            for (int i = ndim - 3; i >= 1; --i) {
+                if (shape[i] * strides_dst[i] != strides_dst[i - 1] || shape[i] * strides_src[i] != strides_src[i - 1]) {
+                    return STATUS_BAD_TENSOR_STRIDES;
+                }
             }
-        }
-        r = std::accumulate(dst->shape, dst->shape + ndim - 1, 1, std::multiplies<unsigned int>());
+            r = std::accumulate(shape.begin(), shape.end() - 1, 1, std::multiplies{});
+            break;
     }
     *desc_ptr = new RearrangeCpuDescriptor{
         DevCpu,
         dst->dt,
         r,
-        ndim,
         shape,
         strides_dst,
         strides_src,
@@ -70,11 +81,12 @@ inline int indices(uint64_t i, uint64_t ndim, std::vector<int64_t> strides, std:
 void reform_cpu(RearrangeCpuDescriptor_t desc, void *dst, void const *src) {
     auto dst_ptr = reinterpret_cast<uint8_t *>(dst);
     auto src_ptr = reinterpret_cast<const uint8_t *>(src);
-    int bytes_size = desc->shape[desc->ndim - 1] * desc->dt.size;
+    auto ndim = desc->shape.size();
+    int bytes_size = desc->shape[ndim - 1] * desc->dt.size;
 #pragma omp parallel for
     for (uint64_t i = 0; i < desc->r; ++i) {
-        auto dst_offset = indices(i, desc->ndim, desc->strides_dst, desc->shape);
-        auto src_offset = indices(i, desc->ndim, desc->strides_src, desc->shape);
+        auto dst_offset = indices(i, ndim, desc->strides_dst, desc->shape);
+        auto src_offset = indices(i, ndim, desc->strides_src, desc->shape);
         std::memcpy(dst_ptr + dst_offset * desc->dt.size, src_ptr + src_offset * desc->dt.size, bytes_size);
     }
 }

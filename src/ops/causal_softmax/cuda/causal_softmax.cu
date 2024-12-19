@@ -218,17 +218,17 @@ __global__ void fused_softmax_standard(
 }
 
 
-void causal_softmax_nv_gpu_f16(CausalSoftmaxCudaDescriptor_t desc, void* y, void *stream) {
-    unsigned long int total_seq_len = desc->total_seq_len;
-    unsigned long int seq_len = desc->seq_len;
-    unsigned long int batch_size = desc->batch_size;
-    unsigned long int stride_x = desc->stride_b;
-    unsigned long int stride_y = desc->stride_i;
-    unsigned long int stride_z = desc->stride_j;// covert byte strides to element strides
+void causal_softmax_nv_gpu_f16(CausalSoftmaxCudaDescriptor_t desc, void *y, void *stream) {
+    uint64_t total_seq_len = desc->total_seq_len;
+    uint64_t seq_len = desc->seq_len;
+    uint64_t batch_size = desc->batch_size;
+    uint64_t stride_x = desc->stride_b;
+    uint64_t stride_y = desc->stride_i;
+    uint64_t stride_z = desc->stride_j;// covert byte strides to element strides
     unsigned int max_items_per_thread = desc->max_items_per_thread;
 
     dim3 grid(batch_size, seq_len);
-    
+
     if (max_items_per_thread == 1) {
         fused_softmax_padding<MAX_THREADS_PER_BLOCK>
             <<<grid, total_seq_len, 0, (cudaStream_t) stream>>>((half *) (y), stride_x, stride_y, stride_z);
@@ -243,13 +243,13 @@ void causal_softmax_nv_gpu_f16(CausalSoftmaxCudaDescriptor_t desc, void* y, void
 
 infiniopStatus_t cudaCausalSoftmax(CausalSoftmaxCudaDescriptor_t desc,
                                    void *workspace,
-                                   unsigned long int workspace_size,
+                                   uint64_t workspace_size,
                                    void *data,
-                                   void *stream){
-    if(cudaSetDevice(desc->device_id) != cudaSuccess){
+                                   void *stream) {
+    if (cudaSetDevice(desc->device_id) != cudaSuccess) {
         return STATUS_BAD_DEVICE;
     }
-    if (dtype_eq(desc->dtype, F16)){
+    if (dtype_eq(desc->dtype, F16)) {
         causal_softmax_nv_gpu_f16(desc, data, stream);
         return STATUS_SUCCESS;
     }

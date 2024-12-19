@@ -16,8 +16,8 @@ infiniopStatus_t bangCreateRMSNormDescriptor(BangHandle_t handle, RMSNormBangDes
         return STATUS_BAD_TENSOR_SHAPE;
     }
 
-    unsigned long int stride_y = y_desc->strides[0];
-    unsigned long int stride_x = x_desc->strides[0];
+    uint64_t stride_y = y_desc->strides[0];
+    uint64_t stride_x = x_desc->strides[0];
     auto w_datatype = w_desc->dt;
     *desc_ptr = new RMSNormBangDescriptor{
         handle->device,

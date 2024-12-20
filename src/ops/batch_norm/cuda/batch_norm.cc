@@ -12,7 +12,7 @@ infiniopStatus_t cudaCreateBatchNormDescriptor(CudaHandle_t handle,
                                                infiniopTensorDescriptor_t var,
                                                double eps) {
     uint64_t ndim = y->ndim;
-    if (ndim != x->ndim || scale->ndim != b->ndim || scale->ndim != mean->ndim || scale->ndim != var->ndim) {
+    if (ndim != x->ndim || scale->ndim != b->ndim || scale->ndim != mean->ndim || scale->ndim != var->ndim || scale->ndim != 1) {
         return STATUS_BAD_TENSOR_SHAPE;
     }
     for (size_t i = 0; i < ndim; ++i) {
@@ -20,10 +20,8 @@ infiniopStatus_t cudaCreateBatchNormDescriptor(CudaHandle_t handle,
             return STATUS_BAD_TENSOR_SHAPE;
         }
     }
-    for (size_t i = 0; i < scale->ndim; ++i) {
-        if (x->shape[1] != scale->shape[i] || scale->shape[i] != b->shape[i] || scale->shape[i] != mean->shape[i] || scale->shape[i] != var->shape[i]) {
-            return STATUS_BAD_TENSOR_SHAPE;
-        }
+    if (x->shape[1] != scale->shape[0] || scale->shape[0] != b->shape[0] || scale->shape[0] != mean->shape[0] || scale->shape[0] != var->shape[0]) {
+        return STATUS_BAD_TENSOR_SHAPE;
     }
     if (!is_contiguous(y) || !is_contiguous(x)) {
         return STATUS_BAD_TENSOR_STRIDES;

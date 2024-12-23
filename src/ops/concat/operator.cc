@@ -10,14 +10,13 @@
 #include "cuda/concat.cuh"
 #endif
 
-// 创建Concat描述符
 __C infiniopStatus_t infiniopCreateConcatDescriptor(
     infiniopHandle_t handle,
     infiniopConcatDescriptor_t *desc_ptr,
     infiniopTensorDescriptor_t y,
     infiniopTensorDescriptor_t *x,
     uint64_t num_inputs,
-    uint64_t axis) {
+    int64_t axis) {
     switch (handle->device) {
 #ifdef ENABLE_CPU
         case DevCpu:
@@ -32,7 +31,7 @@ __C infiniopStatus_t infiniopCreateConcatDescriptor(
     return STATUS_BAD_DEVICE;
 }
 
-// 执行Concat操作
+
 __C infiniopStatus_t infiniopConcat(infiniopConcatDescriptor_t desc, void *y, void const **x, void *stream) {
     switch (desc->device) {
 #ifdef ENABLE_CPU
@@ -48,7 +47,7 @@ __C infiniopStatus_t infiniopConcat(infiniopConcatDescriptor_t desc, void *y, vo
     return STATUS_BAD_DEVICE;
 }
 
-// 销毁Concat描述符
+
 __C infiniopStatus_t infiniopDestroyConcatDescriptor(infiniopConcatDescriptor_t desc) {
     switch (desc->device) {
 #ifdef ENABLE_CPU

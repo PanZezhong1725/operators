@@ -52,11 +52,6 @@ def test(
     )
     
     inputs = [torch.rand(shape, dtype=tensor_dtype).to(torch_device) for shape in input_shapes]
-
-    for idx, tensor in enumerate(inputs):
-        print(f"Input {idx}:")
-        print(tensor)
-        print("-" * 50)  
     
     if inplace == Inplace.OUT_OF_PLACE:
         c = torch.zeros(c_shape, dtype=tensor_dtype).to(torch_device)

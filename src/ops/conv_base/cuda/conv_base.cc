@@ -1,16 +1,16 @@
-#include "conv.cuh"
+#include "conv_base.cuh"
 #include "../../../devices/cuda/common_cuda.h"
 #include "../../utils.h"
 
-infiniopStatus_t cudaCreateConvDescriptor(CudaHandle_t handle,
-                                          ConvCudaDescriptor_t *desc_ptr,
-                                          infiniopTensorDescriptor_t y,
-                                          infiniopTensorDescriptor_t x,
-                                          infiniopTensorDescriptor_t w,
-                                          uint64_t const *pads,
-                                          int64_t const *strides,
-                                          uint64_t const *dilations,
-                                          uint64_t n) {
+infiniopStatus_t cudaCreateConvBaseDescriptor(CudaHandle_t handle,
+                                              ConvBaseCudaDescriptor_t *desc_ptr,
+                                              infiniopTensorDescriptor_t y,
+                                              infiniopTensorDescriptor_t x,
+                                              infiniopTensorDescriptor_t w,
+                                              uint64_t const *pads,
+                                              int64_t const *strides,
+                                              uint64_t const *dilations,
+                                              uint64_t n) {
     uint64_t ndim = y->ndim;
     if (ndim < 3 || ndim != x->ndim || ndim != w->ndim) {
         return STATUS_BAD_TENSOR_SHAPE;
@@ -122,7 +122,7 @@ infiniopStatus_t cudaCreateConvDescriptor(CudaHandle_t handle,
     const float alpha = 1.0f;
     const float beta = 0.0f;
 
-    *desc_ptr = new ConvCudaDescriptor{
+    *desc_ptr = new ConvBaseCudaDescriptor{
         DevNvGpu,
         y->dt,
         handle->device_id,
@@ -146,12 +146,12 @@ infiniopStatus_t cudaCreateConvDescriptor(CudaHandle_t handle,
     return STATUS_SUCCESS;
 }
 
-infiniopStatus_t cudaGetConvWorkspaceSize(ConvCudaDescriptor_t desc, uint64_t *size) {
+infiniopStatus_t cudaGetConvBaseWorkspaceSize(ConvBaseCudaDescriptor_t desc, uint64_t *size) {
     *size = desc->workspace_size;
     return STATUS_SUCCESS;
 }
 
-infiniopStatus_t cudaDestroyConvDescriptor(ConvCudaDescriptor_t desc) {
+infiniopStatus_t cudaDestroyConvBaseDescriptor(ConvBaseCudaDescriptor_t desc) {
     checkCudnnError(cudnnDestroyConvolutionDescriptor(desc->op_desc));
     checkCudnnError(cudnnDestroyTensorDescriptor(desc->y_desc));
     checkCudnnError(cudnnDestroyFilterDescriptor(desc->w_desc));

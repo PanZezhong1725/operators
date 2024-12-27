@@ -1,4 +1,4 @@
-#include "conv_bias_act_cpu.h"
+#include "conv_act_cpu.h"
 #include "../../utils.h"
 
 // get the total number of elements in arr
@@ -28,23 +28,23 @@ Tdata sigmoid(const Tdata &x) {
     return Tdata(1) / (Tdata(1) + std::exp(-x));
 }
 
-infiniopStatus_t cpuCreateConvBiasActDescriptor(infiniopHandle_t,
-                                                ConvBiasActCpuDescriptor_t *desc_ptr,
-                                                infiniopTensorDescriptor_t y,
-                                                infiniopTensorDescriptor_t x,
-                                                infiniopTensorDescriptor_t w,
-                                                infiniopTensorDescriptor_t b,
-                                                uint64_t const *pads,
-                                                int64_t const *strides,
-                                                uint64_t const *dilations,
-                                                uint64_t n,
-                                                int activation_mode,
-                                                double clip_coef) {
+infiniopStatus_t cpuCreateConvActDescriptor(infiniopHandle_t,
+                                            ConvActCpuDescriptor_t *desc_ptr,
+                                            infiniopTensorDescriptor_t y,
+                                            infiniopTensorDescriptor_t x,
+                                            infiniopTensorDescriptor_t w,
+                                            infiniopTensorDescriptor_t b,
+                                            uint64_t const *pads,
+                                            int64_t const *strides,
+                                            uint64_t const *dilations,
+                                            uint64_t n,
+                                            ActivationMode::Mode activation_mode,
+                                            double clip_coef) {
     uint64_t ndim = y->ndim;
-    if (ndim < 3 || ndim != x->ndim || ndim != w->ndim || n != ndim - 2 || b->ndim != 1) {
+    if (ndim < 3 || ndim != x->ndim || ndim != w->ndim || n != ndim - 2) {
         return STATUS_BAD_TENSOR_SHAPE;
     }
-    if (x->shape[0] != y->shape[0] || w->shape[0] != y->shape[1] || x->shape[1] != w->shape[1] || b->shape[0] != w->shape[0]) {
+    if (x->shape[0] != y->shape[0] || w->shape[0] != y->shape[1] || x->shape[1] != w->shape[1]) {
         return STATUS_BAD_TENSOR_SHAPE;
     }
     if (y->dt != F16 && y->dt != F32) {
@@ -53,19 +53,27 @@ infiniopStatus_t cpuCreateConvBiasActDescriptor(infiniopHandle_t,
     if (y->dt != x->dt || y->dt != w->dt) {
         return STATUS_BAD_TENSOR_DTYPE;
     }
+    if (b) {
+        if (b->ndim != 1 || b->shape[0] != w->shape[0]) {
+            return STATUS_BAD_TENSOR_SHAPE;
+        }
+        if (y->dt != b->dt) {
+            return STATUS_BAD_TENSOR_DTYPE;
+        }
+    }
 
     uint64_t y_size = getTotalSize(y->shape, ndim);
     uint64_t padded_x_size = requirePadding(pads, ndim) ? getPaddedSize(ndim, x->shape, pads) : 0;
     uint64_t *x_shape = new uint64_t[ndim];
     uint64_t *w_shape = new uint64_t[ndim];
-    uint64_t *b_shape = new uint64_t[b->ndim];
+    uint64_t *b_shape = new uint64_t[1];
     uint64_t *y_shape = new uint64_t[ndim];
     uint64_t *pads_ = new uint64_t[n];
     int64_t *strides_ = new int64_t[n];
     uint64_t *dilations_ = new uint64_t[n];
     memcpy(x_shape, x->shape, ndim * sizeof(*x->shape));
     memcpy(w_shape, w->shape, ndim * sizeof(*w->shape));
-    memcpy(b_shape, b->shape, b->ndim * sizeof(*b->shape));
+    memcpy(b_shape, &(w->shape[0]), sizeof(*w->shape));
     memcpy(y_shape, y->shape, ndim * sizeof(*y->shape));
     memcpy(pads_, pads, n * sizeof(*pads));
     memcpy(strides_, strides, n * sizeof(*strides));
@@ -78,7 +86,7 @@ infiniopStatus_t cpuCreateConvBiasActDescriptor(infiniopHandle_t,
         getPaddedShape(ndim, x_shape, pads, padded_shape);
     }
 
-    *desc_ptr = new ConvBiasActCpuDescriptor{
+    *desc_ptr = new ConvActCpuDescriptor{
         DevCpu,
         y->dt,
         ndim,
@@ -92,13 +100,14 @@ infiniopStatus_t cpuCreateConvBiasActDescriptor(infiniopHandle_t,
         pads_,
         strides_,
         dilations_,
-        static_cast<ActivationMode::Mode>(activation_mode),
+        activation_mode,
+        b == nullptr,
     };
 
     return STATUS_SUCCESS;
 }
 
-infiniopStatus_t cpuGetConvBiasActWorkspaceSize(ConvBiasActCpuDescriptor_t desc, uint64_t *size) {
+infiniopStatus_t cpuGetConvActWorkspaceSize(ConvActCpuDescriptor_t desc, uint64_t *size) {
     *size = desc->padded_x_size * desc->dtype.size;
     if (desc->dtype == F16) {
         *size += desc->y_size * sizeof(float);
@@ -106,7 +115,7 @@ infiniopStatus_t cpuGetConvBiasActWorkspaceSize(ConvBiasActCpuDescriptor_t desc,
     return STATUS_SUCCESS;
 }
 
-infiniopStatus_t cpuDestroyConvBiasActDescriptor(ConvBiasActCpuDescriptor_t desc) {
+infiniopStatus_t cpuDestroyConvActDescriptor(ConvActCpuDescriptor_t desc) {
     delete[] desc->x_shape;
     delete[] desc->w_shape;
     delete[] desc->b_shape;
@@ -121,7 +130,7 @@ infiniopStatus_t cpuDestroyConvBiasActDescriptor(ConvBiasActCpuDescriptor_t desc
 
 // initialize the padded input with the data from the original input
 template<typename Tdata>
-void fillPaddedInput(ConvBiasActCpuDescriptor_t desc, uint64_t const *padded_x_shape,
+void fillPaddedInput(ConvActCpuDescriptor_t desc, uint64_t const *padded_x_shape,
                      Tdata *padded_x, Tdata const *x,
                      uint64_t const *pads, uint64_t x_index,
                      uint64_t padded_x_index, uint64_t ndim) {
@@ -146,10 +155,10 @@ void fillPaddedInput(ConvBiasActCpuDescriptor_t desc, uint64_t const *padded_x_s
 
 // Recursive convolution function
 template<typename Xdata, typename Ydata>
-void _applyConvBiasAct(ConvBiasActCpuDescriptor_t desc, Ydata *y, Xdata const *x,
-                       Xdata const *w, uint64_t const *x_shape,
-                       uint64_t x_index, uint64_t w_index, uint64_t y_index,
-                       uint64_t ndim) {
+void _applyConvAct(ConvActCpuDescriptor_t desc, Ydata *y, Xdata const *x,
+                   Xdata const *w, uint64_t const *x_shape,
+                   uint64_t x_index, uint64_t w_index, uint64_t y_index,
+                   uint64_t ndim) {
     const auto dim_size = x_shape[ndim];
     const auto kernel_size = desc->w_shape[ndim];
     const auto dilation = desc->dilations[ndim - 2];
@@ -179,8 +188,8 @@ void _applyConvBiasAct(ConvBiasActCpuDescriptor_t desc, Ydata *y, Xdata const *x
             }
             // recursive case
             else {
-                _applyConvBiasAct(desc, y, x, w, x_shape, curr_x_index, curr_w_index,
-                                  y_index, ndim + 1);
+                _applyConvAct(desc, y, x, w, x_shape, curr_x_index, curr_w_index,
+                              y_index, ndim + 1);
             }
         }
     }
@@ -233,11 +242,11 @@ void applyActivation(Tdata *arr, uint64_t n, ActivationMode::Mode mode) {
 }
 
 template<typename Xdata, typename Ydata>
-void applyConvBiasAct(ConvBiasActCpuDescriptor_t desc, Ydata *y, Xdata const *x,
-                      Xdata const *w, Xdata const *b, uint64_t const *x_shape) {
+void applyConvAct(ConvActCpuDescriptor_t desc, Ydata *y, Xdata const *x,
+                  Xdata const *w, Xdata const *b, uint64_t const *x_shape) {
     const auto y_num_channel_elements =
         getTotalSize(desc->y_shape + 2, desc->ndim - 2);
-    bool biasRequired = requireBias(b, desc->b_shape[0]);
+    bool biasRequired = b && !desc->bias_is_optional && requireBias(b, desc->b_shape[0]);
 
 #pragma omp parallel for collapse(2) schedule(dynamic)
     // batch
@@ -251,7 +260,7 @@ void applyConvBiasAct(ConvBiasActCpuDescriptor_t desc, Ydata *y, Xdata const *x,
             for (size_t k = 0; k < x_shape[1]; ++k) {
                 uint64_t x_index = i * x_shape[1] + k;
                 uint64_t w_index = j * desc->w_shape[1] + k;
-                _applyConvBiasAct(desc, y, x, w, x_shape, x_index, w_index, y_index, 2);
+                _applyConvAct(desc, y, x, w, x_shape, x_index, w_index, y_index, 2);
             }
         }
     }
@@ -265,21 +274,21 @@ void applyConvBiasAct(ConvBiasActCpuDescriptor_t desc, Ydata *y, Xdata const *x,
 }
 
 template<typename Xdata, typename Ydata>
-void _conv_bias_act_cpu(ConvBiasActCpuDescriptor_t desc, void *workspace, uint64_t workspace_size,
+void _conv_bias_act_cpu(ConvActCpuDescriptor_t desc, void *workspace, uint64_t workspace_size,
                         Ydata *y, Xdata const *x, Xdata const *w, Xdata const *b) {
     if (desc->padded_x_size > 0) {
         auto padded_x = reinterpret_cast<Xdata *>(workspace);
         std::fill(padded_x, padded_x + desc->padded_x_size, 0);
         fillPaddedInput<Xdata>(desc, desc->padded_shape, padded_x, x, desc->pads, 0, 0, 0);
-        applyConvBiasAct<Xdata, Ydata>(desc, y, padded_x, w, b, desc->padded_shape);
+        applyConvAct<Xdata, Ydata>(desc, y, padded_x, w, b, desc->padded_shape);
     } else {
-        applyConvBiasAct<Xdata, Ydata>(desc, y, x, w, b, desc->x_shape);
+        applyConvAct<Xdata, Ydata>(desc, y, x, w, b, desc->x_shape);
     }
 }
 
 // Convolution function
 template<typename Tdata>
-infiniopStatus_t conv_bias_act_cpu(ConvBiasActCpuDescriptor_t desc, void *workspace, uint64_t workspace_size,
+infiniopStatus_t conv_bias_act_cpu(ConvActCpuDescriptor_t desc, void *workspace, uint64_t workspace_size,
                                    void *y, void const *x, void const *w, void const *b) {
     auto y_ = reinterpret_cast<Tdata *>(y);
     auto x_ = reinterpret_cast<Tdata const *>(x);
@@ -292,7 +301,7 @@ infiniopStatus_t conv_bias_act_cpu(ConvBiasActCpuDescriptor_t desc, void *worksp
 
 // sepcial case for fp16 (uint16_t)
 template<>
-infiniopStatus_t conv_bias_act_cpu<uint16_t>(ConvBiasActCpuDescriptor_t desc, void *workspace, uint64_t workspace_size,
+infiniopStatus_t conv_bias_act_cpu<uint16_t>(ConvActCpuDescriptor_t desc, void *workspace, uint64_t workspace_size,
                                              void *y, void const *x, void const *w, void const *b) {
     auto y_ = reinterpret_cast<float *>(workspace);
     auto x_ = reinterpret_cast<uint16_t const *>(x);
@@ -311,10 +320,10 @@ infiniopStatus_t conv_bias_act_cpu<uint16_t>(ConvBiasActCpuDescriptor_t desc, vo
     return STATUS_SUCCESS;
 }
 
-infiniopStatus_t cpuConvBiasAct(ConvBiasActCpuDescriptor_t desc,
-                                void *workspace, uint64_t workspace_size,
-                                void *y, void const *x, void const *w,
-                                void const *b, void *stream) {
+infiniopStatus_t cpuConvAct(ConvActCpuDescriptor_t desc,
+                            void *workspace, uint64_t workspace_size,
+                            void *y, void const *x, void const *w,
+                            void const *b, void *stream) {
     if (desc->dtype == F16) {
         return conv_bias_act_cpu<uint16_t>(desc, workspace, workspace_size, y, x, w, b);
     }

@@ -15,6 +15,7 @@ __C __export infiniopStatus_t infiniopCreateConvDescriptor(infiniopHandle_t hand
                                                            infiniopTensorDescriptor_t y,
                                                            infiniopTensorDescriptor_t x,
                                                            infiniopTensorDescriptor_t w,
+                                                           infiniopTensorDescriptor_t b,
                                                            uint64_t const *pads,
                                                            int64_t const *strides,
                                                            uint64_t const *dilations,
@@ -22,7 +23,7 @@ __C __export infiniopStatus_t infiniopCreateConvDescriptor(infiniopHandle_t hand
 
 __C __export infiniopStatus_t infiniopGetConvWorkspaceSize(infiniopConvDescriptor_t desc, uint64_t *size);
 
-__C __export infiniopStatus_t infiniopConv(infiniopConvDescriptor_t desc, void *workspace, uint64_t workspace_size, void *y, void const *x, void const *w, void *stream);
+__C __export infiniopStatus_t infiniopConv(infiniopConvDescriptor_t desc, void *workspace, uint64_t workspace_size, void *y, void const *x, void const *w, void const *b, void *stream);
 
 __C __export infiniopStatus_t infiniopDestroyConvDescriptor(infiniopConvDescriptor_t desc);
 

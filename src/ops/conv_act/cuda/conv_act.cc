@@ -1,24 +1,24 @@
-#include "conv_bias_act.cuh"
+#include "conv_act.cuh"
 #include "../../../devices/cuda/common_cuda.h"
 #include "../../utils.h"
 
-infiniopStatus_t cudaCreateConvBiasActDescriptor(CudaHandle_t handle,
-                                                 ConvBiasActCudaDescriptor_t *desc_ptr,
-                                                 infiniopTensorDescriptor_t y,
-                                                 infiniopTensorDescriptor_t x,
-                                                 infiniopTensorDescriptor_t w,
-                                                 infiniopTensorDescriptor_t b,
-                                                 uint64_t const *pads,
-                                                 int64_t const *strides,
-                                                 uint64_t const *dilations,
-                                                 uint64_t n,
-                                                 int activation_mode,
-                                                 double clip_coef) {
+infiniopStatus_t cudaCreateConvActDescriptor(CudaHandle_t handle,
+                                             ConvActCudaDescriptor_t *desc_ptr,
+                                             infiniopTensorDescriptor_t y,
+                                             infiniopTensorDescriptor_t x,
+                                             infiniopTensorDescriptor_t w,
+                                             infiniopTensorDescriptor_t b,
+                                             uint64_t const *pads,
+                                             int64_t const *strides,
+                                             uint64_t const *dilations,
+                                             uint64_t n,
+                                             ActivationMode::Mode activation_mode,
+                                             double clip_coef) {
     uint64_t ndim = y->ndim;
-    if (ndim < 3 || ndim != x->ndim || ndim != w->ndim || n != ndim - 2 || b->ndim != 1) {
+    if (ndim < 3 || ndim != x->ndim || ndim != w->ndim || n != ndim - 2) {
         return STATUS_BAD_TENSOR_SHAPE;
     }
-    if (x->shape[0] != y->shape[0] || w->shape[0] != y->shape[1] || x->shape[1] != w->shape[1] || b->shape[0] != w->shape[0]) {
+    if (x->shape[0] != y->shape[0] || w->shape[0] != y->shape[1] || x->shape[1] != w->shape[1]) {
         return STATUS_BAD_TENSOR_SHAPE;
     }
     if (y->dt != F16 && y->dt != F32) {
@@ -27,8 +27,15 @@ infiniopStatus_t cudaCreateConvBiasActDescriptor(CudaHandle_t handle,
     if (y->dt != x->dt || y->dt != w->dt) {
         return STATUS_BAD_TENSOR_DTYPE;
     }
+    if (b) {
+        if (b->ndim != 1 || b->shape[0] != w->shape[0]) {
+            return STATUS_BAD_TENSOR_SHAPE;
+        }
+        if (y->dt != b->dt) {
+            return STATUS_BAD_TENSOR_DTYPE;
+        }
+    }
     // check if the activation_mode is valid
-    // NOTE: Although very unlikely, if more activations become supported, this should be changed
     if (activation_mode < 0 || activation_mode >= ActivationMode::numOfActivationFunctions) {
         return STATUS_BAD_PARAM;
     }
@@ -42,6 +49,7 @@ infiniopStatus_t cudaCreateConvBiasActDescriptor(CudaHandle_t handle,
                 return CUDNN_ACTIVATION_SIGMOID;
         }
     }();
+    // cudnnConvolutionBiasActivationForward() currently only supports identity and relu activations
     if (act_mode != CUDNN_ACTIVATION_IDENTITY && act_mode != CUDNN_ACTIVATION_RELU) {
         return STATUS_BAD_PARAM;
     }
@@ -56,19 +64,17 @@ infiniopStatus_t cudaCreateConvBiasActDescriptor(CudaHandle_t handle,
     int32_t w_shape[new_ndim];
     int32_t b_shape[new_ndim];
     int32_t y_shape[new_ndim];
-#pragma omp parallel for
 #pragma unroll
     for (size_t i = 0; i < new_n; ++i) {
         pad[i] = i < n ? static_cast<int32_t>(pads[i]) : 0;
         stride[i] = i < n ? static_cast<int32_t>(strides[i]) : 1;
         dilation[i] = i < n ? static_cast<int32_t>(dilations[i]) : 1;
     }
-#pragma omp parallel for
 #pragma unroll
     for (size_t i = 0; i < new_ndim; ++i) {
         x_shape[i] = i < ndim ? static_cast<int32_t>(x->shape[i]) : 1;
         w_shape[i] = i < ndim ? static_cast<int32_t>(w->shape[i]) : 1;
-        b_shape[i] = i == 1 ? static_cast<int32_t>(b->shape[0]) : 1;
+        b_shape[i] = i == 1 ? static_cast<int32_t>(w->shape[0]) : 1;
         y_shape[i] = i < ndim ? static_cast<int32_t>(y->shape[i]) : 1;
     }
 
@@ -159,10 +165,17 @@ infiniopStatus_t cudaCreateConvBiasActDescriptor(CudaHandle_t handle,
         algo = perf_results[chosenAlgoIndex].algo;
     }
 
+    // if bias is not given, add the workspace size needed by the optional bias
+    uint64_t bias_size = 0;
+    if (!b) {
+        bias_size = w->shape[0] * w->dt.size;
+        workspace_size += bias_size;
+    }
+
     const float alpha = 1.0f;
     const float beta = 0.0f;
 
-    *desc_ptr = new ConvBiasActCudaDescriptor{
+    *desc_ptr = new ConvActCudaDescriptor{
         DevNvGpu,
         y->dt,
         handle->device_id,
@@ -176,17 +189,19 @@ infiniopStatus_t cudaCreateConvBiasActDescriptor(CudaHandle_t handle,
         algo,
         alpha,
         beta,
-        workspace_size};
+        workspace_size,
+        bias_size,
+    };
 
     return STATUS_SUCCESS;
 }
 
-infiniopStatus_t cudaGetConvBiasActWorkspaceSize(ConvBiasActCudaDescriptor_t desc, uint64_t *size) {
+infiniopStatus_t cudaGetConvActWorkspaceSize(ConvActCudaDescriptor_t desc, uint64_t *size) {
     *size = desc->workspace_size;
     return STATUS_SUCCESS;
 }
 
-infiniopStatus_t cudaDestroyConvBiasActDescriptor(ConvBiasActCudaDescriptor_t desc) {
+infiniopStatus_t cudaDestroyConvActDescriptor(ConvActCudaDescriptor_t desc) {
     checkCudnnError(cudnnDestroyActivationDescriptor(desc->act_desc));
     checkCudnnError(cudnnDestroyConvolutionDescriptor(desc->op_desc));
     checkCudnnError(cudnnDestroyTensorDescriptor(desc->y_desc));

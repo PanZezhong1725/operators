@@ -173,10 +173,7 @@ def test(
                     y_tensor.data,
                     x_tensor.data,
                     w_tensor.data,
-<<<<<<< HEAD
-=======
                     b_tensor.data if b_tensor else None,
->>>>>>> 5b25aa1 (Rename ConvBiasAct to ConvAct, make bias optional for both conv and conAct, add WARN, etc.)
                     None,
                 )
             )

@@ -10,7 +10,6 @@ Optype = c_int
 
 LIB_OPERATORS_DIR = os.path.join(os.environ.get("INFINI_ROOT"), "lib")
 
-
 class TensorDescriptor(Structure):
     _fields_ = [
         ("dt", DataLayout),
@@ -19,9 +18,7 @@ class TensorDescriptor(Structure):
         ("pattern", POINTER(c_int64)),
     ]
 
-
 infiniopTensorDescriptor_t = ctypes.POINTER(TensorDescriptor)
-
 
 class CTensor:
     def __init__(self, desc, data):

@@ -13,6 +13,10 @@ infiniopStatus_t cpuCreateConcatDescriptor(
         return STATUS_BAD_PARAM;
     }
 
+    if (!is_contiguous(y)) {
+        return STATUS_BAD_TENSOR_STRIDES;
+    }
+
     int64_t ndim = y->ndim;  
     if (axis >= ndim || axis < -ndim) {
         return STATUS_BAD_PARAM;
@@ -28,6 +32,10 @@ infiniopStatus_t cpuCreateConcatDescriptor(
     std::vector<uint64_t> output_shape(y->shape, y->shape + ndim);
 
     for (size_t i = 0; i < num_inputs; ++i) {
+
+        if (!is_contiguous(x[i])) {
+            return STATUS_BAD_TENSOR_STRIDES;
+        }
 
         if (x[i]->dt != y->dt) {
             return STATUS_BAD_TENSOR_DTYPE;
@@ -121,12 +129,11 @@ infiniopStatus_t cpuConcat(ConcatCpuDescriptor_t desc,
                            void *y,
                            void const **x,
                            void *stream) {
-
-    switch (desc->dtype.size) {
-        case sizeof(float): // FLOAT32
-            return concatCompute<float>(desc, reinterpret_cast<float*>(y), x);
-        // add other data.type
-        default:
-            return STATUS_SUCCESS;
+    if (desc->dtype == F16) {
+        return concatCompute<uint16_t>(desc, reinterpret_cast<uint16_t*>(y), x);
     }
+    if (desc->dtype == F32) {
+        return concatCompute<float>(desc, reinterpret_cast<float*>(y), x);
+    }
+    return STATUS_BAD_TENSOR_DTYPE;
 }

@@ -99,7 +99,8 @@ def test_cpu(lib, test_cases):
     device = DeviceEnum.DEVICE_CPU
     handle = create_handle(lib, device)
     for c_shape, axis, input_shapes, inplace in test_cases:
-        test(lib, handle, "cpu", c_shape, axis, input_shapes, inplace=inplace)
+        test(lib, handle, "cpu", c_shape, axis, input_shapes, tensor_dtype = torch.float16, inplace = inplace)
+        test(lib, handle, "cpu", c_shape, axis, input_shapes, tensor_dtype = torch.float32, inplace = inplace)
     destroy_handle(lib, handle)
 
 
@@ -107,9 +108,9 @@ def test_cuda(lib, test_cases):
     device = DeviceEnum.DEVICE_CUDA
     handle = create_handle(lib, device)
     for c_shape, axis, input_shapes, inplace in test_cases:
-        test(lib, handle, "cuda", c_shape, axis, input_shapes, inplace=inplace)
+        test(lib, handle, "cuda", c_shape, axis, input_shapes, tensor_dtype = torch.float16, inplace = inplace)
+        test(lib, handle, "cuda", c_shape, axis, input_shapes, tensor_dtype = torch.float32, inplace = inplace)
     destroy_handle(lib, handle)
-
 
 def test_bang(lib, test_cases):
     import torch_mlu
@@ -124,6 +125,7 @@ def test_bang(lib, test_cases):
 if __name__ == "__main__":
 
     test_cases = [
+        #output_tensor, axis, inputs_tensors, inplace
 
         ((6,), 0, [(2,), (4,)], Inplace.OUT_OF_PLACE),  
 
@@ -131,17 +133,14 @@ if __name__ == "__main__":
         ((3, 6), 1, [(3, 2), (3, 4)], Inplace.OUT_OF_PLACE),  
         ((3, 7), 1, [(3, 2), (3, 4), (3, 1)], Inplace.OUT_OF_PLACE), 
         ((3, 3, 10), 2, [(3, 3, 4), (3, 3, 6)], Inplace.OUT_OF_PLACE),  
-
         ((4, 3, 6), 0, [(3, 3, 6), (1, 3, 6)], Inplace.OUT_OF_PLACE),  
         ((2, 6, 3), 1, [(2, 3, 3), (2, 3, 3)], Inplace.OUT_OF_PLACE),  
         ((2, 3, 6), 2, [(2, 3, 3), (2, 3, 3)], Inplace.OUT_OF_PLACE),  
-
         ((4, 3, 5, 6), 0, [(1, 3, 5, 6), (3, 3, 5, 6)], Inplace.OUT_OF_PLACE),  
         ((2, 5, 5, 6), 1, [(2, 3, 5, 6), (2, 2, 5, 6)], Inplace.OUT_OF_PLACE),  
         ((2, 3, 5, 6), 2, [(2, 3, 2, 6), (2, 3, 3, 6)], Inplace.OUT_OF_PLACE),  
         ((2, 3, 5, 6), 3, [(2, 3, 5, 3), (2, 3, 5, 3)], Inplace.OUT_OF_PLACE),  
         ((2, 3, 5, 15), 3, [(2, 3, 5, 3), (2, 3, 5, 3), (2, 3, 5, 9)], Inplace.OUT_OF_PLACE),  
-
         ((4, 2, 3, 4, 5), 0, [(1, 2, 3, 4, 5), (3, 2, 3, 4, 5)], Inplace.OUT_OF_PLACE),  
         ((2, 4, 3, 2, 5), 1, [(2, 2, 3, 2, 5), (2, 2, 3, 2, 5)], Inplace.OUT_OF_PLACE),  
         ((1, 2, 4, 4, 5), 2, [(1, 2, 2, 4, 5), (1, 2, 2, 4, 5)], Inplace.OUT_OF_PLACE),  
@@ -149,30 +148,26 @@ if __name__ == "__main__":
         ((1, 2, 3, 4, 5), 4, [(1, 2, 3, 4, 3), (1, 2, 3, 4, 2)], Inplace.OUT_OF_PLACE),  
         ((4, 14, 3, 4, 5), 1, [(4, 3, 3, 4, 5), (4, 5, 3, 4, 5), (4, 6, 3, 4, 5)], Inplace.OUT_OF_PLACE),  
 
-
         ((6,), -1, [(2,), (4,)], Inplace.OUT_OF_PLACE),  
-
         ((6, 3), -2, [(2, 3), (4, 3)], Inplace.OUT_OF_PLACE),  
         ((3, 6), -1, [(3, 2), (3, 4)], Inplace.OUT_OF_PLACE),  
         ((3, 7), -1, [(3, 2), (3, 4), (3, 1)], Inplace.OUT_OF_PLACE), 
         ((3, 3, 10), -1, [(3, 3, 4), (3, 3, 6)], Inplace.OUT_OF_PLACE),  
-
         ((4, 3, 6), -3, [(3, 3, 6), (1, 3, 6)], Inplace.OUT_OF_PLACE),  
         ((2, 6, 3), -2, [(2, 3, 3), (2, 3, 3)], Inplace.OUT_OF_PLACE),  
         ((2, 3, 6), -1, [(2, 3, 3), (2, 3, 3)], Inplace.OUT_OF_PLACE),  
-
         ((4, 3, 5, 6), -4, [(1, 3, 5, 6), (3, 3, 5, 6)], Inplace.OUT_OF_PLACE),  
         ((2, 5, 5, 6), -3, [(2, 3, 5, 6), (2, 2, 5, 6)], Inplace.OUT_OF_PLACE),  
         ((2, 3, 5, 6), -2, [(2, 3, 2, 6), (2, 3, 3, 6)], Inplace.OUT_OF_PLACE),  
         ((2, 3, 5, 6), -1, [(2, 3, 5, 3), (2, 3, 5, 3)], Inplace.OUT_OF_PLACE),  
         ((2, 3, 5, 15), -1, [(2, 3, 5, 3), (2, 3, 5, 3), (2, 3, 5, 9)], Inplace.OUT_OF_PLACE),  
-
         ((4, 2, 3, 4, 5), -5, [(1, 2, 3, 4, 5), (3, 2, 3, 4, 5)], Inplace.OUT_OF_PLACE),  
         ((2, 4, 3, 2, 5), -4, [(2, 2, 3, 2, 5), (2, 2, 3, 2, 5)], Inplace.OUT_OF_PLACE),  
         ((1, 2, 4, 4, 5), -3, [(1, 2, 2, 4, 5), (1, 2, 2, 4, 5)], Inplace.OUT_OF_PLACE),  
         ((1, 2, 3, 8, 5), -2, [(1, 2, 3, 4, 5), (1, 2, 3, 4, 5)], Inplace.OUT_OF_PLACE), 
         ((1, 2, 3, 4, 5), -1, [(1, 2, 3, 4, 3), (1, 2, 3, 4, 2)], Inplace.OUT_OF_PLACE),  
         ((4, 14, 3, 4, 5), -4, [(4, 3, 3, 4, 5), (4, 5, 3, 4, 5), (4, 6, 3, 4, 5)], Inplace.OUT_OF_PLACE),     
+    
     ]
     
     args = get_args()

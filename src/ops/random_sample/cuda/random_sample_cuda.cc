@@ -8,26 +8,37 @@ infiniopStatus_t cudaCreateRandomSampleDescriptor(CudaHandle_t handle,
     if (probs->ndim != 1) {
         return STATUS_BAD_TENSOR_SHAPE;
     }
-    if (!dtype_eq(result->dt, U64))
+    if (!dtype_eq(probs->dt, F16) && !dtype_eq(result->dt, U64)) {
         return STATUS_BAD_TENSOR_DTYPE;
+    }
+
     int voc = probs->shape[0];
     int rLength = result->shape[0];
     if (result->ndim != 1 && rLength != 1) {
         return STATUS_BAD_TENSOR_SHAPE;
     }
+    int step = 2 * voc * sizeof(uint64_t) + voc * sizeof(probs->dt);
     *desc_ptr = new RandomSampleCudaDescriptor{
         handle->device,
         handle->device_id,
         probs->dt,
         voc,
         result->dt,
-        rLength};
+        rLength,
+        step};
 
     return STATUS_SUCCESS;
 }
 
-infiniopStatus_t cudaGetRandomSampleWorkspaceSize(RandomSampleCudaDescriptor_t desc, uint64_t *size) {
-    *size = desc->voc * (2 * sizeof(uint64_t) + sizeof(desc->dtype));
+infiniopStatus_t cudaGetRandomSampleWorkspaceSize(RandomSampleCudaDescriptor_t desc, unsigned long int *size) {
+    size_t size_radix_sort;
+    size_t size_scan;
+    infiniopStatus_t status = random_sample_workspace(size_radix_sort, size_scan,
+                                                      desc->voc, desc->dtype);
+    if (status != STATUS_SUCCESS) {
+        return status;
+    }
+    *size = desc->step + std::max(size_radix_sort, size_scan);
     return STATUS_SUCCESS;
 }
 

@@ -11,6 +11,7 @@ struct RandomSampleCudaDescriptor {
     int voc;
     DT rDtype;
     int rLength;
+    int step;
 };
 
 typedef struct RandomSampleCudaDescriptor *RandomSampleCudaDescriptor_t;
@@ -18,8 +19,9 @@ typedef struct RandomSampleCudaDescriptor *RandomSampleCudaDescriptor_t;
 infiniopStatus_t cudaCreateRandomSampleDescriptor(CudaHandle_t handle,
                                                   RandomSampleCudaDescriptor_t *desc_ptr, infiniopTensorDescriptor_t result,
                                                   infiniopTensorDescriptor_t probs);
-
-infiniopStatus_t cudaGetRandomSampleWorkspaceSize(RandomSampleCudaDescriptor_t desc, uint64_t *size);
+infiniopStatus_t random_sample_workspace(size_t &size_radix_sort, size_t &size_scan,
+                                         int voc, DT dtype);
+infiniopStatus_t cudaGetRandomSampleWorkspaceSize(RandomSampleCudaDescriptor_t desc, unsigned long int *size);
 
 infiniopStatus_t cudaRandomSample(RandomSampleCudaDescriptor_t desc,
                                   void *workspace,

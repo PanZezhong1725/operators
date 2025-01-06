@@ -3,14 +3,38 @@
 #include "random_sample.cuh"
 #include <cub/block/block_reduce.cuh>
 #include <cub/cub.cuh>
-
+template<class T, int BLOCK_DIM>
+__global__ void argmaxKernel(T *val_out, int voc, uint64_t *result) {
+    float localM = -__FLT_MAX__;
+    uint64_t index = threadIdx.x;
+    for (int i = threadIdx.x; i < voc; i += BLOCK_DIM) {
+        if (localM < static_cast<float>(val_out[i])) {
+            localM = static_cast<float>(val_out[i]);
+            index = i;
+        }
+    }
+    __shared__ uint64_t globalInd[BLOCK_DIM];
+    __shared__ float globalM[BLOCK_DIM];
+    globalInd[threadIdx.x] = index;
+    globalM[threadIdx.x] = localM;
+    for (int strip = BLOCK_DIM / 2; strip > 0; strip /= 2) {
+        if (threadIdx.x < strip) {
+            if (globalM[threadIdx.x] < globalM[threadIdx.x + strip]) {
+                globalM[threadIdx.x] = globalM[threadIdx.x + strip];
+                globalInd[threadIdx.x] = globalInd[threadIdx.x + strip];
+            }
+        }
+        __syncthreads();
+    }
+    result[0] = globalInd[0];
+}
 template<class T, int BLOCK_DIM>
 __global__ void softmax(
     T *val_out,
     int topk,
     float temperature, int voc) {
     float sum_s = 0.0f;
-    for (int i = threadIdx.x; i < topk; i += BLOCK_DIM) {
+    for (int i = threadIdx.x; i < voc; i += BLOCK_DIM) {
         sum_s += __expf(static_cast<float>(val_out[i] - val_out[0]) / temperature);
     }
     __shared__ float sum_inverse_total;
@@ -84,26 +108,51 @@ void inclusive_sum(
         data, data, voc,
         stream);
 }
-template<class T, class I>
-void random_sample_workspace(size_t &size_radix_sort, size_t &size_scan,
-                             int voc, cudaStream_t stream) {
 
+infiniopStatus_t random_sample_workspace(size_t &size_radix_sort, size_t &size_scan,
+                                         int voc, DT dtype) {
+    if (dtype_eq(dtype, F16)) {
+        sort_pairs_descending<half, uint64_t>(nullptr, size_radix_sort,
+                                              nullptr, nullptr,
+                                              nullptr, nullptr,
+                                              voc, nullptr);
 
-    sort_pairs_descending<T, I>(nullptr, size_radix_sort,
-                                nullptr, nullptr,
-                                nullptr, nullptr,
-                                voc, stream);
+        inclusive_sum<half>(
+            nullptr, size_scan,
+            nullptr, voc,
+            nullptr);
+        return STATUS_SUCCESS;
+    } else if (dtype_eq(dtype, F32)) {
+        sort_pairs_descending<float, uint64_t>(nullptr, size_radix_sort,
+                                               nullptr, nullptr,
+                                               nullptr, nullptr,
+                                               voc, nullptr);
 
-    inclusive_sum<T>(
-        nullptr, size_scan,
-        nullptr, voc,
-        stream);
+        inclusive_sum<float>(
+            nullptr, size_scan,
+            nullptr, voc,
+            nullptr);
+        return STATUS_SUCCESS;
+    } else if (dtype_eq(dtype, F64)) {
+        sort_pairs_descending<double, uint64_t>(nullptr, size_radix_sort,
+                                                nullptr, nullptr,
+                                                nullptr, nullptr,
+                                                voc, nullptr);
+
+        inclusive_sum<double>(
+            nullptr, size_scan,
+            nullptr, voc,
+            nullptr);
+        return STATUS_SUCCESS;
+    } else {
+        return STATUS_BAD_TENSOR_DTYPE;
+    }
 }
 __global__ void random_sample_kernel(uint64_t *result,
                                      uint64_t *key_out) {
     result[0] = key_out[0];
 }
-void random_sample_nv_gpu_f16(RandomSampleCudaDescriptor_t desc, void *workspace, void *result,
+void random_sample_nv_gpu_f16(RandomSampleCudaDescriptor_t desc, void *workspace, uint64_t workspace_size, void *result,
                               void const *probs,
                               float random_val,
                               float topp,
@@ -112,28 +161,26 @@ void random_sample_nv_gpu_f16(RandomSampleCudaDescriptor_t desc, void *workspace
                               void *stream) {
     int voc = desc->voc;
     //下面这段代码在排序
-    char *origin = reinterpret_cast<char *>(workspace);
-    char *keyTmp = origin + voc * sizeof(half);
-    half *val_out = (half *) origin;
 
-    uint64_t *key_in = (uint64_t *) keyTmp;
-    uint64_t *key_out = key_in + voc;
-
-    index<<<(voc + 1023) / 1024, 1024, 0, (cudaStream_t) stream>>>(key_in, voc);
-    //下面开始计算workspace空间
-    size_t size_radix_sort;
-    size_t size_scan;
-    random_sample_workspace<half, uint64_t>(size_radix_sort, size_scan,
-                                            voc, (cudaStream_t) stream);
-    void *workspace_extra;
-    cudaMalloc(&workspace_extra, size_radix_sort + size_scan);
-    sort_pairs_descending<half, uint64_t>(
-        workspace_extra, size_radix_sort,
-        (half *) probs, val_out,
-        key_in, key_out,
-        voc, (cudaStream_t) stream);//该函数会把排序结果和对应索引保存在val_out和key_out上
-    //排序结束，然后开始做softmax变换
     if (topp > 0 && topk > 1) {
+        char *origin = reinterpret_cast<char *>(workspace);
+        char *keyTmp = origin + voc * sizeof(half);
+        half *val_out = (half *) origin;
+
+        uint64_t *key_in = (uint64_t *) keyTmp;
+        uint64_t *key_out = key_in + voc;
+
+        index<<<(voc + 1023) / 1024, 1024, 0, (cudaStream_t) stream>>>(key_in, voc);
+        //下面开始计算workspace空间
+
+        void *workspace_extra = reinterpret_cast<char *>(workspace) + desc->step;
+        uint64_t workspace_len = workspace_size - desc->step;
+        sort_pairs_descending<half, uint64_t>(
+            workspace_extra, workspace_len,
+            (half *) probs, val_out,
+            key_in, key_out,
+            voc, (cudaStream_t) stream);//该函数会把排序结果和对应索引保存在val_out和key_out上
+                                        //排序结束，然后开始做softmax变换
         int BLOCK_DIM = 1024;
         int num_blocks = (voc + BLOCK_DIM - 1) / BLOCK_DIM;
         softmax<half, 1024><<<num_blocks, BLOCK_DIM, 0, (cudaStream_t) stream>>>(val_out, topk,
@@ -141,7 +188,7 @@ void random_sample_nv_gpu_f16(RandomSampleCudaDescriptor_t desc, void *workspace
 
 
         inclusive_sum<half>(
-            workspace_extra, size_scan,
+            workspace_extra, workspace_len,
             val_out, voc,
             (cudaStream_t) stream);//该函数会实现scan功能不断累加结果
         random_sample_kernel<half><<<1, 1, 0, (cudaStream_t) stream>>>((uint64_t *) result,
@@ -152,10 +199,10 @@ void random_sample_nv_gpu_f16(RandomSampleCudaDescriptor_t desc, void *workspace
                                                                        key_out);
 
     } else {
-        random_sample_kernel<<<1, 1, 0, (cudaStream_t) stream>>>((uint64_t *) result,
-                                                                 key_out);
+        int BLOCK_DIM = 1024;
+        int num_blocks = (voc + BLOCK_DIM - 1) / BLOCK_DIM;
+        argmaxKernel<half, 1024><<<num_blocks, BLOCK_DIM, 0, (cudaStream_t) stream>>>((half *) probs, voc, (uint64_t *) result);
     }
-    cudaFree(workspace_extra);
 }
 
 infiniopStatus_t cudaRandomSample(RandomSampleCudaDescriptor_t desc,
@@ -172,7 +219,7 @@ infiniopStatus_t cudaRandomSample(RandomSampleCudaDescriptor_t desc,
         return STATUS_BAD_DEVICE;
     }
     if (dtype_eq(desc->dtype, F16)) {
-        random_sample_nv_gpu_f16(desc, workspace, result, probs, random_val, topp, topk, temperature, stream);
+        random_sample_nv_gpu_f16(desc, workspace, workspace_size, result, probs, random_val, topp, topk, temperature, stream);
         return STATUS_SUCCESS;
     }
 

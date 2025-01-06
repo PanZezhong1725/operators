@@ -224,7 +224,7 @@ inline infiniopTensorDescriptor_t dim_merge(infiniopTensorDescriptor_t desc, uin
 // split the dimension dim of a tensor descriptor into multiple dimensions
 inline infiniopTensorDescriptor_t dim_split(infiniopTensorDescriptor_t desc, uint64_t dim, const std::vector<uint64_t> &dims) {
     uint64_t ndim = desc->ndim;
-    if (desc->shape[dim] != std::accumulate(dims.begin(), dims.end(), (uint64_t)1, std::multiplies{})) {
+    if (desc->shape[dim] != std::accumulate(dims.begin(), dims.end(), (uint64_t) 1, std::multiplies{})) {
         return nullptr;
     }
     uint64_t new_ndim = ndim + dims.size() - 1;

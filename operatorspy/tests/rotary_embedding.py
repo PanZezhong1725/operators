@@ -74,14 +74,9 @@ def test(lib, handle, torch_device, shape, strides=None, dtype=torch.float16):
         t = rearrange_tensor(t, strides)
     pos = torch.arange(0, t.shape[0])
     theta = 1e4
-    if torch_device == 'npu':
+    if torch_device == 'mlu' or torch_device == 'npu':
         ans = rotary_embedding(t, pos, theta, "cpu").to(torch_device)
         pos = pos.to(torch.int64)
-        pos = pos.to(torch_device)
-        t = t.to(torch_device)
-    elif torch_device == 'mlu':
-        ans = rotary_embedding(t, pos, theta, "cpu").to(torch_device)
-        pos = pos.to(torch.int32)
         pos = pos.to(torch_device)
         t = t.to(torch_device)
     else:

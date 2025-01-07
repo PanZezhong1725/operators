@@ -291,6 +291,40 @@ def test_ascend(lib, test_cases):
         )
 
     destroy_handle(lib, handle)
+    
+
+def test_kunlun(lib, test_cases):
+    import torch_xmlir
+    device = DeviceEnum.DEVICE_KUNLUN
+    handle = create_handle(lib, device)
+
+    for (
+        alpha,
+        beta,
+        a_shape,
+        b_shape,
+        c_shape,
+        a_stride,
+        b_stride,
+        c_stride,
+        dtype,
+    ) in test_cases:
+        test(
+            lib,
+            handle,
+            "cuda",
+            alpha,
+            beta,
+            a_shape,
+            b_shape,
+            c_shape,
+            a_stride,
+            b_stride,
+            c_stride,
+            dtype,
+        )
+
+    destroy_handle(lib, handle)
 
 if __name__ == "__main__":
     test_cases = [
@@ -350,6 +384,8 @@ if __name__ == "__main__":
         test_bang(lib, test_cases)
     if args.ascend:
         test_ascend(lib, test_cases)
-    if not (args.cpu or args.cuda or args.bang or args.ascend):
+    if args.kunlun:
+        test_kunlun(lib, test_cases)
+    if not (args.cpu or args.cuda or args.bang or args.ascend or args.kunlun):
         test_cpu(lib, test_cases)
     print("\033[92mTest passed!\033[0m")

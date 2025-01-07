@@ -11,6 +11,9 @@
 #ifdef ENABLE_ASCEND_NPU
 #include "./ascend/ascend_handle.h"
 #endif
+#ifdef ENABLE_KUNLUN_XPU
+#include "./kunlun/kunlun_handle.h"
+#endif
 
 
 __C infiniopStatus_t infiniopCreateHandle(infiniopHandle_t *handle_ptr, Device device, int device_id) {
@@ -41,6 +44,11 @@ __C infiniopStatus_t infiniopCreateHandle(infiniopHandle_t *handle_ptr, Device d
             return createAscendHandle((AscendHandle_t *) handle_ptr, device_id);
         }
 #endif
+#ifdef ENABLE_KUNLUN_XPU
+        case DevKunlunXpu: {
+            return createKunlunHandle((KunlunHandle_t *) handle_ptr, device_id);
+        }
+#endif
     }
     return STATUS_BAD_DEVICE;
 }
@@ -67,6 +75,11 @@ __C infiniopStatus_t infiniopDestroyHandle(infiniopHandle_t handle) {
 #ifdef ENABLE_ASCEND_NPU
         case DevAscendNpu: {
             return deleteAscendHandle((AscendHandle_t) handle);
+        }
+#endif
+#ifdef ENABLE_KUNLUN_XPU
+        case DevKunlunXpu: {
+            return deleteKunlunHandle((KunlunHandle_t) handle);
         }
 #endif
     }

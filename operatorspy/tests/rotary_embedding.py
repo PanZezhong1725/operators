@@ -89,7 +89,7 @@ def test(lib, handle, torch_device, shape, strides=None, dtype=torch.float16):
     else:
         t = t.to(torch_device)
         pos = pos.to(torch_device)
-        ans = rotary_embedding(t, posTmp, theta, torch_device)
+        ans = rotary_embedding(t, posTmp.to(torch_device), theta, torch_device)
         pos = pos.to(torch.uint64)
 
     descriptor = infiniopRoPEDescriptor_t()

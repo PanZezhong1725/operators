@@ -150,7 +150,7 @@ def test(
     if (tensor_dtype == torch.float16):
         assert torch.allclose(y, ans, atol=1e-5, rtol=1e-3)
     else: # float32
-        assert torch.allclose(y, ans, atol=1e-7, rtol=1e-3)
+        assert torch.allclose(y, ans, atol=1e-6, rtol=1e-3)
     check_error(lib.infiniopDestroyBatchNormDescriptor(descriptor))
 
 

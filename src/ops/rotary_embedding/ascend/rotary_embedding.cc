@@ -26,7 +26,7 @@ infiniopStatus_t ascendCreateRoPEDescriptor(AscendHandle_t handle,
         return STATUS_BAD_TENSOR_SHAPE;
     }
 
-    if (pos_ids->shape[0] != seq_len ||
+    if (pos_ids->shape[0] != 2 * seq_len ||
         sin_table->shape[1] != dim ||
         cos_table->shape[1] != dim ||
         sin_table->shape[0] != cos_table->shape[0]) {

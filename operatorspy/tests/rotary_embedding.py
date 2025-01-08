@@ -73,32 +73,28 @@ def test(lib, handle, torch_device, shape, strides=None, dtype=torch.float16):
     if strides is not None:
         t = rearrange_tensor(t, strides)
     posTmp = torch.arange(0, t.shape[0])
-    if torch_device == 'mlu':
-        pos = torch.zeros(2 * posTmp.shape[0])
-        for i in range(posTmp.shape[0]):
-            pos[2 * i] = posTmp[i]
-            pos[2 * i + 1] = 0
-    else:
-        pos = posTmp.clone()
+    pos = torch.zeros(2 * posTmp.shape[0], dtype = torch.int32)
+    for i in range(posTmp.shape[0]):
+        pos[2 * i] = posTmp[i]
+        pos[2 * i + 1] = 0
     theta = 1e4
     if torch_device == 'mlu' or torch_device == 'npu':
         ans = rotary_embedding(t, posTmp, theta, "cpu").to(torch_device)
-        pos = pos.to(torch.int64)
         pos = pos.to(torch_device)
         t = t.to(torch_device)
     else:
         t = t.to(torch_device)
         pos = pos.to(torch_device)
         ans = rotary_embedding(t, posTmp.to(torch_device), theta, torch_device)
-        pos = pos.to(torch.uint64)
+        
 
     descriptor = infiniopRoPEDescriptor_t()
     # 2x table length for test
     sin_table, cos_table = sin_cos_table(t.shape[0] * 2, t.shape[2], t.device, theta)
     t_tensor = to_tensor(t, lib)
     pos_tensor = to_tensor(pos, lib)
-    if(torch_device == 'mlu'):
-        pos_tensor.descriptor.contents.dt = U64
+    
+    pos_tensor.descriptor.contents.dt = U64
     sin_table_tensor = to_tensor(sin_table, lib)
     cos_table_tensor = to_tensor(cos_table, lib)
     

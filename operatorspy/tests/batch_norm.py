@@ -14,6 +14,7 @@ from operatorspy import (
     create_handle,
     destroy_handle,
     check_error,
+    device_enum_to_str,
 )
 
 from operatorspy.tests.test_utils import get_args
@@ -131,15 +132,17 @@ def test(
     if PROFILE:
         start_time = time.time()
         for i in range(NUM_ITERATIONS):
-            lib.infiniopBatchNorm(
-                descriptor,
-                y_tensor.data,
-                x_tensor.data,
-                scale_tensor.data,
-                b_tensor.data,
-                mean_tensor.data,
-                var_tensor.data,
-                None,
+            check_error(
+                lib.infiniopBatchNorm(
+                    descriptor,
+                    y_tensor.data,
+                    x_tensor.data,
+                    scale_tensor.data,
+                    b_tensor.data,
+                    mean_tensor.data,
+                    var_tensor.data,
+                    None,
+                )
             )
         elapsed = (time.time() - start_time) / NUM_ITERATIONS
         print(f"    lib time: {elapsed :6f}")
@@ -151,32 +154,11 @@ def test(
     check_error(lib.infiniopDestroyBatchNormDescriptor(descriptor))
 
 
-def test_cpu(lib, test_cases):
-    device = DeviceEnum.DEVICE_CPU
+def test_operator(lib, device, test_cases, tensor_dtypes):
     handle = create_handle(lib, device)
-    for x_shape, eps, inplace in test_cases:
-        test(lib, handle, "cpu", x_shape, eps, tensor_dtype=torch.float16, inplace=inplace)
-        test(lib, handle, "cpu", x_shape, eps, tensor_dtype=torch.float32, inplace=inplace)
-    destroy_handle(lib, handle)
-
-
-def test_cuda(lib, test_cases):
-    device = DeviceEnum.DEVICE_CUDA
-    handle = create_handle(lib, device)
-    for x_shape, eps, inplace in test_cases:
-        test(lib, handle, "cuda", x_shape, eps, tensor_dtype=torch.float16, inplace=inplace)
-        test(lib, handle, "cuda", x_shape, eps, tensor_dtype=torch.float32, inplace=inplace)
-    destroy_handle(lib, handle)
-
-
-def test_bang(lib, test_cases):
-    import torch_mlu
-
-    device = DeviceEnum.DEVICE_BANG
-    handle = create_handle(lib, device)
-    for x_shape, eps, inplace in test_cases:
-        test(lib, handle, "mlu", x_shape, eps, tensor_dtype=torch.float16, inplace=inplace)
-        test(lib, handle, "mlu", x_shape, eps, tensor_dtype=torch.float32, inplace=inplace)
+    for tensor_dtype in tensor_dtypes:
+        for x_shape, eps, inplace in test_cases:
+            test(lib, handle, device_enum_to_str(device), x_shape, eps, inplace=inplace, tensor_dtype=tensor_dtype)
     destroy_handle(lib, handle)
 
 
@@ -184,10 +166,13 @@ if __name__ == "__main__":
     test_cases = [
         # x_shape, eps, inplace
         ((2, 5, 7), 1e-5, Inplace.OUT_OF_PLACE),
-        # ((2, 5, 7), 1e-5, Inplace.INPLACE_X),
+        ((2, 5, 7), 1e-5, Inplace.INPLACE_X),
         ((32, 3, 1024), 1e-5, Inplace.OUT_OF_PLACE),
         ((32, 3, 128, 128), 1e-5, Inplace.OUT_OF_PLACE),
         ((32, 3, 64, 64, 64), 1e-5, Inplace.OUT_OF_PLACE),
+    ]
+    tensor_dtypes = [
+        torch.float16, torch.float32,
     ]
     args = get_args()
     lib = open_lib()
@@ -220,11 +205,12 @@ if __name__ == "__main__":
     ]
 
     if args.cpu:
-        test_cpu(lib, test_cases)
+        test_operator(lib, DeviceEnum.DEVICE_CPU, test_cases, tensor_dtypes)
     if args.cuda:
-        test_cuda(lib, test_cases)
+        test_operator(lib, DeviceEnum.DEVICE_CUDA, test_cases, tensor_dtypes)
     if args.bang:
-        test_bang(lib, test_cases)
+        import torch_mlu
+        test_operator(lib, DeviceEnum.DEVICE_BANG, test_cases, tensor_dtypes)
     if not (args.cpu or args.cuda or args.bang):
-        test_cpu(lib, test_cases)
+        test_operator(lib, DeviceEnum.DEVICE_CPU, test_cases, tensor_dtypes)
     print("\033[92mTest passed!\033[0m")

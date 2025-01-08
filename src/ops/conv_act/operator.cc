@@ -21,16 +21,16 @@ __C infiniopStatus_t infiniopCreateConvActDescriptor(
     int64_t const *strides,
     uint64_t const *dilations,
     uint64_t n,
-    ActivationMode::Mode activation_mode,
-    double clip_coef) {
+    ActivationMode_t activation_mode,
+    ConvActParam_t act_params) {
     switch (handle->device) {
 #ifdef ENABLE_CPU
         case DevCpu:
-            return cpuCreateConvActDescriptor(handle, (ConvActCpuDescriptor_t *) desc_ptr, y, x, w, b, pads, strides, dilations, n, activation_mode, clip_coef);
+            return cpuCreateConvActDescriptor(handle, (ConvActCpuDescriptor_t *) desc_ptr, y, x, w, b, pads, strides, dilations, n, activation_mode, act_params);
 #endif
 #ifdef ENABLE_NV_GPU
         case DevNvGpu: {
-            return cudaCreateConvActDescriptor((CudaHandle_t) handle, (ConvActCudaDescriptor_t *) desc_ptr, y, x, w, b, pads, strides, dilations, n, activation_mode, clip_coef);
+            return cudaCreateConvActDescriptor((CudaHandle_t) handle, (ConvActCudaDescriptor_t *) desc_ptr, y, x, w, b, pads, strides, dilations, n, activation_mode, act_params);
         }
 
 #endif

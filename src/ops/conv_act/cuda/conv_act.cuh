@@ -3,7 +3,9 @@
 
 #include "../../../devices/cuda/common_cuda.h"
 #include "../../../devices/cuda/cuda_handle.h"
-#include "../conv_act_common.h"
+#include "operators.h"
+#include "ops/conv_act/conv_act.h"
+#include <cstddef>
 #include <cudnn.h>
 
 struct ConvActCudaDescriptor {
@@ -36,8 +38,8 @@ infiniopStatus_t cudaCreateConvActDescriptor(CudaHandle_t,
                                              int64_t const *strides,
                                              uint64_t const *dilations,
                                              uint64_t n,
-                                             ActivationMode::Mode activation_mode,
-                                             double clip_coef);
+                                             ActivationMode_t activation_mode,
+                                             ConvActParam_t act_params);
 
 infiniopStatus_t cudaGetConvActWorkspaceSize(ConvActCudaDescriptor_t desc, uint64_t *size);
 

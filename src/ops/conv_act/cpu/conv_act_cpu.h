@@ -2,8 +2,10 @@
 #define __CPU_CONV_ACT_H__
 
 #include "../../../devices/cpu/common_cpu.h"
-#include "../conv_act_common.h"
+#include "operators.h"
+#include "ops/conv_act/conv_act.h"
 #include <algorithm>
+#include <cstddef>
 #include <cstring>
 #include <numeric>
 
@@ -21,8 +23,9 @@ struct ConvActCpuDescriptor {
     uint64_t const *pads;
     int64_t const *strides;
     uint64_t const *dilations;
-    ActivationMode::Mode mode;
+    ActivationMode_t mode;
     bool bias_is_optional;
+    ConvActParam_t act_params;
 };
 
 typedef struct ConvActCpuDescriptor *ConvActCpuDescriptor_t;
@@ -37,8 +40,8 @@ infiniopStatus_t cpuCreateConvActDescriptor(infiniopHandle_t,
                                             int64_t const *strides,
                                             uint64_t const *dilations,
                                             uint64_t n,
-                                            ActivationMode::Mode activation_mode,
-                                            double clip_coef);
+                                            ActivationMode_t activation_mode,
+                                            ConvActParam_t act_params);
 
 infiniopStatus_t cpuGetConvActWorkspaceSize(ConvActCpuDescriptor_t desc, uint64_t *size);
 

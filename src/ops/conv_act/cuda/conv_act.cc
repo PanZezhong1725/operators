@@ -12,8 +12,8 @@ infiniopStatus_t cudaCreateConvActDescriptor(CudaHandle_t handle,
                                              int64_t const *strides,
                                              uint64_t const *dilations,
                                              uint64_t n,
-                                             ActivationMode::Mode activation_mode,
-                                             double clip_coef) {
+                                             ActivationMode_t activation_mode,
+                                             ConvActParam_t act_params) {
     uint64_t ndim = y->ndim;
     if (ndim < 3 || ndim != x->ndim || ndim != w->ndim || n != ndim - 2) {
         return STATUS_BAD_TENSOR_SHAPE;
@@ -36,14 +36,14 @@ infiniopStatus_t cudaCreateConvActDescriptor(CudaHandle_t handle,
         }
     }
     // check if the activation_mode is valid
-    if (activation_mode < 0 || activation_mode >= ActivationMode::numOfActivationFunctions) {
+    if (activation_mode < 0 || activation_mode >= INFINI_ACTIVATION_COUNT) {
         return STATUS_BAD_PARAM;
     }
     cudnnActivationMode_t act_mode = [&] {
-        switch (static_cast<cudnnActivationMode_t>(activation_mode)) {
-            case ActivationMode::IDENTITY:
+        switch (activation_mode) {
+            case INFINI_ACTIVATION_IDENTITY:
                 return CUDNN_ACTIVATION_IDENTITY;
-            case ActivationMode::RELU:
+            case INFINI_ACTIVATION_RELU:
                 return CUDNN_ACTIVATION_RELU;
             default:
                 return CUDNN_ACTIVATION_SIGMOID;
@@ -122,7 +122,7 @@ infiniopStatus_t cudaCreateConvActDescriptor(CudaHandle_t handle,
     // create the activation descriptor
     cudnnActivationDescriptor_t act_desc;
     checkCudnnError(cudnnCreateActivationDescriptor(&act_desc));
-    checkCudnnError(cudnnSetActivationDescriptor(act_desc, act_mode, CUDNN_NOT_PROPAGATE_NAN, clip_coef));
+    checkCudnnError(cudnnSetActivationDescriptor(act_desc, act_mode, CUDNN_NOT_PROPAGATE_NAN, act_params.clip_coef));
 
     // create the bias descriptor
     cudnnTensorDescriptor_t b_desc;

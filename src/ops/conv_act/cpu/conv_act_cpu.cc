@@ -38,8 +38,8 @@ infiniopStatus_t cpuCreateConvActDescriptor(infiniopHandle_t,
                                             int64_t const *strides,
                                             uint64_t const *dilations,
                                             uint64_t n,
-                                            ActivationMode::Mode activation_mode,
-                                            double clip_coef) {
+                                            ActivationMode_t activation_mode,
+                                            ConvActParam_t act_params) {
     uint64_t ndim = y->ndim;
     if (ndim < 3 || ndim != x->ndim || ndim != w->ndim || n != ndim - 2) {
         return STATUS_BAD_TENSOR_SHAPE;
@@ -60,6 +60,19 @@ infiniopStatus_t cpuCreateConvActDescriptor(infiniopHandle_t,
         if (y->dt != b->dt) {
             return STATUS_BAD_TENSOR_DTYPE;
         }
+    }
+    // check if the activation_mode is valid
+    if (activation_mode < 0 || activation_mode >= INFINI_ACTIVATION_COUNT) {
+        return STATUS_BAD_PARAM;
+    }
+    // check if the activation_mode is currently supported by this platform
+    switch (activation_mode) {
+        case INFINI_ACTIVATION_IDENTITY:
+        case INFINI_ACTIVATION_RELU:
+        case INFINI_ACTIVATION_SIGMOID:
+            break;
+        default:
+            return STATUS_BAD_PARAM;
     }
 
     uint64_t y_size = getTotalSize(y->shape, ndim);
@@ -102,6 +115,7 @@ infiniopStatus_t cpuCreateConvActDescriptor(infiniopHandle_t,
         dilations_,
         activation_mode,
         b == nullptr,
+        act_params,
     };
 
     return STATUS_SUCCESS;
@@ -219,15 +233,15 @@ void addBias(Ydata *y, const Xdata *b, uint64_t batch_size, uint64_t out_channel
 
 // apply activation function given the mode on the array arr with length n
 template<typename Tdata>
-void applyActivation(Tdata *arr, uint64_t n, ActivationMode::Mode mode) {
-    if (mode != ActivationMode::IDENTITY) {
+void applyActivation(Tdata *arr, uint64_t n, ActivationMode_t mode) {
+    if (mode != INFINI_ACTIVATION_IDENTITY) {
         std::function<void(Tdata &)> activation_fn = [](Tdata &value) { value = value; };
 
         switch (mode) {
-            case ActivationMode::RELU:
+            case INFINI_ACTIVATION_RELU:
                 activation_fn = [](Tdata &value) { value = relu(value); };
                 break;
-            case ActivationMode::SIGMOID:
+            case INFINI_ACTIVATION_SIGMOID:
                 activation_fn = [](Tdata &value) { value = sigmoid(value); };
                 break;
             default:

@@ -3,25 +3,28 @@
 
 #include "../../export.h"
 #include "../../operators.h"
+#include "../activations.h"
 #include <cstddef>
 
-/**
- * @brief Specifies the type of activation function
- */
-struct ActivationMode {
+typedef struct ConvActParam {
+    /**
+     * Used by:
+     *  - INFINI_ACTIVATION_CLIPPED_RELU: as its clipping ceiling
+     */
+    double clip_coef;
+    /**
+     * Used by:
+     *  - INFINI_ACTIVATION_LEAKY_RELU: as its slope for x < 0
+     *  - INFINI_ACTIVATION_ELU: alpha * (exp(x) - 1.) for x < 0
+     */
+    double alpha;
+    /**
+     * Used by:
+     *  - INFINI_ACTIVATION_GELU: as its approximation switch
+     */
+    const char *approximate;
 
-    enum Mode {
-        // activation functions
-        IDENTITY,
-        RELU,
-        SIGMOID,
-
-        // Count
-        // NOTE: new activation functions should add before "Count"
-        Count,
-    };
-    constexpr static size_t numOfActivationFunctions = Mode::Count;
-};
+} ConvActParam_t;
 
 typedef struct ConvActDescriptor {
     Device device;
@@ -39,8 +42,8 @@ __C __export infiniopStatus_t infiniopCreateConvActDescriptor(infiniopHandle_t h
                                                               int64_t const *strides,
                                                               uint64_t const *dilations,
                                                               uint64_t n,
-                                                              ActivationMode::Mode activation_mode,
-                                                              double clip_coef = 0.0);
+                                                              ActivationMode_t activation_mode,
+                                                              ConvActParam_t act_params);
 
 __C __export infiniopStatus_t infiniopGetConvActWorkspaceSize(infiniopConvActDescriptor_t desc, uint64_t *size);
 

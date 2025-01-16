@@ -2,6 +2,7 @@ from ctypes import POINTER, Structure, c_int32, c_uint64, c_void_p, c_float
 import ctypes
 import sys
 import os
+import time
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 from operatorspy import (
@@ -17,8 +18,12 @@ from operatorspy import (
     create_workspace,
 )
 
-from operatorspy.tests.test_utils import get_args
+from operatorspy.tests.test_utils import get_args, synchronize_device
 import torch
+
+PROFILE = False
+NUM_PRERUN = 10
+NUM_ITERATIONS = 1000
 
 class RMSNormDescriptor(Structure):
     _fields_ = [("device", c_int32)]
@@ -84,44 +89,102 @@ def test(lib, handle, torch_device, y_shape, x_shape, w_shape, dtype=torch.float
     )
 
     assert torch.allclose(y.to(dtype), ans.to(dtype), atol=1e-3, rtol=1e-3)
+
+    if PROFILE:
+        # Profiling PyTorch implementation
+        for i in range(NUM_PRERUN):
+            _ = rms_norm(x, w, eps)
+        synchronize_device(torch_device)
+        start_time = time.time()
+        for i in range(NUM_ITERATIONS):
+            _ = rms_norm(x, w, eps)
+        synchronize_device(torch_device)
+        elapsed = (time.time() - start_time) / NUM_ITERATIONS
+        print(f" pytorch time: {elapsed * 1000 :6f} ms")
+
+        # Profiling C Operators implementation
+        for i in range(NUM_PRERUN):
+            check_error(
+                lib.infiniopRMSNorm(
+                    descriptor,
+                    workspace.data_ptr() if workspace is not None else None,
+                    workspace_size.value,
+                    y_tensor.data,
+                    x_tensor.data,
+                    w_tensor.data,
+                    None,
+                )
+            )
+        synchronize_device(torch_device)
+        start_time = time.time()
+        for i in range(NUM_ITERATIONS):
+            check_error(
+                lib.infiniopRMSNorm(
+                    descriptor,
+                    workspace.data_ptr() if workspace is not None else None,
+                    workspace_size.value,
+                    y_tensor.data,
+                    x_tensor.data,
+                    w_tensor.data,
+                    None,
+                )
+            )
+        synchronize_device(torch_device)
+        elapsed = (time.time() - start_time) / NUM_ITERATIONS
+        print(f"     lib time: {elapsed * 1000 :6f} ms")
+
     check_error(lib.infiniopDestroyRMSNormDescriptor(descriptor))
 
-def test_cpu(lib, test_cases):
+def test_cpu(lib, test_cases, tensor_dtypes, w_dtypes):
     device = DeviceEnum.DEVICE_CPU
     handle = create_handle(lib, device)
-    for (y_shape, x_shape, w_shape, dtype, w_dtype) in test_cases:
-        test(lib, handle, "cpu", y_shape, x_shape, w_shape, dtype, w_dtype)
+    for (y_shape, x_shape, w_shape) in test_cases:
+        for tensor_dtype in tensor_dtypes:
+            for w_dtype in w_dtypes:
+                test(lib, handle, "cpu", y_shape, x_shape, w_shape, tensor_dtype, w_dtype)
     destroy_handle(lib, handle)
 
-def test_cuda(lib, test_cases):
+def test_cuda(lib, test_cases, tensor_dtypes, w_dtypes):
     device = DeviceEnum.DEVICE_CUDA
     handle = create_handle(lib, device)
-    for (y_shape, x_shape, w_shape, dtype, w_dtype) in test_cases:
-        test(lib, handle, "cuda", y_shape, x_shape, w_shape, dtype, w_dtype)
+    for (y_shape, x_shape, w_shape) in test_cases:
+        for tensor_dtype in tensor_dtypes:
+            for w_dtype in w_dtypes:
+                test(lib, handle, "cuda", y_shape, x_shape, w_shape, tensor_dtype, w_dtype)
     destroy_handle(lib, handle)
 
-def test_bang(lib, test_cases):
+def test_bang(lib, test_cases, tensor_dtypes, w_dtypes):
     import torch_mlu
     device = DeviceEnum.DEVICE_BANG
     handle = create_handle(lib, device)
-    for (y_shape, x_shape, w_shape, dtype, w_dtype) in test_cases:
-        test(lib, handle, "mlu", y_shape, x_shape, w_shape, dtype, w_dtype)
+    for (y_shape, x_shape, w_shape) in test_cases:
+        for tensor_dtype in tensor_dtypes:
+            for w_dtype in w_dtypes:
+                test(lib, handle, "mlu", y_shape, x_shape, w_shape, tensor_dtype, w_dtype)
     destroy_handle(lib, handle)
 
-def test_ascend(lib, test_cases):
+def test_ascend(lib, test_cases, tensor_dtypes, w_dtypes):
     import torch_npu
     device = DeviceEnum.DEVICE_ASCEND
     handle = create_handle(lib, device)
-    for (y_shape, x_shape, w_shape, dtype, w_dtype) in test_cases:
-        test(lib, handle, "npu", y_shape, x_shape, w_shape, dtype, w_dtype)
+    for (y_shape, x_shape, w_shape) in test_cases:
+        for tensor_dtype in tensor_dtypes:
+            for w_dtype in w_dtypes:
+                test(lib, handle, "npu", y_shape, x_shape, w_shape, tensor_dtype, w_dtype)
 
     destroy_handle(lib, handle)
 
 if __name__ == "__main__":
     test_cases = [
-        # y_shape, x_shape, w_shape, dtype, w_dtype
-        ((16, 2048), (16, 2048), (2048,), torch.float16, torch.float16),
-        ((16, 2048), (16, 2048), (2048,), torch.float16, torch.float32),
+        # y_shape, x_shape, w_shape, 
+        ((16, 2048), (16, 2048), (2048,)),
+        ((32, 4096), (32, 4096), (4096,)),
+    ]
+    tensor_dtypes = [
+        torch.float16,
+    ]
+    w_dtypes = [
+        torch.float16, torch.float32,
     ]
     args = get_args()
     lib = open_lib()
@@ -156,14 +219,16 @@ if __name__ == "__main__":
         infiniopRMSNormDescriptor_t,
     ]
 
+    if args.profile:
+        PROFILE = True
     if args.cpu:
-        test_cpu(lib, test_cases)
+        test_cpu(lib, test_cases, tensor_dtypes, w_dtypes)
     if args.cuda:
-        test_cuda(lib, test_cases)
+        test_cuda(lib, test_cases, tensor_dtypes, w_dtypes)
     if args.bang:
-        test_bang(lib, test_cases)
+        test_bang(lib, test_cases, tensor_dtypes, w_dtypes)
     if args.ascend:
-        test_ascend(lib, test_cases)
+        test_ascend(lib, test_cases, tensor_dtypes, w_dtypes)
     if not (args.cpu or args.cuda or args.bang or args.ascend):
-        test_cpu(lib, test_cases)
+        test_cpu(lib, test_cases, tensor_dtypes, w_dtypes)
     print("\033[92mTest passed!\033[0m")

@@ -2,6 +2,7 @@ from ctypes import POINTER, Structure, c_int32, c_uint64, c_void_p
 import ctypes
 import sys
 import os
+import time
 
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
@@ -18,9 +19,12 @@ from operatorspy import (
     create_workspace,
 )
 
-from operatorspy.tests.test_utils import get_args
+from operatorspy.tests.test_utils import get_args, synchronize_device
 import torch
 
+PROFILE = False
+NUM_PRERUN = 10
+NUM_ITERATIONS = 1000
 
 class CausalSoftmaxDescriptor(Structure):
     _fields_ = [("device", c_int32)]
@@ -73,41 +77,85 @@ def test(lib, handle, torch_device, x_shape, x_stride=None, x_dtype=torch.float1
         )
     )
     assert torch.allclose(x, ans, atol=0, rtol=1e-2)
+
+    if PROFILE:
+        # Profiling PyTorch implementation
+        for i in range(NUM_PRERUN):
+            _ = causal_softmax(x)
+        synchronize_device(torch_device)
+        start_time = time.time()
+        for i in range(NUM_ITERATIONS):
+            _ = causal_softmax(x)
+        synchronize_device(torch_device)
+        elapsed = (time.time() - start_time) / NUM_ITERATIONS
+        print(f" pytorch time: {elapsed * 1000 :6f} ms")
+
+        # Profiling C Operators implementation
+        for i in range(NUM_PRERUN):
+            check_error(
+                lib.infiniopCausalSoftmax(
+                    descriptor,
+                    workspace.data_ptr() if workspace is not None else None,
+                    workspace_size.value,
+                    x_tensor.data,
+                    None,
+                )
+            )
+        synchronize_device(torch_device)
+        start_time = time.time()
+        for i in range(NUM_ITERATIONS):
+            check_error(
+                lib.infiniopCausalSoftmax(
+                    descriptor,
+                    workspace.data_ptr() if workspace is not None else None,
+                    workspace_size.value,
+                    x_tensor.data,
+                    None,
+                )
+            )
+        synchronize_device(torch_device)
+        elapsed = (time.time() - start_time) / NUM_ITERATIONS
+        print(f"     lib time: {elapsed * 1000 :6f} ms")
+
     check_error(lib.infiniopDestroyCausalSoftmaxDescriptor(descriptor))
 
 
-def test_cpu(lib, test_cases):
+def test_cpu(lib, test_cases, tensor_dtypes):
     device = DeviceEnum.DEVICE_CPU
     handle = create_handle(lib, device)
     for x_shape, x_stride in test_cases:
-        test(lib, handle, "cpu", x_shape, x_stride)
+        for tensor_dtype in tensor_dtypes:
+            test(lib, handle, "cpu", x_shape, x_stride, x_dtype=tensor_dtype)
     destroy_handle(lib, handle)
 
 
-def test_cuda(lib, test_cases):
+def test_cuda(lib, test_cases, tensor_dtypes):
     device = DeviceEnum.DEVICE_CUDA
     handle = create_handle(lib, device)
     for x_shape, x_stride in test_cases:
-        test(lib, handle, "cuda", x_shape, x_stride)
+        for tensor_dtype in tensor_dtypes:
+            test(lib, handle, "cuda", x_shape, x_stride, x_dtype=tensor_dtype)
     destroy_handle(lib, handle)
 
 
-def test_bang(lib, test_cases):
+def test_bang(lib, test_cases, tensor_dtypes):
     import torch_mlu
 
     device = DeviceEnum.DEVICE_BANG
     handle = create_handle(lib, device)
     for x_shape, x_stride in test_cases:
-        test(lib, handle, "mlu", x_shape, x_stride)
+        for tensor_dtype in tensor_dtypes:
+            test(lib, handle, "mlu", x_shape, x_stride, x_dtype=tensor_dtype)
     destroy_handle(lib, handle)
 
-def test_ascend(lib, test_cases):
+def test_ascend(lib, test_cases, tensor_dtypes):
     import torch_npu
 
     device = DeviceEnum.DEVICE_ASCEND
     handle = create_handle(lib, device)
     for x_shape, x_stride in test_cases:
-        test(lib, handle, "npu", x_shape, x_stride)
+        for tensor_dtype in tensor_dtypes:
+            test(lib, handle, "npu", x_shape, x_stride, x_dtype=tensor_dtype)
 
     destroy_handle(lib, handle)
 
@@ -116,6 +164,9 @@ if __name__ == "__main__":
         # x_shape, x_stride
         ((32, 20, 512), None),
         ((32, 20, 512), (20480, 512, 1)), # Ascend 暂不支持非连续
+    ]
+    tensor_dtypes = [
+        torch.float16,
     ]
     args = get_args()
     lib = open_lib()
@@ -143,14 +194,16 @@ if __name__ == "__main__":
         infiniopCausalSoftmaxDescriptor_t,
     ]
 
+    if args.profile:
+        PROFILE = True
     if args.cpu:
-        test_cpu(lib, test_cases)
+        test_cpu(lib, test_cases, tensor_dtypes)
     if args.cuda:
-        test_cuda(lib, test_cases)
+        test_cuda(lib, test_cases, tensor_dtypes)
     if args.bang:
-        test_bang(lib, test_cases)
+        test_bang(lib, test_cases, tensor_dtypes)
     if args.ascend:
-        test_ascend(lib, test_cases)
+        test_ascend(lib, test_cases, tensor_dtypes)
     if not (args.cpu or args.cuda or args.bang or args.ascend):
-        test_cpu(lib, test_cases)
+        test_cpu(lib, test_cases, tensor_dtypes)
     print("\033[92mTest passed!\033[0m")

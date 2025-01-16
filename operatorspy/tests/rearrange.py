@@ -2,6 +2,7 @@ import ctypes
 from ctypes import POINTER, Structure, c_int32, c_uint64, c_void_p
 import sys
 import os
+import time
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 from operatorspy import (
@@ -17,9 +18,12 @@ from operatorspy import (
     rearrange_tensor,
 )
 
-from operatorspy.tests.test_utils import get_args
+from operatorspy.tests.test_utils import get_args, synchronize_device
 import torch
 
+PROFILE = False
+NUM_PRERUN = 10
+NUM_ITERATIONS = 1000
 
 class RerrangeDescriptor(Structure):
     _fields_ = [("device", c_int32)]
@@ -27,6 +31,12 @@ class RerrangeDescriptor(Structure):
 
 infiniopRearrangeDescriptor_t = POINTER(RerrangeDescriptor)
 
+
+def rearrange(x, x_shape, y_strides):
+    y_ = x.clone()
+    y_.set_(y_.untyped_storage(), 0, x_shape, y_strides)
+    y_[:] = x.view_as(y_)
+    return y_
 
 def test(
     lib,
@@ -47,6 +57,9 @@ def test(
         x = rearrange_tensor(x, x_stride)
     if y_stride is not None:
         y = rearrange_tensor(y, y_stride)
+
+    ans = rearrange(x, x_shape, y_stride)
+
     x_tensor = to_tensor(x, lib)
     y_tensor = to_tensor(y, lib)
 
@@ -64,40 +77,72 @@ def test(
     check_error(
         lib.infiniopRearrange(descriptor, y_tensor.data, x_tensor.data, None)
     )
-    assert torch.allclose(x, y, atol=0, rtol=1e-3)
+
+    assert torch.allclose(x, ans, atol=0, rtol=1e-3)
+
+    if PROFILE:
+        # Profiling PyTorch implementation
+        for i in range(NUM_PRERUN):
+            _ = rearrange(x, x_shape, y_stride)
+        synchronize_device(torch_device)
+        start_time = time.time()
+        for i in range(NUM_ITERATIONS):
+            _ = rearrange(x, x_shape, y_stride)
+        synchronize_device(torch_device)
+        elapsed = (time.time() - start_time) / NUM_ITERATIONS
+        print(f" pytorch time: {elapsed * 1000 :6f} ms")
+
+        # Profiling C Operators implementation
+        for i in range(NUM_PRERUN):
+            check_error(
+                lib.infiniopRearrange(descriptor, y_tensor.data, x_tensor.data, None)
+            )
+        synchronize_device(torch_device)
+        start_time = time.time()
+        for i in range(NUM_ITERATIONS):
+            check_error(
+                lib.infiniopRearrange(descriptor, y_tensor.data, x_tensor.data, None)
+            )
+        synchronize_device(torch_device)
+        elapsed = (time.time() - start_time) / NUM_ITERATIONS
+        print(f"     lib time: {elapsed * 1000 :6f} ms")
+
     check_error(lib.infiniopDestroyRearrangeDescriptor(descriptor))
 
 
-def test_cpu(lib, test_cases):
+def test_cpu(lib, test_cases, tensor_dtypes):
     device = DeviceEnum.DEVICE_CPU
     handle = create_handle(lib, device)
     for test_case in test_cases:
         x_shape, x_stride = test_case[0]
         y_shape, y_stride = test_case[1]
-        test(lib, handle, "cpu", x_shape, x_stride, y_shape, y_stride)
+        for tensor_dtype in tensor_dtypes:
+            test(lib, handle, "cpu", x_shape, x_stride, y_shape, y_stride, tensor_dtype)
     destroy_handle(lib, handle)
 
 
-def test_cuda(lib, test_cases):
+def test_cuda(lib, test_cases, tensor_dtypes):
     device = DeviceEnum.DEVICE_CUDA
     handle = create_handle(lib, device)
     for test_case in test_cases:
         x_shape, x_stride = test_case[0]
         y_shape, y_stride = test_case[1]
-        test(lib, handle, "cuda", x_shape, x_stride, y_shape, y_stride)
+        for tensor_dtype in tensor_dtypes:
+            test(lib, handle, "cuda", x_shape, x_stride, y_shape, y_stride, tensor_dtype)
     destroy_handle(lib, handle)
 
-def test_bang(lib, test_cases):
+def test_bang(lib, test_cases, tensor_dtypes):
     import torch_mlu
     device = DeviceEnum.DEVICE_BANG
     handle = create_handle(lib, device)
     for test_case in test_cases:
         x_shape, x_stride = test_case[0]
         y_shape, y_stride = test_case[1]
-        test(lib, handle, "mlu", x_shape, x_stride, y_shape, y_stride)
+        for tensor_dtype in tensor_dtypes:
+            test(lib, handle, "mlu", x_shape, x_stride, y_shape, y_stride, tensor_dtype)
     destroy_handle(lib, handle)
 
-def test_ascend(lib, test_cases):
+def test_ascend(lib, test_cases, tensor_dtypes):
     import torch_npu
 
     device = DeviceEnum.DEVICE_ASCEND
@@ -105,7 +150,8 @@ def test_ascend(lib, test_cases):
     for test_case in test_cases:
         x_shape, x_stride = test_case[0]
         y_shape, y_stride = test_case[1]
-        test(lib, handle, "npu", x_shape, x_stride, y_shape, y_stride)
+        for tensor_dtype in tensor_dtypes:
+            test(lib, handle, "npu", x_shape, x_stride, y_shape, y_stride, tensor_dtype)
     destroy_handle(lib, handle) 
 
 if __name__ == "__main__":
@@ -120,6 +166,9 @@ if __name__ == "__main__":
         (((4, 1, 64), (64, 2560, 1)), ((4, 1, 64), (64, 11264, 1))),
         (((64,), (1,)), ((64,), (1,))),
         ]
+    tensor_dtypes = [
+        torch.float16,
+    ]
     lib = open_lib()
     lib.infiniopCreateRearrangeDescriptor.restype = c_int32
     lib.infiniopCreateRearrangeDescriptor.argtypes = [
@@ -137,12 +186,15 @@ if __name__ == "__main__":
     ]
     lib.infiniopDestroyRearrangeDescriptor.restype = c_int32
     lib.infiniopDestroyRearrangeDescriptor.argtypes = [infiniopRearrangeDescriptor_t]
+
+    if args.profile:
+        PROFILE = True
     if args.cpu:
-        test_cpu(lib, test_cases)
+        test_cpu(lib, test_cases, tensor_dtypes)
     if args.cuda:
-        test_cuda(lib, test_cases)
+        test_cuda(lib, test_cases, tensor_dtypes)
     if args.bang:
-        test_bang(lib, test_cases)
+        test_bang(lib, test_cases, tensor_dtypes)
     if args.ascend:
-        test_ascend(lib, test_cases)
+        test_ascend(lib, test_cases, tensor_dtypes)
     print("\033[92mTest passed!\033[0m")

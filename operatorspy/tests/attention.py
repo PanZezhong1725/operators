@@ -2,6 +2,7 @@ from ctypes import POINTER, Structure, c_int32, c_uint64, c_void_p, c_float, c_b
 import ctypes
 import sys
 import os
+import time 
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 from operatorspy import (
@@ -18,10 +19,13 @@ from operatorspy import (
     create_workspace,
 )
 
-from operatorspy.tests.test_utils import get_args
+from operatorspy.tests.test_utils import get_args, synchronize_device
 import torch
 import torch.nn.functional as F
 
+PROFILE = False
+NUM_PRERUN = 10
+NUM_ITERATIONS = 1000
 
 class AttentionDescriptor(Structure):
     _fields_ = [("device", c_int32)]
@@ -186,10 +190,59 @@ def test(
 
     assert torch.allclose(out, ans, atol=1e-4, rtol=1e-2)
 
+    if PROFILE:
+        # Profiling PyTorch implementation
+        for i in range(NUM_PRERUN):
+            _ = attention(q, k, v, k_cache, v_cache, pos)
+        synchronize_device(torch_device)
+        start_time = time.time()
+        for i in range(NUM_ITERATIONS):
+            _ = attention(q, k, v, k_cache, v_cache, pos)
+        synchronize_device(torch_device)
+        elapsed = (time.time() - start_time) / NUM_ITERATIONS
+        print(f" pytorch time: {elapsed * 1000 :6f} ms")
+
+        # Profiling C Operators implementation
+        for i in range(NUM_PRERUN):
+            check_error(
+                lib.infiniopAttention(
+                    descriptor,
+                    workspace.data_ptr() if workspace is not None else None,
+                    workspace_size.value,
+                    out_tensor.data,
+                    q_tensor.data,
+                    k_tensor.data,
+                    v_tensor.data,
+                    k_cache_tensor.data,
+                    v_cache_tensor.data,
+                    None,
+                )
+            )
+        synchronize_device(torch_device)
+        start_time = time.time()
+        for i in range(NUM_ITERATIONS):
+            check_error(
+                lib.infiniopAttention(
+                    descriptor,
+                    workspace.data_ptr() if workspace is not None else None,
+                    workspace_size.value,
+                    out_tensor.data,
+                    q_tensor.data,
+                    k_tensor.data,
+                    v_tensor.data,
+                    k_cache_tensor.data,
+                    v_cache_tensor.data,
+                    None,
+                )
+            )
+        synchronize_device(torch_device)
+        elapsed = (time.time() - start_time) / NUM_ITERATIONS
+        print(f"     lib time: {elapsed * 1000 :6f} ms")
+
     check_error(lib.infiniopDestroyAttentionDescriptor(descriptor))
 
 
-def test_cpu(lib, test_cases):
+def test_cpu(lib, test_cases, tensor_dtypes):
     device = DeviceEnum.DEVICE_CPU
     handle = create_handle(lib, device)
 
@@ -201,36 +254,36 @@ def test_cpu(lib, test_cases):
         pos,
         k_cache_buf_len,
         v_cache_buf_len,
-        dtype,
         q_stride,
         k_stride,
         v_stride,
         k_cache_stride,
         v_cache_stride,
     ) in test_cases:
-        test(
-            lib,
-            handle,
-            "cpu",
-            n_q_head,
-            n_kv_head,
-            seq_len,
-            head_dim,
-            pos,
-            k_cache_buf_len,
-            v_cache_buf_len,
-            dtype,
-            q_stride,
-            k_stride,
-            v_stride,
-            k_cache_stride,
-            v_cache_stride,
-        )
+        for tensor_dtype in tensor_dtypes:
+            test(
+                lib,
+                handle,
+                "cpu",
+                n_q_head,
+                n_kv_head,
+                seq_len,
+                head_dim,
+                pos,
+                k_cache_buf_len,
+                v_cache_buf_len,
+                tensor_dtype,
+                q_stride,
+                k_stride,
+                v_stride,
+                k_cache_stride,
+                v_cache_stride,
+            )
 
     destroy_handle(lib, handle)
 
 
-def test_cuda(lib, test_cases):
+def test_cuda(lib, test_cases, tensor_dtypes):
     device = DeviceEnum.DEVICE_CUDA
     handle = create_handle(lib, device)
 
@@ -242,36 +295,36 @@ def test_cuda(lib, test_cases):
         pos,
         k_cache_buf_len,
         v_cache_buf_len,
-        dtype,
         q_stride,
         k_stride,
         v_stride,
         k_cache_stride,
         v_cache_stride,
     ) in test_cases:
-        test(
-            lib,
-            handle,
-            "cuda",
-            n_q_head,
-            n_kv_head,
-            seq_len,
-            head_dim,
-            pos,
-            k_cache_buf_len,
-            v_cache_buf_len,
-            dtype,
-            q_stride,
-            k_stride,
-            v_stride,
-            k_cache_stride,
-            v_cache_stride,
-        )
+        for tensor_dtype in tensor_dtypes:
+            test(
+                lib,
+                handle,
+                "cuda",
+                n_q_head,
+                n_kv_head,
+                seq_len,
+                head_dim,
+                pos,
+                k_cache_buf_len,
+                v_cache_buf_len,
+                tensor_dtype,
+                q_stride,
+                k_stride,
+                v_stride,
+                k_cache_stride,
+                v_cache_stride,
+            )
 
     destroy_handle(lib, handle)
 
 
-def test_bang(lib, test_cases):
+def test_bang(lib, test_cases, tensor_dtypes):
     import torch_mlu
 
     device = DeviceEnum.DEVICE_BANG
@@ -292,24 +345,25 @@ def test_bang(lib, test_cases):
         k_cache_stride,
         v_cache_stride,
     ) in test_cases:
-        test(
-            lib,
-            handle,
-            "mlu",
-            n_q_head,
-            n_kv_head,
-            seq_len,
-            head_dim,
-            pos,
-            k_cache_buf_len,
-            v_cache_buf_len,
-            dtype,
-            q_stride,
-            k_stride,
-            v_stride,
-            k_cache_stride,
-            v_cache_stride,
-        )
+        for tensor_dtype in tensor_dtypes:
+            test(
+                lib,
+                handle,
+                "mlu",
+                n_q_head,
+                n_kv_head,
+                seq_len,
+                head_dim,
+                pos,
+                k_cache_buf_len,
+                v_cache_buf_len,
+                dtype,
+                q_stride,
+                k_stride,
+                v_stride,
+                k_cache_stride,
+                v_cache_stride,
+            )
 
     destroy_handle(lib, handle)
 
@@ -325,7 +379,6 @@ if __name__ == "__main__":
             0,  # pos
             2048,  # k_cache_buf_len
             2048,  # v_cache_buf_len
-            torch.float16,  # dtype
             [64, 2560, 1],  # q_stride
             [64, 2560, 1],  # k_stride
             [64, 2560, 1],  # v_stride
@@ -341,7 +394,6 @@ if __name__ == "__main__":
             3,  # pos
             2048,  # k_cache_buf_len
             2048,  # v_cache_buf_len
-            torch.float16,  # dtype
             [64, 2560, 1],  # q_stride
             [64, 2560, 1],  # k_stride
             [64, 2560, 1],  # v_stride
@@ -357,13 +409,15 @@ if __name__ == "__main__":
             1,  # pos
             8,  # k_cache_buf_len
             8,  # v_cache_buf_len
-            torch.float16,  # dtype
             None,  # q_stride
             None,  # k_stride
             None,  # v_stride
             None,  # k_cache_stride
             None,  # v_cache_stride
         ),
+    ]
+    tensor_dtypes = [
+        torch.float16,
     ]
     args = get_args()
     lib = open_lib()
@@ -406,12 +460,14 @@ if __name__ == "__main__":
         infiniopAttentionDescriptor_t,
     ]
 
+    if args.profile:
+        PROFILE = True
     if args.cpu:
-        test_cpu(lib, test_cases)
+        test_cpu(lib, test_cases, tensor_dtypes)
     if args.cuda:
-        test_cuda(lib, test_cases)
+        test_cuda(lib, test_cases, tensor_dtypes)
     if args.bang:
-        test_bang(lib, test_cases)
+        test_bang(lib, test_cases, tensor_dtypes)
     if not (args.cpu or args.cuda or args.bang):
-        test_cpu(lib, test_cases)
+        test_cpu(lib, test_cases, tensor_dtypes)
     print("\033[92mTest passed!\033[0m")

@@ -18,10 +18,20 @@ from operatorspy import (
     create_workspace,
 )
 
-from operatorspy.tests.test_utils import get_args
+from operatorspy.tests.test_utils import (
+    get_args, 
+    debug,
+    get_tolerance,
+)
 import torch
 import torch.nn as nn
 
+DEBUG = False
+
+# the atol and rtol for each data type
+tolerance_map = {
+    torch.float16: {'atol': 0, 'rtol': 2e-2},
+}
 
 class MLPDescriptor(Structure):
     _fields_ = [("device", c_int32)]
@@ -135,7 +145,11 @@ def test(
             None,
         )
     )
-    assert torch.allclose(y, ans, atol=0, rtol=2e-2)
+
+    atol, rtol = get_tolerance(tolerance_map, dtype)
+    if DEBUG:
+        debug(y, ans, atol=atol, rtol=rtol)
+    assert torch.allclose(y, ans, atol=atol, rtol=rtol)
 
     check_error(lib.infiniopDestroyMLPDescriptor(descriptor))
 
@@ -305,6 +319,8 @@ if __name__ == "__main__":
         infiniopMLPDescriptor_t,
     ]
 
+    if args.debug:
+        DEBUG = True
     if args.cpu:
         test_cpu(lib, test_cases)
     if args.cuda:

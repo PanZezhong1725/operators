@@ -15,10 +15,21 @@ from operatorspy import (
     check_error,
 )
 
-from operatorspy.tests.test_utils import get_args
+from operatorspy.tests.test_utils import (
+    get_args, 
+    debug,
+    get_tolerance,
+)
 from enum import Enum, auto
 import torch
 
+DEBUG = False
+
+# the atol and rtol for each data type
+tolerance_map = {
+    torch.float16: {'atol': 0, 'rtol': 1e-3},
+    torch.float32: {'atol': 0, 'rtol': 1e-5}, 
+}
 
 class Inplace(Enum):
     OUT_OF_PLACE = auto()
@@ -83,7 +94,11 @@ def test(
     check_error(
         lib.infiniopAdd(descriptor, c_tensor.data, a_tensor.data, b_tensor.data, None)
     )
-    assert torch.allclose(c, ans, atol=0, rtol=1e-3)
+
+    atol, rtol = get_tolerance(tolerance_map, tensor_dtype)
+    if DEBUG:
+        debug(c, ans, atol=atol, rtol=rtol)
+    assert torch.allclose(c, ans, atol=atol, rtol=rtol)
     check_error(lib.infiniopDestroyAddDescriptor(descriptor))
 
 
@@ -157,6 +172,8 @@ if __name__ == "__main__":
         infiniopAddDescriptor_t,
     ]
 
+    if args.debug:
+        DEBUG = True
     if args.cpu:
         test_cpu(lib, test_cases)
     if args.cuda:

@@ -19,9 +19,19 @@ from operatorspy import (
     U64,
 )
 
-from operatorspy.tests.test_utils import get_args
+from operatorspy.tests.test_utils import (
+    get_args, 
+    debug,
+    get_tolerance,
+)
 import torch
 
+DEBUG = False
+
+# the atol and rtol for each data type
+tolerance_map = {
+    torch.float16: {'atol': 1e-4, 'rtol': 1e-2},
+}
 
 class RoPEDescriptor(Structure):
     _fields_ = [("device", c_int32)]
@@ -134,7 +144,10 @@ def test(lib, handle, torch_device, shape, strides=None, dtype=torch.float16):
         )
     )
 
-    assert torch.allclose(t, ans, atol=1e-4, rtol=1e-2)
+    atol, rtol = get_tolerance(tolerance_map, dtype)
+    if DEBUG:
+        debug(t, ans, atol=atol, rtol=rtol)
+    assert torch.allclose(t, ans, atol=atol, rtol=rtol)
     check_error(lib.infiniopDestroyRoPEDescriptor(descriptor))
 
 
@@ -214,6 +227,9 @@ if __name__ == "__main__":
     lib.infiniopDestroyRoPEDescriptor.argtypes = [
         infiniopRoPEDescriptor_t,
     ]
+
+    if args.debug:
+        DEBUG = True
     if args.cpu:
         test_cpu(lib, test_cases)
     if args.cuda:

@@ -19,12 +19,24 @@ from operatorspy import (
     create_workspace,
 )
 
-from operatorspy.tests.test_utils import get_args, synchronize_device
+from operatorspy.tests.test_utils import (
+    get_args,
+    synchronize_device,
+    debug,
+    get_tolerance,
+)
 import torch
 
+DEBUG = False
 PROFILE = False
 NUM_PRERUN = 10
 NUM_ITERATIONS = 1000
+
+# the atol and rtol for each data type
+tolerance_map = {
+    torch.float16: {'atol': 0, 'rtol': 1e-2},
+    torch.float32: {'atol': 0, 'rtol': 1e-3}, 
+}
 
 class MatmulDescriptor(Structure):
     _fields_ = [("device", c_int32)]
@@ -115,7 +127,10 @@ def test(
         )
     )
 
-    assert torch.allclose(c, ans, atol=0, rtol=1e-2)
+    atol, rtol = get_tolerance(tolerance_map, dtype)
+    if DEBUG:
+        debug(c, ans, atol=atol, rtol=rtol)
+    assert torch.allclose(c, ans, atol=atol, rtol=rtol)
 
     if PROFILE:
         for i in range(NUM_PRERUN):
@@ -343,6 +358,8 @@ if __name__ == "__main__":
         infiniopMatmulDescriptor_t,
     ]
 
+    if args.debug:
+        DEBUG = True
     if args.profile:
         PROFILE = True
     if args.cpu:

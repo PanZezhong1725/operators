@@ -13,14 +13,17 @@ from operatorspy import (
     create_handle,
     destroy_handle,
     check_error,
-    rearrange_tensor,
     create_workspace,
     U64,
 )
 
-from operatorspy.tests.test_utils import get_args
+from operatorspy.tests.test_utils import (
+    get_args, 
+    debug_all,
+)
 import torch
 
+DEBUG = False
 
 class RandomSampleDescriptor(Structure):
     _fields_ = [("device", c_int32)]
@@ -128,6 +131,12 @@ def test(lib, handle, torch_device, voc, random_val, topp, topk, temperature, x_
     if torch_device == "npu":
         torch.npu.synchronize()
 
+    if DEBUG:
+        debug_all((indices[0].type(ans.dtype), data[ans]),
+                  (ans, data[indices[0]]), 
+                  "or",
+                  atol=0, 
+                  rtol=0)
     assert indices[0].type(ans.dtype) == ans or data[ans] == data[indices[0]]
     check_error(lib.infiniopDestroyRandomSampleDescriptor(descriptor))
 
@@ -212,6 +221,8 @@ if __name__ == "__main__":
         infiniopRandomSampleDescriptor_t,
     ]
 
+    if args.debug:
+        DEBUG = True
     if args.cpu:
         test_cpu(lib, test_cases)
     if args.cuda:

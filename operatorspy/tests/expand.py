@@ -17,8 +17,10 @@ from operatorspy import (
     rearrange_tensor,
 )
 
-from operatorspy.tests.test_utils import get_args
+from operatorspy.tests.test_utils import get_args, debug
 import torch
+
+DEBUG = False
 
 # constant for control whether profile the pytorch and lib functions
 # NOTE: need to manually add synchronization function to the lib function,
@@ -101,7 +103,10 @@ def test(
             )
         elapsed = (time.time() - start_time) / NUM_ITERATIONS
         print(f"    lib time: {elapsed :6f}")
-    assert torch.allclose(y, ans, atol=0, rtol=1e-3)
+
+    if DEBUG:
+        debug(y, ans, atol=0, rtol=0)
+    assert torch.allclose(y, ans, atol=0, rtol=0)
     check_error(lib.infiniopDestroyExpandDescriptor(descriptor))
 
 
@@ -168,6 +173,8 @@ if __name__ == "__main__":
         infiniopExpandDescriptor_t,
     ]
 
+    if args.debug:
+        DEBUG = True
     if args.cpu:
         test_cpu(lib, test_cases)
     if args.cuda:

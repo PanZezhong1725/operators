@@ -16,10 +16,14 @@ from operatorspy import (
     check_error,
 )
 
-from operatorspy.tests.test_utils import get_args
+from operatorspy.tests.test_utils import (
+    get_args, 
+    debug,
+)
 from enum import Enum, auto
 import torch
 
+DEBUG = False
 # constant for control whether profile the pytorch and lib functions
 # NOTE: need to manually add synchronization function to the lib function,
 #       e.g., cudaDeviceSynchronize() for CUDA
@@ -100,7 +104,10 @@ def test(
         elapsed = (time.time() - start_time) / NUM_ITERATIONS
         print(f"    lib time: {elapsed :6f}")
 
-    assert torch.allclose(y, ans, atol=0, rtol=1e-3)
+    atol, rtol = 0, 0
+    if DEBUG:
+        debug(y, ans, atol=atol, rtol=rtol)
+    assert torch.allclose(y, ans, atol=atol, rtol=rtol)
     check_error(lib.infiniopDestroyReluDescriptor(descriptor))
 
 
@@ -166,6 +173,8 @@ if __name__ == "__main__":
         infiniopReluDescriptor_t,
     ]
 
+    if args.debug:
+        DEBUG = True
     if args.cpu:
         test_cpu(lib, test_cases)
     if args.cuda:

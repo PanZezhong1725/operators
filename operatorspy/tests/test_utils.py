@@ -53,6 +53,7 @@ def debug(actual, desired, atol=0, rtol=1e-2, equal_nan=False, verbose=True):
     Debugging function to compare two tensors (actual and desired) and print discrepancies.
 
     Arguments:
+    ----------
     - actual : The tensor containing the actual computed values.
     - desired : The tensor containing the expected values that `actual` should be compared to.
     - atol : optional (default=0)
@@ -70,9 +71,11 @@ def debug(actual, desired, atol=0, rtol=1e-2, equal_nan=False, verbose=True):
 
 def debug_all(actual_vals: Sequence, desired_vals: Sequence, condition: str, atol=0, rtol=1e-2, equal_nan=False, verbose=True):
     """
-    Debugging function to compare two sequences of values (actual and desired), prints discrepancies
+    Debugging function to compare two sequences of values (actual and desired) pair by pair, results 
+    are linked by the given logical condition, and prints discrepancies
 
     Arguments:
+    ----------
     - actual_vals (Sequence): A sequence (e.g., list or tuple) of actual computed values.
     - desired_vals (Sequence): A sequence (e.g., list or tuple) of desired (expected) values to compare against.
     - condition (str): A string specifying the condition for passing the test. It must be either:
@@ -84,12 +87,13 @@ def debug_all(actual_vals: Sequence, desired_vals: Sequence, condition: str, ato
     - verbose (bool, optional): If True, detailed output is printed for each comparison. Default is True.
 
     Raises:
+    ----------
     - AssertionError: If the condition is not satisfied based on the provided `condition`, `atol`, and `rtol`.
     - ValueError: If the length of `actual_vals` and `desired_vals` do not match.
     - AssertionError: If the specified `condition` is not 'or' or 'and'.
     """
-    assert len(actual_vals) == len(desired_vals)
-    assert condition in {"or", "and"}
+    assert len(actual_vals) == len(desired_vals), "Invalid Length"
+    assert condition in {"or", "and"}, "Invalid condition: should be either 'or' or 'and'"
     import numpy as np
 
     passed = False if condition == "or" else True

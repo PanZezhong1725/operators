@@ -132,8 +132,8 @@ def test(lib, handle, torch_device, voc, random_val, topp, topk, temperature, x_
         torch.npu.synchronize()
 
     if DEBUG:
-        debug_all((indices[0].type(ans.dtype), data[ans]),
-                  (ans, data[indices[0]]), 
+        debug_all((indices[0].type(ans.dtype), data[indices[0]]),
+                  (ans, data[ans]), 
                   "or",
                   atol=0, 
                   rtol=0)

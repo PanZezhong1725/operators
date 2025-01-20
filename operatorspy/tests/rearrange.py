@@ -23,6 +23,7 @@ from operatorspy.tests.test_utils import (
 )
 import torch
 
+DEBUG = False
 
 class RerrangeDescriptor(Structure):
     _fields_ = [("device", c_int32)]

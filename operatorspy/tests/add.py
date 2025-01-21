@@ -74,6 +74,12 @@ def test(
             b_tensor.descriptor,
         )
     )
+
+    # Invalidate the shape and strides in the descriptor to prevent them from being directly used by the kernel
+    c_tensor.descriptor.contents.invalidate()
+    a_tensor.descriptor.contents.invalidate()
+    b_tensor.descriptor.contents.invalidate()
+
     check_error(
         lib.infiniopAdd(descriptor, c_tensor.data, a_tensor.data, b_tensor.data, None)
     )

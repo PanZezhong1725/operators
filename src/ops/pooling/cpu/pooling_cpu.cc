@@ -42,12 +42,19 @@ infiniopStatus_t cpuCreatePoolingDescriptor(infiniopHandle_t,
     }
 
     const auto y_size = getTotalSize(y->shape, ndim);
-    const auto pads_ = reinterpret_cast<uint64_t const *>(pads);
-    const auto padded_x_size = requirePadding(pads_, ndim) ? getPaddedSize(ndim, x->shape, pads_) : 0;
+    const auto padded_x_size = requirePadding(pads, ndim) ? getPaddedSize(ndim, x->shape, pads) : 0;
     uint64_t *x_shape = new uint64_t[ndim];
     uint64_t *y_shape = new uint64_t[ndim];
+    uint64_t *kernel_ = new uint64_t[n];
+    uint64_t *pads_ = new uint64_t[n];
+    int64_t *strides_ = new int64_t[n];
     memcpy(x_shape, x->shape, ndim * sizeof(uint64_t));
     memcpy(y_shape, y->shape, ndim * sizeof(uint64_t));
+    for (size_t i = 0; i < n; ++i) {
+        kernel_[i] = kernel_shape[i];
+        pads_[i] = pads[i];
+        strides_[i] = strides[i];
+    }
 
     *desc_ptr = new PoolingCpuDescriptor{
         DevCpu,
@@ -56,10 +63,10 @@ infiniopStatus_t cpuCreatePoolingDescriptor(infiniopHandle_t,
         y_size,
         padded_x_size,
         x_shape,
-        reinterpret_cast<uint64_t const *>(kernel_shape),
+        kernel_,
         y_shape,
-        reinterpret_cast<uint64_t const *>(pads),
-        reinterpret_cast<int64_t const *>(strides),
+        pads_,
+        strides_,
         pooling_type,
     };
 
@@ -77,6 +84,9 @@ infiniopStatus_t cpuGetPoolingWorkspaceSize(PoolingCpuDescriptor_t desc, uint64_
 infiniopStatus_t cpuDestroyPoolingDescriptor(PoolingCpuDescriptor_t desc) {
     delete[] desc->x_shape;
     delete[] desc->y_shape;
+    delete[] desc->k_shape;
+    delete[] desc->pads;
+    delete[] desc->strides;
     delete desc;
     return STATUS_SUCCESS;
 }

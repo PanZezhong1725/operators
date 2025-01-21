@@ -11,7 +11,7 @@ infiniopStatus_t bangCreateMatmulDescriptor(BangHandle_t handle,
                                             infiniopTensorDescriptor_t b_desc,
                                             float beta) {
     infiniopStatus_t *status = new infiniopStatus_t{STATUS_EXECUTION_FAILED};
-    auto info = MatmulInfo(c_desc, a_desc, b_desc, status);
+    auto info = MatmulInfo(c_desc, a_desc, b_desc, status, false);
     if (*status != STATUS_SUCCESS) {
         return *status;
     }
@@ -96,6 +96,7 @@ infiniopStatus_t bangMatmul(MatmulBangDescriptor_t desc, void *workspace, uint64
     float beta = desc->beta;
     if (dtype_eq(desc->dtype, F16)) {
         matmul_cnnl_f16(desc, workspace, c, beta, a, b, alpha, stream);
+        cnrtQueueSync((cnrtQueue_t)stream);
         return STATUS_SUCCESS;
     }
     return STATUS_BAD_TENSOR_DTYPE;

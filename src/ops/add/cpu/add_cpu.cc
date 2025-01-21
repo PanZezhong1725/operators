@@ -46,13 +46,15 @@ infiniopStatus_t cpuCreateAddDescriptor(infiniopHandle_t,
 
     uint64_t *c_indices = new uint64_t[ndim];
     std::fill(c_indices, c_indices + ndim, 0);
+    uint64_t *c_shape = new uint64_t[ndim];
+    std::copy(c->shape, c->shape + ndim, c_shape);
 
     *desc_ptr = new AddCpuDescriptor{
         DevCpu,
         c->dt,
         ndim,
         c_data_size,
-        c->shape,
+        c_shape,
         a_strides,
         b_strides,
         c_indices,
@@ -62,6 +64,7 @@ infiniopStatus_t cpuCreateAddDescriptor(infiniopHandle_t,
 }
 
 infiniopStatus_t cpuDestroyAddDescriptor(AddCpuDescriptor_t desc) {
+    delete[] desc->c_shape;
     delete[] desc->a_strides;
     delete[] desc->b_strides;
     delete[] desc->c_indices;

@@ -284,18 +284,18 @@ __C __export infiniopStatus_t infiniopAttention(infiniopAttentionDescriptor_t de
 
     // matmul1: q * full_k
     CHECK_STATUS(infiniopMatmul(_desc->matmul_desc1,
-                                (char *) _workspace + _desc->matmul1_tensor_size, workspace_size - _desc->matmul1_tensor_size,
+                                (char *) _workspace + _desc->matmul1_tensor_size, _desc->workspace_size - _desc->matmul1_tensor_size,
                                 _workspace, _q, k_cache, stream),
                  STATUS_SUCCESS);
     // softmax(qk)
     CHECK_STATUS(infiniopCausalSoftmax(_desc->softmax_desc,
-                                       (char *) _workspace + _desc->matmul1_tensor_size, workspace_size - _desc->matmul1_tensor_size,
+                                       (char *) _workspace + _desc->matmul1_tensor_size, _desc->workspace_size - _desc->matmul1_tensor_size,
                                        _workspace, stream),
                  STATUS_SUCCESS);
     // matmul2: softmax(qk) * full_v
     CHECK_STATUS(infiniopMatmul(_desc->matmul_desc2,
                                 (char *) _workspace + _desc->matmul1_tensor_size + _desc->matmul2_tensor_size,
-                                workspace_size - _desc->matmul1_tensor_size - _desc->matmul2_tensor_size,
+                                _desc->workspace_size - _desc->matmul1_tensor_size - _desc->matmul2_tensor_size,
                                 (char *) _workspace + _desc->matmul1_tensor_size, _workspace, v_cache, stream),
                  STATUS_SUCCESS);
     // rearrange out

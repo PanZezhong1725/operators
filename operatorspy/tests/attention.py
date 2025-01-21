@@ -155,6 +155,14 @@ def test(
         )
     )
 
+    # Invalidate the shape and strides in the descriptor to prevent them from being directly used by the kernel
+    out_tensor.descriptor.contents.invalidate()
+    q_tensor.descriptor.contents.invalidate()
+    k_tensor.descriptor.contents.invalidate()
+    v_tensor.descriptor.contents.invalidate()
+    k_cache_tensor.descriptor.contents.invalidate()
+    v_cache_tensor.descriptor.contents.invalidate()
+
     workspace_size = c_uint64(0)
     check_error(
         lib.infiniopGetAttentionWorkspaceSize(descriptor, ctypes.byref(workspace_size))
@@ -406,4 +414,4 @@ if __name__ == "__main__":
         test_bang(lib, test_cases)
     if not (args.cpu or args.cuda or args.bang):
         test_cpu(lib, test_cases)
-    print("Test passed!")
+    print("\033[92mTest passed!\033[0m")

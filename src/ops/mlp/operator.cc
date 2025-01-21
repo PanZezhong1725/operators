@@ -105,7 +105,7 @@ __C __export infiniopStatus_t infiniopMLP(infiniopMLPDescriptor_t desc,
 
     CHECK_STATUS(infiniopMatmul(_desc->matmul_desc1,
                                 (char *) workspace + _desc->matmul1_tensor_size,
-                                workspace_size - _desc->matmul1_tensor_size,
+                                _desc->workspace_size - _desc->matmul1_tensor_size,
                                 workspace, x, w12, stream),
                  STATUS_SUCCESS);
     CHECK_STATUS(infiniopSwiGLU(_desc->swiglu_desc,
@@ -114,7 +114,7 @@ __C __export infiniopStatus_t infiniopMLP(infiniopMLPDescriptor_t desc,
                                 workspace, stream),
                  STATUS_SUCCESS);
     CHECK_STATUS(infiniopMatmul(_desc->matmul_desc2, (char *) workspace + _desc->matmul1_tensor_size + _desc->swiglu_tensor_size,
-                                workspace_size - _desc->matmul1_tensor_size - _desc->swiglu_tensor_size,
+                                _desc->workspace_size - _desc->matmul1_tensor_size - _desc->swiglu_tensor_size,
                                 y, (char *) workspace + _desc->matmul1_tensor_size, w3, stream),
                  STATUS_SUCCESS);
 

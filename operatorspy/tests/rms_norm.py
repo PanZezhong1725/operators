@@ -44,11 +44,10 @@ def test(lib, handle, torch_device, y_shape, x_shape, w_shape, dtype=torch.float
 
     eps = 1e-5
     ans = rms_norm(x, w, eps)
-    
+
     y_tensor = to_tensor(y, lib)
     x_tensor = to_tensor(x, lib)
     w_tensor = to_tensor(w, lib)
-
 
     descriptor = infiniopRMSNormDescriptor_t()
     w_dataType = 0 if w_dtype==torch.float16 else 1
@@ -59,6 +58,12 @@ def test(lib, handle, torch_device, y_shape, x_shape, w_shape, dtype=torch.float
             w_tensor.descriptor, eps
         )
     )
+
+    # Invalidate the shape and strides in the descriptor to prevent them from being directly used by the kernel
+    x_tensor.descriptor.contents.invalidate()
+    y_tensor.descriptor.contents.invalidate()
+    w_tensor.descriptor.contents.invalidate()
+
     workspace_size = c_uint64(0)
     check_error(
         lib.infiniopGetRMSNormWorkspaceSize(
@@ -80,7 +85,6 @@ def test(lib, handle, torch_device, y_shape, x_shape, w_shape, dtype=torch.float
 
     assert torch.allclose(y.to(dtype), ans.to(dtype), atol=1e-3, rtol=1e-3)
     check_error(lib.infiniopDestroyRMSNormDescriptor(descriptor))
-    print("Test passed!")
 
 def test_cpu(lib, test_cases):
     device = DeviceEnum.DEVICE_CPU
@@ -162,3 +166,4 @@ if __name__ == "__main__":
         test_ascend(lib, test_cases)
     if not (args.cpu or args.cuda or args.bang or args.ascend):
         test_cpu(lib, test_cases)
+    print("\033[92mTest passed!\033[0m")

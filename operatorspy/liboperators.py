@@ -16,8 +16,13 @@ class TensorDescriptor(Structure):
         ("dt", DataLayout),
         ("ndim", c_uint64),
         ("shape", POINTER(c_uint64)),
-        ("pattern", POINTER(c_int64)),
+        ("strides", POINTER(c_int64)),
     ]
+
+    def invalidate(self):
+        for i in range(self.ndim):
+            self.shape[i] = 0
+            self.strides[i] = 0
 
 
 infiniopTensorDescriptor_t = ctypes.POINTER(TensorDescriptor)

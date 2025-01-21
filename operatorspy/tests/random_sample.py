@@ -88,24 +88,22 @@ def test(lib, handle, torch_device, voc, random_val, topp, topk, temperature, x_
         ans = random_sample(data.to("cpu"), random_val, topp, topk, voc, temperature, "cpu")
     else:
         ans = random_sample_0(data)
-    if(torch_device == 'mlu' or torch_device == 'npu'):
-        
-        indices = torch.zeros([1], dtype = torch.int64).to(torch_device)
-    else:
-        
-        indices = torch.zeros([1], dtype = torch.uint64).to(torch_device)
+    indices = torch.zeros([1], dtype=torch.int64).to(torch_device)
     x_tensor = to_tensor(data, lib)
     indices_tensor = to_tensor(indices, lib)
-    if(torch_device == 'mlu' or torch_device == 'npu'):
-        indices_tensor.descriptor.contents.dt = U64 # treat int64 as uint64
-    
-    
+    indices_tensor.descriptor.contents.dt = U64  # treat int64 as uint64
+
     descriptor = infiniopRandomSampleDescriptor_t()
     check_error(
         lib.infiniopCreateRandomSampleDescriptor(
             handle, ctypes.byref(descriptor), indices_tensor.descriptor, x_tensor.descriptor
         )
     )
+
+    # Invalidate the shape and strides in the descriptor to prevent them from being directly used by the kernel
+    x_tensor.descriptor.contents.invalidate()
+    indices_tensor.descriptor.contents.invalidate()
+
     workspace_size = c_uint64(0)
     check_error(
         lib.infiniopGetRandomSampleWorkspaceSize(
@@ -132,7 +130,6 @@ def test(lib, handle, torch_device, voc, random_val, topp, topk, temperature, x_
 
     assert indices[0].type(ans.dtype) == ans or data[ans] == data[indices[0]]
     check_error(lib.infiniopDestroyRandomSampleDescriptor(descriptor))
-    print("Test passed!")
 
 def test_cpu(lib, test_cases):
     device = DeviceEnum.DEVICE_CPU
@@ -158,7 +155,7 @@ def test_bang(lib, test_cases):
     for (voc, random_val, topp, topk, temperature) in test_cases:
         test(lib, handle, "mlu", voc, random_val, topp, topk, temperature)
     destroy_handle(lib, handle)
-    
+
 
 def test_ascend(lib, test_cases):
     import torch_npu
@@ -166,8 +163,7 @@ def test_ascend(lib, test_cases):
     handle = create_handle(lib, device)
     for (voc, random_val, topp, topk, temperature) in test_cases:
         test(lib, handle, "npu", voc, random_val, topp, topk, temperature)
-    destroy_handle(lib, handle) 
-    
+    destroy_handle(lib, handle)
 
 
 if __name__ == "__main__":

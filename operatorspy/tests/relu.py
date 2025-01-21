@@ -84,6 +84,11 @@ def test(
             x_tensor.descriptor,
         )
     )
+
+    # Invalidate the shape and strides in the descriptor to prevent them from being directly used by the kernel
+    x_tensor.descriptor.contents.invalidate()
+    y_tensor.descriptor.contents.invalidate()
+
     for i in range(NUM_PRERUN if PROFILE else 1):
         check_error(lib.infiniopRelu(descriptor, y_tensor.data, x_tensor.data, None))
     if PROFILE:

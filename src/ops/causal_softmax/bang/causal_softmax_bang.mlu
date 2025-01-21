@@ -707,22 +707,21 @@ __mlu_global__ void causal_softmaxDim_3(T *destination, int strideD_f, int strid
             __bang_write_value(src, dimS, -INFINITY);
             __bang_write_zero(destSumFinal, wSize);
             int lastI = i % middle;
-            __memcpy(src, destination + indd, (mask + 1 + lastI) * sizeof(T), GDRAM2NRAM);
+            __memcpy(src, destination + indd, (mask + 1 + lastI) * sizeof(T), GDRAM2NRAM);//长度为dimsize的向量，只考虑前面mask + 1 + lastI部分的softmax
             __bang_argmax(srcMax, src, dimS);
-            __bang_write_value(destSum, dimS, srcMax[0]);
-            __memcpy(destSum, src, (mask + 1 + lastI) * sizeof(T), NRAM2NRAM);
-            __bang_sub_scalar(destSum, destSum, srcMax[0], dimS);
-            __bang_active_exp_less_0(destSum, destSum, dimS);
-            __bang_write_zero(src, dimS);
-            __memcpy(src, destSum, (mask + 1 + lastI) * sizeof(T), NRAM2NRAM);
+            __bang_write_zero(destSum, dimS);
+            __memcpy(destSum, src, (mask + 1 + lastI) * sizeof(T), NRAM2NRAM);//初始化destSum为0，前面mask + 1 + lastI部分元素和src保持一致
+            __bang_sub_scalar(destSum, destSum, srcMax[0], mask + 1 + lastI);//前面mask + 1 + lastI元素减去最大值M，后面的元素还是0
+            __bang_active_exp_less_0(destSum, destSum, mask + 1 + lastI);//前面mask + 1 + lastI元素做指数变换，后面的元素还是0
+            __memcpy(src, destSum, dimS * sizeof(T), NRAM2NRAM);
             int segNum = dimS / wSize;//准备数值求和
             for (int strip = segNum / 2; strip > 0; strip = strip / 2) {
                 for (int j = 0; j < strip; j++) {
                     __bang_add(destSum + j * wSize, destSum + j * wSize, destSum + (j + strip) * wSize, wSize);
                 }
             }
-            __bang_reduce_sum(destSumFinal, destSum, wSize);                       //此时destSum[0]保存的就是当前maxNum长度数据的数值和
-            T globalSumInv = 1.0 / (destSumFinal[0] - (dimS - (mask + 1 + lastI)));//下面开始指数变换，写回GDRAM
+            __bang_reduce_sum(destSumFinal, destSum, wSize);  //此时destSumFinal[0]存储的是前面mask + 1 + lastI的sum             
+            T globalSumInv = 1.0 / destSumFinal[0];
             __bang_mul_scalar(src, src, globalSumInv, dimS);
 
             __memcpy(destination + indd, src, dimsize * sizeof(T), NRAM2GDRAM);

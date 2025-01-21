@@ -68,36 +68,37 @@ def test(lib, handle, torch_device, shape, strides=None, dtype=torch.float16):
     print(
         f"Testing Rotary Positional Embedding on {torch_device} with shape:{shape} strides:{strides} and dtype:{dtype}"
     )
-    
+
     t = torch.rand(shape, dtype=dtype)
     if strides is not None:
         t = rearrange_tensor(t, strides)
-    pos = torch.arange(0, t.shape[0])
+    posTmp = torch.arange(0, t.shape[0])
+    pos = torch.zeros(2 * posTmp.shape[0], dtype = torch.int32)
+    for i in range(posTmp.shape[0]):
+        pos[2 * i] = posTmp[i]
+        pos[2 * i + 1] = 0
     theta = 1e4
     if torch_device == 'mlu' or torch_device == 'npu':
-        ans = rotary_embedding(t, pos, theta, "cpu").to(torch_device)
-        pos = pos.to(torch.int64)
+        ans = rotary_embedding(t, posTmp, theta, "cpu").to(torch_device)
         pos = pos.to(torch_device)
         t = t.to(torch_device)
     else:
         t = t.to(torch_device)
         pos = pos.to(torch_device)
-        ans = rotary_embedding(t, pos, theta, torch_device)
-        pos = pos.to(torch.uint64)
+        ans = rotary_embedding(t, posTmp.to(torch_device), theta, torch_device)
 
     descriptor = infiniopRoPEDescriptor_t()
     # 2x table length for test
     sin_table, cos_table = sin_cos_table(t.shape[0] * 2, t.shape[2], t.device, theta)
     t_tensor = to_tensor(t, lib)
-    pos_tensor = to_tensor(pos, lib)
-    if(torch_device == 'mlu'):
-        pos_tensor.descriptor.contents.dt = U64
+    pos_tensor = to_tensor(pos[: t.shape[0]], lib)
+    pos_tensor.descriptor.contents.dt = U64
     sin_table_tensor = to_tensor(sin_table, lib)
     cos_table_tensor = to_tensor(cos_table, lib)
-    
+
     if torch_device == "npu":
         torch.npu.synchronize() 
-    
+
     check_error(
         lib.infiniopCreateRoPEDescriptor(
             handle,
@@ -108,6 +109,13 @@ def test(lib, handle, torch_device, shape, strides=None, dtype=torch.float16):
             cos_table_tensor.descriptor,
         )
     )
+
+    # Invalidate the shape and strides in the descriptor to prevent them from being directly used by the kernel
+    t_tensor.descriptor.contents.invalidate()
+    pos_tensor.descriptor.contents.invalidate()
+    sin_table_tensor.descriptor.contents.invalidate()
+    cos_table_tensor.descriptor.contents.invalidate()
+
     workspace_size = c_uint64(0)
     check_error(
         lib.infiniopGetRoPEWorkspaceSize(descriptor, ctypes.byref(workspace_size))
@@ -125,10 +133,9 @@ def test(lib, handle, torch_device, shape, strides=None, dtype=torch.float16):
             None,
         )
     )
-    
+
     assert torch.allclose(t, ans, atol=1e-4, rtol=1e-2)
     check_error(lib.infiniopDestroyRoPEDescriptor(descriptor))
-    print("Test passed!")
 
 
 def test_cpu(lib, test_cases):
@@ -217,3 +224,4 @@ if __name__ == "__main__":
         test_ascend(lib, test_cases)
     if not (args.cpu or args.cuda or args.bang or args.ascend):
         test_cpu(lib, test_cases)
+    print("\033[92mTest passed!\033[0m")

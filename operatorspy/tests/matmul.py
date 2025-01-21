@@ -19,16 +19,12 @@ from operatorspy import (
     create_workspace,
 )
 
-from operatorspy.tests.test_utils import get_args
+from operatorspy.tests.test_utils import get_args, synchronize_device
 import torch
 
-# constant for control whether profile the pytorch and lib functions
-# NOTE: need to manually add synchronization function to the lib function,
-#       e.g., cudaDeviceSynchronize() for CUDA
 PROFILE = False
 NUM_PRERUN = 10
 NUM_ITERATIONS = 1000
-
 
 class MatmulDescriptor(Structure):
     _fields_ = [("device", c_int32)]
@@ -45,10 +41,6 @@ def matmul(_c, beta, _a, _b, alpha):
         alpha * torch.matmul(a.to(torch.float32), b.to(torch.float32)).to(input_dtype)
         + beta * c
     )
-    if PROFILE:
-        if _c.device.type == "cuda":
-            torch.cuda.synchronize()
-        # TODO: add synchronization function for other devices
     return ans
 
 
@@ -100,6 +92,11 @@ def test(
         )
     )
 
+    # Invalidate the shape and strides in the descriptor to prevent them from being directly used by the kernel
+    a_tensor.descriptor.contents.invalidate()
+    b_tensor.descriptor.contents.invalidate()
+    c_tensor.descriptor.contents.invalidate()
+
     workspace_size = c_uint64(0)
     check_error(
         lib.infiniopGetMatmulWorkspaceSize(descriptor, ctypes.byref(workspace_size))
@@ -123,11 +120,13 @@ def test(
     if PROFILE:
         for i in range(NUM_PRERUN):
             _ = matmul(c, beta, a, b, alpha)
+        synchronize_device(torch_device)
         start_time = time.time()
         for i in range(NUM_ITERATIONS):
             _ = matmul(c, beta, a, b, alpha)
+        synchronize_device(torch_device)
         elapsed = (time.time() - start_time) / NUM_ITERATIONS
-        print(f"pytorch time: {elapsed :6f}")
+        print(f" pytorch time: {elapsed * 1000 :6f} ms")
         for i in range(NUM_PRERUN):
             check_error(
                 lib.infiniopMatmul(
@@ -140,6 +139,7 @@ def test(
                     None,
                 )
             )
+        synchronize_device(torch_device)
         start_time = time.time()
         for i in range(NUM_ITERATIONS):
             check_error(
@@ -153,8 +153,9 @@ def test(
                     None,
                 )
             )
+        synchronize_device(torch_device)
         elapsed = (time.time() - start_time) / NUM_ITERATIONS
-        print(f"    lib time: {elapsed :6f}")
+        print(f"     lib time: {elapsed * 1000 :6f} ms")
 
     check_error(lib.infiniopDestroyMatmulDescriptor(descriptor))
 
@@ -342,6 +343,8 @@ if __name__ == "__main__":
         infiniopMatmulDescriptor_t,
     ]
 
+    if args.profile:
+        PROFILE = True
     if args.cpu:
         test_cpu(lib, test_cases)
     if args.cuda:

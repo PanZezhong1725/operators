@@ -111,6 +111,12 @@ def test(
         )
     )
 
+    # Invalidate the shape and strides in the descriptor to prevent them from being directly used by the kernel
+    y_tensor.descriptor.contents.invalidate()
+    x_tensor.descriptor.contents.invalidate()
+    w12_tensor.descriptor.contents.invalidate()
+    w3_tensor.descriptor.contents.invalidate()
+
     workspace_size = c_uint64(0)
     check_error(
         lib.infiniopGetMLPWorkspaceSize(descriptor, ctypes.byref(workspace_size))
@@ -307,4 +313,4 @@ if __name__ == "__main__":
         test_bang(lib, test_cases)
     if not (args.cpu or args.cuda or args.bang):
         test_cpu(lib, test_cases)
-    print("Test passed!")
+    print("\033[92mTest passed!\033[0m")

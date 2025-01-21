@@ -74,6 +74,12 @@ def test_out_of_place(
             b_tensor.descriptor,
         )
     )
+
+    # Invalidate the shape and strides in the descriptor to prevent them from being directly used by the kernel
+    a_tensor.descriptor.contents.invalidate()
+    b_tensor.descriptor.contents.invalidate()
+    c_tensor.descriptor.contents.invalidate()
+
     check_error(
         lib.infiniopSwiGLU(
             descriptor, c_tensor.data, a_tensor.data, b_tensor.data, None
@@ -120,6 +126,11 @@ def test_in_place1(
             b_tensor.descriptor,
         )
     )
+
+    # Invalidate the shape and strides in the descriptor to prevent them from being directly used by the kernel
+    a_tensor.descriptor.contents.invalidate()
+    b_tensor.descriptor.contents.invalidate()
+
     check_error(
         lib.infiniopSwiGLU(
             descriptor, a_tensor.data, a_tensor.data, b_tensor.data, None
@@ -166,6 +177,11 @@ def test_in_place2(
             b_tensor.descriptor,
         )
     )
+
+    # Invalidate the shape and strides in the descriptor to prevent them from being directly used by the kernel
+    a_tensor.descriptor.contents.invalidate()
+    b_tensor.descriptor.contents.invalidate()
+
     check_error(
         lib.infiniopSwiGLU(
             descriptor, b_tensor.data, a_tensor.data, b_tensor.data, None
@@ -173,7 +189,6 @@ def test_in_place2(
     )
 
     assert torch.allclose(b, ans, atol=1e-4, rtol=1e-2)
-    print("in-place2 Test passed!")
 
     check_error(lib.infiniopDestroySwiGLUDescriptor(descriptor))
 
@@ -278,3 +293,4 @@ if __name__ == "__main__":
         test_bang(lib, test_cases)
     if args.ascend:
         test_ascend(lib, test_cases)
+    print("\033[92mTest passed!\033[0m")

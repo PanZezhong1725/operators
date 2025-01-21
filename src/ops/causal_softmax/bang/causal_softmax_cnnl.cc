@@ -74,8 +74,8 @@ infiniopStatus_t cnnlCausalSoftmax(CausalSoftmaxCnnlDescriptor_t desc,
             }
         }
     }
-
-    cnrtMemcpyAsync(workspace, mask_matrix, workspace_size, (cnrtQueue_t) stream, cnrtMemcpyHostToDev);
+    size_t mask_size = sizeof(bool) * desc->dims[0] * desc->dims[1] * desc->dims[2] * desc->dims[3];
+    cnrtMemcpyAsync(workspace, mask_matrix, mask_size, (cnrtQueue_t) stream, cnrtMemcpyHostToDev);
 
     use_cnnl(desc->pool, desc->device_id, (cnrtQueue_t) stream,
              [&](cnnlHandle_t handle) {
@@ -83,6 +83,7 @@ infiniopStatus_t cnnlCausalSoftmax(CausalSoftmaxCnnlDescriptor_t desc,
                                    -1, 1.0, desc->yDesc, data, desc->maskDesc, workspace,
                                    desc->yDesc, data);
              });
+    cnrtQueueSync((cnrtQueue_t)stream);
 
     return STATUS_SUCCESS;
 }

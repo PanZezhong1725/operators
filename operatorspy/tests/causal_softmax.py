@@ -58,6 +58,10 @@ def test(lib, handle, torch_device, x_shape, x_stride=None, x_dtype=torch.float1
             descriptor, ctypes.byref(workspace_size)
         )
     )
+
+    # Invalidate the shape and strides in the descriptor to prevent them from being directly used by the kernel
+    x_tensor.descriptor.contents.invalidate()
+
     workspace = create_workspace(workspace_size.value, x.device)
     check_error(
         lib.infiniopCausalSoftmax(
@@ -149,4 +153,4 @@ if __name__ == "__main__":
         test_ascend(lib, test_cases)
     if not (args.cpu or args.cuda or args.bang or args.ascend):
         test_cpu(lib, test_cases)
-    print("Test passed!")
+    print("\033[92mTest passed!\033[0m")

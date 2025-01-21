@@ -11,7 +11,9 @@ struct RearrangeBangDescriptor {
     uint64_t r;
     uint64_t ndim;
     uint64_t *mlu_shape;
-    int64_t *mlu_strides_dst, *mlu_strides_src;
+    int64_t
+        *mlu_strides_dst,
+        *mlu_strides_src;
 };
 
 typedef struct RearrangeBangDescriptor *RearrangeBangDescriptor_t;

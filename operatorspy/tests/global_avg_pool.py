@@ -80,6 +80,11 @@ def test(
             x_tensor.descriptor,
         )
     )
+
+    # Invalidate the shape and strides in the descriptor to prevent them from being directly used by the kernel
+    x_tensor.descriptor.contents.invalidate()
+    y_tensor.descriptor.contents.invalidate()
+
     workspaceSize = ctypes.c_uint64(0)
     check_error(
         lib.infiniopGetGlobalAvgPoolWorkspaceSize(

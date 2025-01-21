@@ -35,7 +35,7 @@ __mlu_global__ void random_sampleX(T const *source, uint64_t *indices, uint64_t 
     __bang_write_zero(destSum, maxNum);
     __bang_write_zero(destSumFinal, wSize);
 
-    __memcpy(srcInd, indGdram, voc * sizeof(uint64_t), GDRAM2NRAM);
+    
 
     if(step){
         for(int i = 0; i < step; i++){

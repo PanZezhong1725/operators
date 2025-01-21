@@ -42,7 +42,7 @@ __C __export infiniopStatus_t infiniopCreateConvActDescriptor(infiniopHandle_t h
                                                               int64_t const *strides,
                                                               uint64_t const *dilations,
                                                               uint64_t n,
-                                                              ActivationMode_t activation_mode,
+                                                              InfiniActivationMode_t activation_mode,
                                                               ConvActParam_t act_params);
 
 __C __export infiniopStatus_t infiniopGetConvActWorkspaceSize(infiniopConvActDescriptor_t desc, uint64_t *size);

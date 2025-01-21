@@ -24,7 +24,7 @@ struct ConvActCpuDescriptor {
     uint64_t const *pads;
     int64_t const *strides;
     uint64_t const *dilations;
-    ActivationMode_t mode;
+    InfiniActivationMode_t mode;
     bool bias_is_optional;
     ConvActParam_t act_params;
 };
@@ -41,7 +41,7 @@ infiniopStatus_t cpuCreateConvActDescriptor(infiniopHandle_t,
                                             int64_t const *strides,
                                             uint64_t const *dilations,
                                             uint64_t n,
-                                            ActivationMode_t activation_mode,
+                                            InfiniActivationMode_t activation_mode,
                                             ConvActParam_t act_params);
 
 infiniopStatus_t cpuGetConvActWorkspaceSize(ConvActCpuDescriptor_t desc, uint64_t *size);

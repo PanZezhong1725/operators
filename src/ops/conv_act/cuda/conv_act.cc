@@ -12,7 +12,7 @@ infiniopStatus_t cudaCreateConvActDescriptor(CudaHandle_t handle,
                                              int64_t const *strides,
                                              uint64_t const *dilations,
                                              uint64_t n,
-                                             ActivationMode_t activation_mode,
+                                             InfiniActivationMode_t activation_mode,
                                              ConvActParam_t act_params) {
     uint64_t ndim = y->ndim;
     if (ndim < 3 || ndim != x->ndim || ndim != w->ndim || n != ndim - 2) {

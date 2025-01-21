@@ -21,7 +21,7 @@ __C infiniopStatus_t infiniopCreateConvActDescriptor(
     int64_t const *strides,
     uint64_t const *dilations,
     uint64_t n,
-    ActivationMode_t activation_mode,
+    InfiniActivationMode_t activation_mode,
     ConvActParam_t act_params) {
     switch (handle->device) {
 #ifdef ENABLE_CPU

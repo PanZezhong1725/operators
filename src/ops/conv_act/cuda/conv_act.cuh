@@ -38,7 +38,7 @@ infiniopStatus_t cudaCreateConvActDescriptor(CudaHandle_t,
                                              int64_t const *strides,
                                              uint64_t const *dilations,
                                              uint64_t n,
-                                             ActivationMode_t activation_mode,
+                                             InfiniActivationMode_t activation_mode,
                                              ConvActParam_t act_params);
 
 infiniopStatus_t cudaGetConvActWorkspaceSize(ConvActCudaDescriptor_t desc, uint64_t *size);

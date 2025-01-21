@@ -38,7 +38,7 @@ infiniopStatus_t cpuCreateConvActDescriptor(infiniopHandle_t,
                                             int64_t const *strides,
                                             uint64_t const *dilations,
                                             uint64_t n,
-                                            ActivationMode_t activation_mode,
+                                            InfiniActivationMode_t activation_mode,
                                             ConvActParam_t act_params) {
     uint64_t ndim = y->ndim;
     if (ndim < 3 || ndim != x->ndim || ndim != w->ndim || n != ndim - 2) {
@@ -233,7 +233,7 @@ void addBias(Ydata *y, const Xdata *b, uint64_t batch_size, uint64_t out_channel
 
 // apply activation function given the mode on the array arr with length n
 template<typename Tdata>
-void applyActivation(Tdata *arr, uint64_t n, ActivationMode_t mode) {
+void applyActivation(Tdata *arr, uint64_t n, InfiniActivationMode_t mode) {
     if (mode != INFINI_ACTIVATION_IDENTITY) {
         std::function<void(Tdata &)> activation_fn = [](Tdata &value) { value = value; };
 

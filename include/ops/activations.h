@@ -4,7 +4,7 @@
 /**
  * @brief Specifies the type of activation function
  */
-typedef enum ActivationMode {
+typedef enum InfiniActivationMode {
     // activation functions
     INFINI_ACTIVATION_IDENTITY = 0,
     INFINI_ACTIVATION_RELU = 1,
@@ -20,6 +20,6 @@ typedef enum ActivationMode {
     // Count
     // NOTE: new activation functions should add before "Count"
     INFINI_ACTIVATION_COUNT,
-} ActivationMode_t;
+} InfiniActivationMode_t;
 
 #endif

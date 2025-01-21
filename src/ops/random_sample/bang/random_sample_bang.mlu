@@ -190,10 +190,15 @@ __mlu_global__ void random_sampleD(T const *source, uint64_t *indices, uint64_t 
     T *destSum = srcTopk + 2 * topk;//[maxNum]
     T *destSumFinal = destSum + maxNum;//[wSize]
     T *srcGlobal = destSumFinal + wSize;//[taskDim * topk]
-    __bang_write_value(srcTopk, 2 * topk, -INFINITY);
+    for(int i = 0; i < 2 * topk; i++){
+        srcTopk[i] = -INFINITY + i;//不能使用__bang_write_value
+    }
+    for(int j = 0; j < maxNum; j++){
+        srcInd[j] = taskId * maxNum + j;
+    }
     for(int r = 0; r < repeat; r++){
-        for(int j = 0; j < maxNum; j++){
-            srcInd[j] = r * taskSize + taskId * maxNum + j;
+        if(r > 0){
+            __bang_add_scalar(srcInd, srcInd, taskSize, maxNum);//每次都在上一次基础上增加taskSize
         }
         __memcpy(src, source + r * taskSize + taskId * maxNum, maxNum * sizeof(T), GDRAM2NRAM);
         for(int i = 0; i < topk; i++){
@@ -208,32 +213,28 @@ __mlu_global__ void random_sampleD(T const *source, uint64_t *indices, uint64_t 
                     srcInd[j] = indexTmp;
                 }
             }
+            
+        }
+        for(int i = 0; i < topk; i++){
             srcTopk[topk + i] = src[i];
             topkInd[topk + i] = srcInd[i];
         }
-        if(r == 0){
-            __memcpy(srcTopk, srcTopk + topk, topk * sizeof(T), NRAM2NRAM);
-            __memcpy(topkInd, topkInd + topk, topk * sizeof(uint64_t), NRAM2NRAM);
-        }
-        else{
-            for(int i = 0; i < topk; i++){
-                for(int j = i + 1; j < 2 * topk; j++){
-                    if(srcTopk[i] < srcTopk[j]){
-                        T tmpk = srcTopk[i];
-                        srcTopk[i] = srcTopk[j];
-                        srcTopk[j] = tmpk;
+        
+        for(int i = 0; i < topk; i++){
+            for(int j = i + 1; j < 2 * topk; j++){
+                if(srcTopk[i] < srcTopk[j]){
+                    T tmpk = srcTopk[i];
+                    srcTopk[i] = srcTopk[j];
+                    srcTopk[j] = tmpk;
 
-                        uint64_t indexTmpk = topkInd[i];
-                        topkInd[i] = topkInd[j];
-                        topkInd[j] = indexTmpk;
-                    }
+                    uint64_t indexTmpk = topkInd[i];
+                    topkInd[i] = topkInd[j];
+                    topkInd[j] = indexTmpk;
                 }
             }
         }
-
-
+        
     }
-
     if(step){
         for(int j = 0; j < step; j++){
             srcInd[j] = repeat * taskSize + indStart + j;
@@ -252,21 +253,11 @@ __mlu_global__ void random_sampleD(T const *source, uint64_t *indices, uint64_t 
                         srcInd[j] = indexTmp;
                     }
                 }
-                srcTopk[topk + i] = src[i];
-                topkInd[topk + i] = srcInd[i];
+                
             }
             for(int i = 0; i < topk; i++){
-                for(int j = i + 1; j < 2 * topk; j++){
-                    if(srcTopk[i] < srcTopk[j]){
-                        T tmpk = srcTopk[i];
-                        srcTopk[i] = srcTopk[j];
-                        srcTopk[j] = tmpk;
-
-                        uint64_t indexTmpk = topkInd[i];
-                        topkInd[i] = topkInd[j];
-                        topkInd[j] = indexTmpk;
-                    }
-                }
+                srcTopk[topk + i] = src[i];
+                topkInd[topk + i] = srcInd[i];
             }
         }
         else{
@@ -274,17 +265,17 @@ __mlu_global__ void random_sampleD(T const *source, uint64_t *indices, uint64_t 
                 srcTopk[topk + i] = src[i];
                 topkInd[topk + i] = srcInd[i];
             }
-            for(int i = 0; i < topk; i++){
-                for(int j = i + 1; j < 2 * topk; j++){
-                    if(srcTopk[i] < srcTopk[j]){
-                        T tmpk = srcTopk[i];
-                        srcTopk[i] = srcTopk[j];
-                        srcTopk[j] = tmpk;
+        }
+        for(int i = 0; i < topk; i++){
+            for(int j = i + 1; j < 2 * topk; j++){
+                if(srcTopk[i] < srcTopk[j]){
+                    T tmpk = srcTopk[i];
+                    srcTopk[i] = srcTopk[j];
+                    srcTopk[j] = tmpk;
 
-                        uint64_t indexTmpk = topkInd[i];
-                        topkInd[i] = topkInd[j];
-                        topkInd[j] = indexTmpk;
-                    }
+                    uint64_t indexTmpk = topkInd[i];
+                    topkInd[i] = topkInd[j];
+                    topkInd[j] = indexTmpk;
                 }
             }
         }
@@ -326,11 +317,11 @@ __mlu_global__ void random_sampleD(T const *source, uint64_t *indices, uint64_t 
         __bang_add(destSum, destSum, src, maxNum);
     }
     if(step){
-        __bang_write_value(src, maxNum, globalM);
+        __bang_write_zero(src, maxNum);
         __memcpy(src, source + repeat * taskSize + indStart, step * sizeof(T), GDRAM2NRAM);
-        __bang_sub_scalar(src, src, globalM, maxNum);
-        __bang_mul_scalar(src, src, temInv, maxNum);
-        __bang_active_exp_less_0(src, src, maxNum);
+        __bang_sub_scalar(src, src, globalM, step);
+        __bang_mul_scalar(src, src, temInv, step);
+        __bang_active_exp_less_0(src, src, step);
         __bang_add(destSum, destSum, src, maxNum);
     }
     if(maxNum >= wSize){
@@ -339,8 +330,10 @@ __mlu_global__ void random_sampleD(T const *source, uint64_t *indices, uint64_t 
                 __bang_add(destSum + i * wSize, destSum + i * wSize, destSum + (i + strip) * wSize, wSize);
             }
         }
+        for(int i = 0; i < wSize; i++){
 
-        __bang_reduce_sum(destSumFinal, destSum, wSize);
+            destSumFinal[0] += destSum[i];//__bang_reduce_sum失效，只能手动reduce
+        }
     }
 
     else{
@@ -350,9 +343,7 @@ __mlu_global__ void random_sampleD(T const *source, uint64_t *indices, uint64_t 
         }
 
     }
-    if(step){
-        destSumFinal[0] = destSumFinal[0] - (maxNum - step);//把上面多加的(maxNum - step)减掉
-    }
+    
     globalSum[0] = 0.0;
 
     __sync_all();

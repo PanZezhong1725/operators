@@ -99,7 +99,7 @@ def debug_all(actual_vals: Sequence, desired_vals: Sequence, condition: str, ato
     passed = False if condition == "or" else True
     
     for index, (actual, desired) in enumerate(zip(actual_vals, desired_vals)):
-        print(f"Condition #{index + 1}: {actual} == {desired}")
+        print(f" \033[36mCondition #{index + 1}:\033[0m {actual} == {desired}")
         indices = print_discrepancy(actual, desired, atol, rtol, verbose)
         if condition == "or":
             if not passed and len(indices) == 0:
@@ -152,16 +152,15 @@ def print_discrepancy(
                 f"delta: {add_color(delta_str, 33)}"
             )
     
-        print("-" * total_width)
-        print(add_color("INFO:", 35))
-        print(f" - Actual dtype: {actual.dtype}")
-        print(f" - Desired dtype: {expected.dtype}")
-        print(f" - Atol: {atol}")
-        print(f" - Rtol: {rtol}")
-        print(f" - Mismatched elements: {len(diff_indices)} / {actual.numel()} ({len(diff_indices) / actual.numel() * 100}%)")
-        print(f" - Min(actual) : {torch.min(actual):<{col_width[1]}} | Max(actual) : {torch.max(actual):<{col_width[2]}}")
-        print(f" - Min(desired): {torch.min(expected):<{col_width[1]}} | Max(desired): {torch.max(expected):<{col_width[2]}}")
-        print(f" - Min(delta)  : {torch.min(delta):<{col_width[1]}} | Max(delta)  : {torch.max(delta):<{col_width[2]}}")
+        print(add_color(" INFO:", 35))
+        print(f"  - Actual dtype: {actual.dtype}")
+        print(f"  - Desired dtype: {expected.dtype}")
+        print(f"  - Atol: {atol}")
+        print(f"  - Rtol: {rtol}")
+        print(f"  - Mismatched elements: {len(diff_indices)} / {actual.numel()} ({len(diff_indices) / actual.numel() * 100}%)")
+        print(f"  - Min(actual) : {torch.min(actual):<{col_width[1]}} | Max(actual) : {torch.max(actual):<{col_width[2]}}")
+        print(f"  - Min(desired): {torch.min(expected):<{col_width[1]}} | Max(desired): {torch.max(expected):<{col_width[2]}}")
+        print(f"  - Min(delta)  : {torch.min(delta):<{col_width[1]}} | Max(delta)  : {torch.max(delta):<{col_width[2]}}")
         print("-" * total_width + "\n")
 
     return diff_indices

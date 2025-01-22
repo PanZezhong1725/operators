@@ -150,14 +150,14 @@ def test(
     if (tensor_dtype == torch.float16):
         assert torch.allclose(y, ans, atol=1e-5, rtol=1e-3)
     else: # float32
-        assert torch.allclose(y, ans, atol=1e-6, rtol=1e-3)
+        assert torch.allclose(y, ans, atol=1e-6, rtol=1e-5)
     check_error(lib.infiniopDestroyBatchNormDescriptor(descriptor))
 
 
 def test_operator(lib, device, test_cases, tensor_dtypes):
     handle = create_handle(lib, device)
-    for tensor_dtype in tensor_dtypes:
-        for x_shape, eps, inplace in test_cases:
+    for x_shape, eps, inplace in test_cases:
+        for tensor_dtype in tensor_dtypes:
             test(lib, handle, device_enum_to_str(device), x_shape, eps, inplace=inplace, tensor_dtype=tensor_dtype)
     destroy_handle(lib, handle)
 

@@ -191,7 +191,7 @@ __mlu_global__ void random_sampleD(T const *source, uint64_t *indices, uint64_t 
     T *destSumFinal = destSum + maxNum;//[wSize]
     T *srcGlobal = destSumFinal + wSize;//[taskDim * topk]
     for(int i = 0; i < 2 * topk; i++){
-        srcTopk[i] = -INFINITY + i;//不能使用__bang_write_value
+        srcTopk[i] = -INFINITY;//不能使用__bang_write_value
     }
     for(int j = 0; j < maxNum; j++){
         srcInd[j] = taskId * maxNum + j;

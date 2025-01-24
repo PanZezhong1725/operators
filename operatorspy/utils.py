@@ -116,5 +116,5 @@ def device_enum_to_str(device: DeviceEnum):
     if device == DeviceEnum.DEVICE_BANG:
         return "mlu"
     if device == DeviceEnum.DEVICE_ASCEND:
-        return "ascend"
+        return "npu"
     return ""

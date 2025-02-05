@@ -16,13 +16,10 @@ from operatorspy import (
     check_error,
 )
 
-from operatorspy.tests.test_utils import get_args
+from operatorspy.tests.test_utils import get_args, synchronize_device
 from enum import Enum, auto
 import torch
 
-# constant for control whether profile the pytorch and lib functions
-# NOTE: need to manually add synchronization function to the lib function,
-#       e.g., cudaDeviceSynchronize() for CUDA
 PROFILE = False
 NUM_PRERUN = 10
 NUM_ITERATIONS = 1000
@@ -41,10 +38,6 @@ infiniopReluDescriptor_t = POINTER(ReluDescriptor)
 
 
 def relu(x):
-    if PROFILE:
-        ans = torch.nn.functional.relu(x).to(x.dtype)
-        torch.cuda.synchronize()
-        return ans
     return torch.nn.functional.relu(x).to(x.dtype)
 
 
@@ -63,14 +56,7 @@ def test(
     x = torch.rand(tensor_shape, dtype=tensor_dtype).to(torch_device) * 2 - 1
     y = torch.rand(tensor_shape, dtype=tensor_dtype).to(torch_device) if inplace == Inplace.OUT_OF_PLACE else x
 
-    for i in range(NUM_PRERUN if PROFILE else 1):
-        ans = relu(x)
-    if PROFILE:
-        start_time = time.time()
-        for i in range(NUM_ITERATIONS):
-            _ = relu(x)
-        elapsed = (time.time() - start_time) / NUM_ITERATIONS
-        print(f"pytorch time: {elapsed :6f}")
+    ans = relu(x)
 
     x_tensor = to_tensor(x, lib)
     y_tensor = to_tensor(y, lib) if inplace == Inplace.OUT_OF_PLACE else x_tensor
@@ -89,47 +75,62 @@ def test(
     x_tensor.descriptor.contents.invalidate()
     y_tensor.descriptor.contents.invalidate()
 
-    for i in range(NUM_PRERUN if PROFILE else 1):
-        check_error(lib.infiniopRelu(descriptor, y_tensor.data, x_tensor.data, None))
+    check_error(lib.infiniopRelu(descriptor, y_tensor.data, x_tensor.data, None))
+
+    assert torch.allclose(y, ans, atol=0, rtol=0)
+
     if PROFILE:
+        # Profiling PyTorch implementation
+        for i in range(NUM_PRERUN):
+            _ = relu(x)
+        synchronize_device(torch_device)
         start_time = time.time()
         for i in range(NUM_ITERATIONS):
-            check_error(
-                lib.infiniopRelu(descriptor, y_tensor.data, x_tensor.data, None)
-            )
+            _ = relu(x)
+        synchronize_device(torch_device)
         elapsed = (time.time() - start_time) / NUM_ITERATIONS
-        print(f"    lib time: {elapsed :6f}")
+        print(f" pytorch time: {elapsed * 1000 :6f} ms")
 
-    assert torch.allclose(y, ans, atol=0, rtol=1e-3)
+        # Profiling C Operators implementation
+        for i in range(NUM_PRERUN):
+            check_error(lib.infiniopRelu(descriptor, y_tensor.data, x_tensor.data, None))
+        synchronize_device(torch_device)
+        start_time = time.time()
+        for i in range(NUM_ITERATIONS):
+            check_error(lib.infiniopRelu(descriptor, y_tensor.data, x_tensor.data, None))
+        synchronize_device(torch_device)
+        elapsed = (time.time() - start_time) / NUM_ITERATIONS
+        print(f"     lib time: {elapsed * 1000 :6f} ms")
+
     check_error(lib.infiniopDestroyReluDescriptor(descriptor))
 
 
-def test_cpu(lib, test_cases):
+def test_cpu(lib, test_cases, tensor_dtypes):
     device = DeviceEnum.DEVICE_CPU
     handle = create_handle(lib, device)
     for tensor_shape, inplace in test_cases:
-        test(lib, handle, "cpu", tensor_shape, tensor_dtype=torch.float16, inplace=inplace)
-        test(lib, handle, "cpu", tensor_shape, tensor_dtype=torch.float32, inplace=inplace)
+        for tensor_dtype in tensor_dtypes:
+            test(lib, handle, "cpu", tensor_shape, tensor_dtype=tensor_dtype, inplace=inplace)
     destroy_handle(lib, handle)
 
 
-def test_cuda(lib, test_cases):
+def test_cuda(lib, test_cases, tensor_dtypes):
     device = DeviceEnum.DEVICE_CUDA
     handle = create_handle(lib, device)
     for tensor_shape, inplace in test_cases:
-        test(lib, handle, "cuda", tensor_shape, tensor_dtype=torch.float16, inplace=inplace)
-        test(lib, handle, "cuda", tensor_shape, tensor_dtype=torch.float32, inplace=inplace)
+        for tensor_dtype in tensor_dtypes:
+            test(lib, handle, "cuda", tensor_shape, tensor_dtype=tensor_dtype, inplace=inplace)
     destroy_handle(lib, handle)
 
 
-def test_bang(lib, test_cases):
+def test_bang(lib, test_cases, tensor_dtypes):
     import torch_mlu
 
     device = DeviceEnum.DEVICE_BANG
     handle = create_handle(lib, device)
     for tensor_shape, inplace in test_cases:
-        test(lib, handle, "mlu", tensor_shape, tensor_dtype=torch.float16, inplace=inplace)
-        test(lib, handle, "mlu", tensor_shape, tensor_dtype=torch.float32, inplace=inplace)
+        for tensor_dtype in tensor_dtypes:
+            test(lib, handle, "mlu", tensor_shape, tensor_dtype=tensor_dtype, inplace=inplace)
     destroy_handle(lib, handle)
 
 
@@ -144,6 +145,9 @@ if __name__ == "__main__":
         ((32, 20, 512), Inplace.INPLACE_X),
         ((33, 333, 333), Inplace.OUT_OF_PLACE),
         ((32, 256, 112, 112), Inplace.OUT_OF_PLACE),
+    ]
+    tensor_dtypes = [
+        torch.float16, torch.float32,
     ]
     args = get_args()
     lib = open_lib()
@@ -166,12 +170,14 @@ if __name__ == "__main__":
         infiniopReluDescriptor_t,
     ]
 
+    if args.profile:
+        PROFILE = True
     if args.cpu:
-        test_cpu(lib, test_cases)
+        test_cpu(lib, test_cases, tensor_dtypes)
     if args.cuda:
-        test_cuda(lib, test_cases)
+        test_cuda(lib, test_cases, tensor_dtypes)
     if args.bang:
-        test_bang(lib, test_cases)
+        test_bang(lib, test_cases, tensor_dtypes)
     if not (args.cpu or args.cuda or args.bang):
-        test_cpu(lib, test_cases)
+        test_cpu(lib, test_cases, tensor_dtypes)
     print("\033[92mTest passed!\033[0m")

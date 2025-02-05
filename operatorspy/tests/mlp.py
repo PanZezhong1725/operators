@@ -2,6 +2,7 @@ from ctypes import POINTER, Structure, c_int32, c_uint64, c_void_p, c_float, c_b
 import ctypes
 import sys
 import os
+import time
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 from operatorspy import (
@@ -18,10 +19,13 @@ from operatorspy import (
     create_workspace,
 )
 
-from operatorspy.tests.test_utils import get_args
+from operatorspy.tests.test_utils import get_args, synchronize_device
 import torch
 import torch.nn as nn
 
+PROFILE = False
+NUM_PRERUN = 10
+NUM_ITERATIONS = 1000
 
 class MLPDescriptor(Structure):
     _fields_ = [("device", c_int32)]
@@ -137,10 +141,55 @@ def test(
     )
     assert torch.allclose(y, ans, atol=0, rtol=2e-2)
 
+    if PROFILE:
+        # Profiling PyTorch implementation
+        for i in range(NUM_PRERUN):
+            _ = mlp(y, x, w12, w3, alpha, residual)
+        synchronize_device(torch_device)
+        start_time = time.time()
+        for i in range(NUM_ITERATIONS):
+            _ = mlp(y, x, w12, w3, alpha, residual)
+        synchronize_device(torch_device)
+        elapsed = (time.time() - start_time) / NUM_ITERATIONS
+        print(f" pytorch time: {elapsed * 1000 :6f} ms")
+
+        # Profiling C Operators implementation
+        for i in range(NUM_PRERUN):
+            check_error(
+                lib.infiniopMLP(
+                    descriptor,
+                    workspace.data_ptr() if workspace is not None else None,
+                    workspace_size.value,
+                    y_tensor.data,
+                    x_tensor.data,
+                    w12_tensor.data,
+                    w3_tensor.data,
+                    None,
+                )
+            )
+        synchronize_device(torch_device)
+        start_time = time.time()
+        for i in range(NUM_ITERATIONS):
+            check_error(
+                lib.infiniopMLP(
+                    descriptor,
+                    workspace.data_ptr() if workspace is not None else None,
+                    workspace_size.value,
+                    y_tensor.data,
+                    x_tensor.data,
+                    w12_tensor.data,
+                    w3_tensor.data,
+                    None,
+                )
+            )
+        synchronize_device(torch_device)
+        elapsed = (time.time() - start_time) / NUM_ITERATIONS
+        print(f"     lib time: {elapsed * 1000 :6f} ms")
+
     check_error(lib.infiniopDestroyMLPDescriptor(descriptor))
 
 
-def test_cpu(lib, test_cases):
+def test_cpu(lib, test_cases, tensor_dtypes):
     device = DeviceEnum.DEVICE_CPU
     handle = create_handle(lib, device)
 
@@ -150,32 +199,32 @@ def test_cpu(lib, test_cases):
         intermediate_size,
         alpha,
         residual,
-        dtype,
         x_stride,
         y_stride,
         w12_stride,
         w3_stride,
     ) in test_cases:
-        test(
-            lib,
-            handle,
-            "cpu",
-            num_tokens,
-            hidden_size,
-            intermediate_size,
-            alpha,
-            residual,
-            dtype,
-            x_stride,
-            y_stride,
-            w12_stride,
-            w3_stride,
-        )
+        for tensor_dtype in tensor_dtypes:
+            test(
+                lib,
+                handle,
+                "cpu",
+                num_tokens,
+                hidden_size,
+                intermediate_size,
+                alpha,
+                residual,
+                tensor_dtype,
+                x_stride,
+                y_stride,
+                w12_stride,
+                w3_stride,
+            )
 
     destroy_handle(lib, handle)
 
 
-def test_cuda(lib, test_cases):
+def test_cuda(lib, test_cases, tensor_dtypes):
     device = DeviceEnum.DEVICE_CUDA
     handle = create_handle(lib, device)
 
@@ -185,32 +234,32 @@ def test_cuda(lib, test_cases):
         intermediate_size,
         alpha,
         residual,
-        dtype,
         x_stride,
         y_stride,
         w12_stride,
         w3_stride,
     ) in test_cases:
-        test(
-            lib,
-            handle,
-            "cuda",
-            num_tokens,
-            hidden_size,
-            intermediate_size,
-            alpha,
-            residual,
-            dtype,
-            x_stride,
-            y_stride,
-            w12_stride,
-            w3_stride,
-        )
+        for tensor_dtype in tensor_dtypes:
+            test(
+                lib,
+                handle,
+                "cuda",
+                num_tokens,
+                hidden_size,
+                intermediate_size,
+                alpha,
+                residual,
+                tensor_dtype,
+                x_stride,
+                y_stride,
+                w12_stride,
+                w3_stride,
+            )
 
     destroy_handle(lib, handle)
 
 
-def test_bang(lib, test_cases):
+def test_bang(lib, test_cases, tensor_dtypes):
     import torch_mlu
 
     device = DeviceEnum.DEVICE_BANG
@@ -222,27 +271,27 @@ def test_bang(lib, test_cases):
         intermediate_size,
         alpha,
         residual,
-        dtype,
         x_stride,
         y_stride,
         w12_stride,
         w3_stride,
     ) in test_cases:
-        test(
-            lib,
-            handle,
-            "mlu",
-            num_tokens,
-            hidden_size,
-            intermediate_size,
-            alpha,
-            residual,
-            dtype,
-            x_stride,
-            y_stride,
-            w12_stride,
-            w3_stride,
-        )
+        for tensor_dtype in tensor_dtypes:
+            test(
+                lib,
+                handle,
+                "mlu",
+                num_tokens,
+                hidden_size,
+                intermediate_size,
+                alpha,
+                residual,
+                tensor_dtype,
+                x_stride,
+                y_stride,
+                w12_stride,
+                w3_stride,
+            )
 
     destroy_handle(lib, handle)
 
@@ -250,22 +299,24 @@ def test_bang(lib, test_cases):
 if __name__ == "__main__":
     test_cases = [
         # num_tokens, hidden_size, intermediate_size, alpha, residual, dtype, x_stride, y_stride, w12_stride, w3_stride
-        (4, 4096, 11008, 1.0, True, torch.float16, None, None, None, None),
-        (4, 4096, 11008, 1.0, True, torch.float16, [8192, 1], [8192, 1], None, None),
+        (4, 4096, 11008, 1.0, True, None, None, None, None),
+        (4, 4096, 11008, 1.0, True, [8192, 1], [8192, 1], None, None),
         (
             4,
             4096,
             11008,
             1.0,
             True,
-            torch.float16,
             None,
             None,
             [1, 4096],
             [1, 11008],
         ),
-        (4, 4096, 11008, 1.0, False, torch.float16, None, None, None, None),
-        (4, 4096, 11008, 1.0, False, torch.float16, [8192, 1], [8192, 1], None, None),
+        (4, 4096, 11008, 1.0, False, None, None, None, None),
+        (4, 4096, 11008, 1.0, False, [8192, 1], [8192, 1], None, None),
+    ]
+    tensor_dtypes = [
+        torch.float16,
     ]
     args = get_args()
     lib = open_lib()
@@ -305,12 +356,14 @@ if __name__ == "__main__":
         infiniopMLPDescriptor_t,
     ]
 
+    if args.profile:
+        PROFILE = True
     if args.cpu:
-        test_cpu(lib, test_cases)
+        test_cpu(lib, test_cases, tensor_dtypes)
     if args.cuda:
-        test_cuda(lib, test_cases)
+        test_cuda(lib, test_cases, tensor_dtypes)
     if args.bang:
-        test_bang(lib, test_cases)
+        test_bang(lib, test_cases, tensor_dtypes)
     if not (args.cpu or args.cuda or args.bang):
-        test_cpu(lib, test_cases)
+        test_cpu(lib, test_cases, tensor_dtypes)
     print("\033[92mTest passed!\033[0m")

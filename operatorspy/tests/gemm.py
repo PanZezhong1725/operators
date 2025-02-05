@@ -17,12 +17,9 @@ from operatorspy import (
     rearrange_tensor,
 )
 
-from operatorspy.tests.test_utils import get_args
+from operatorspy.tests.test_utils import get_args, synchronize_device
 import torch
 
-# constant for control whether profile the pytorch and lib functions
-# NOTE: need to manually add synchronization function to the lib function,
-#       e.g., cudaDeviceSynchronize() for CUDA
 PROFILE = False
 NUM_PRERUN = 10
 NUM_ITERATIONS = 1000
@@ -40,8 +37,6 @@ def gemm(A, B, C=None, transA=False, transB=False, alpha=1.0, beta=0.0, dtype=to
     result = alpha * torch.matmul(A if dtype != torch.float16 else A.to(torch.float32), B if dtype != torch.float16 else B.to(torch.float32)).to(dtype)
     if C is not None:
         result += beta * C if dtype != torch.float16 else C.to(torch.float32)
-    if PROFILE:
-        torch.cuda.synchronize()
     return result
 
 
@@ -83,14 +78,7 @@ def test(
     if y_stride is not None:
         y = rearrange_tensor(y, y_stride)
 
-    for i in range(NUM_PRERUN if PROFILE else 1):
-        ans = gemm(a, b, c, transA, transB, alpha, beta, dtype)
-    if PROFILE:
-        start_time = time.time()
-        for i in range(NUM_ITERATIONS):
-            _ = gemm(a, b, c, transA, transB, alpha, beta, dtype)
-        elapsed = (time.time() - start_time) / NUM_ITERATIONS
-        print(f"pytorch time: {elapsed :6f}")
+    ans = gemm(a, b, c, transA, transB, alpha, beta, dtype)
 
     a_tensor = to_tensor(a, lib)
     b_tensor = to_tensor(b, lib)
@@ -130,20 +118,48 @@ def test(
     )
     workspace_ptr = ctypes.cast(workspace.data_ptr(), ctypes.POINTER(ctypes.c_uint8))
 
-    for i in range(NUM_PRERUN if PROFILE else 1):
-        check_error(
-            lib.infiniopGEMM(
-                descriptor,
-                workspace_ptr,
-                workspace_size,
-                y_tensor.data,
-                a_tensor.data,
-                b_tensor.data,
-                c_tensor.data if c_tensor else None,
-                None,
-            )
+    check_error(
+        lib.infiniopGEMM(
+            descriptor,
+            workspace_ptr,
+            workspace_size,
+            y_tensor.data,
+            a_tensor.data,
+            b_tensor.data,
+            c_tensor.data if c_tensor else None,
+            None,
         )
+    )
+
+    assert torch.allclose(y, ans, atol=0, rtol=1e-2)
+
     if PROFILE:
+        # Profiling PyTorch implementation
+        for i in range(NUM_PRERUN):
+            _ = gemm(a, b, c, transA, transB, alpha, beta, dtype)
+        synchronize_device(torch_device)
+        start_time = time.time()
+        for i in range(NUM_ITERATIONS):
+            _ = gemm(a, b, c, transA, transB, alpha, beta, dtype)
+        synchronize_device(torch_device)
+        elapsed = (time.time() - start_time) / NUM_ITERATIONS
+        print(f" pytorch time: {elapsed * 1000 :6f} ms")
+
+        # Profiling C Operators implementation
+        for i in range(NUM_PRERUN):
+            check_error(
+                lib.infiniopGEMM(
+                    descriptor,
+                    workspace_ptr,
+                    workspace_size,
+                    y_tensor.data,
+                    a_tensor.data,
+                    b_tensor.data,
+                    c_tensor.data if c_tensor else None,
+                    None,
+                )
+            )
+        synchronize_device(torch_device)
         start_time = time.time()
         for i in range(NUM_ITERATIONS):
             check_error(
@@ -158,14 +174,14 @@ def test(
                     None,
                 )
             )
+        synchronize_device(torch_device)
         elapsed = (time.time() - start_time) / NUM_ITERATIONS
-        print(f"    lib time: {elapsed :6f}")
+        print(f"     lib time: {elapsed * 1000 :6f} ms")
 
-    assert torch.allclose(y, ans, atol=0, rtol=1e-2)
     check_error(lib.infiniopDestroyGEMMDescriptor(descriptor))
 
 
-def test_cpu(lib, test_cases):
+def test_cpu(lib, test_cases, tensor_dtypes):
     device = DeviceEnum.DEVICE_CPU
     handle = create_handle(lib, device)
     for (
@@ -182,12 +198,12 @@ def test_cpu(lib, test_cases):
         c_stride,
         y_stride,
     ) in test_cases:
-        test(lib, handle, "cpu", alpha, beta, transA, transB, a_shape, b_shape, c_shape, y_shape, a_stride, b_stride, c_stride, y_stride, dtype=torch.float16)
-        test(lib, handle, "cpu", alpha, beta, transA, transB, a_shape, b_shape, c_shape, y_shape, a_stride, b_stride, c_stride, y_stride, dtype=torch.float32)
+        for tensor_dtype in tensor_dtypes:
+            test(lib, handle, "cpu", alpha, beta, transA, transB, a_shape, b_shape, c_shape, y_shape, a_stride, b_stride, c_stride, y_stride, dtype=tensor_dtype)
     destroy_handle(lib, handle)
 
 
-def test_cuda(lib, test_cases):
+def test_cuda(lib, test_cases, tensor_dtypes):
     device = DeviceEnum.DEVICE_CUDA
     handle = create_handle(lib, device)
     for (
@@ -204,12 +220,12 @@ def test_cuda(lib, test_cases):
         c_stride,
         y_stride,
     ) in test_cases:
-        test(lib, handle, "cuda", alpha, beta, transA, transB, a_shape, b_shape, c_shape, y_shape, a_stride, b_stride, c_stride, y_stride, dtype=torch.float16)
-        test(lib, handle, "cuda", alpha, beta, transA, transB, a_shape, b_shape, c_shape, y_shape, a_stride, b_stride, c_stride, y_stride, dtype=torch.float32)
+        for tensor_dtype in tensor_dtypes:
+            test(lib, handle, "cuda", alpha, beta, transA, transB, a_shape, b_shape, c_shape, y_shape, a_stride, b_stride, c_stride, y_stride, dtype=tensor_dtype)
     destroy_handle(lib, handle)
 
 
-def test_bang(lib, test_cases):
+def test_bang(lib, test_cases, tensor_dtypes):
     import torch_mlu
 
     device = DeviceEnum.DEVICE_BANG
@@ -229,8 +245,8 @@ def test_bang(lib, test_cases):
         c_stride,
         y_stride,
     ) in test_cases:
-        test(lib, handle, "mlu", alpha, beta, transA, transB, a_shape, b_shape, c_shape, y_shape, a_stride, b_stride, c_stride, y_stride, dtype=torch.float16)
-        test(lib, handle, "mlu", alpha, beta, transA, transB, a_shape, b_shape, c_shape, y_shape, a_stride, b_stride, c_stride, y_stride, dtype=torch.float32)
+        for tensor_dtype in tensor_dtypes:
+            test(lib, handle, "mlu", alpha, beta, transA, transB, a_shape, b_shape, c_shape, y_shape, a_stride, b_stride, c_stride, y_stride, dtype=tensor_dtype)
 
     destroy_handle(lib, handle)
 
@@ -323,6 +339,9 @@ if __name__ == "__main__":
             (4096, 1),
         ),
     ]
+    tensor_dtypes = [
+        torch.float16, torch.float32,
+    ]
     args = get_args()
     lib = open_lib()
 
@@ -363,12 +382,14 @@ if __name__ == "__main__":
         infiniopGEMMDescriptor_t,
     ]
 
+    if args.profile:
+        PROFILE = True
     if args.cpu:
-        test_cpu(lib, test_cases)
+        test_cpu(lib, test_cases, tensor_dtypes)
     if args.cuda:
-        test_cuda(lib, test_cases)
+        test_cuda(lib, test_cases, tensor_dtypes)
     if args.bang:
-        test_bang(lib, test_cases)
+        test_bang(lib, test_cases, tensor_dtypes)
     if not (args.cpu or args.cuda or args.bang):
-        test_cpu(lib, test_cases)
+        test_cpu(lib, test_cases, tensor_dtypes)
     print("\033[92mTest passed!\033[0m")

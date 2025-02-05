@@ -16,13 +16,10 @@ from operatorspy import (
     check_error,
 )
 
-from operatorspy.tests.test_utils import get_args
+from operatorspy.tests.test_utils import get_args, synchronize_device
 import torch
 from typing import Tuple
 
-# constant for control whether profile the pytorch and lib functions
-# NOTE: need to manually add synchronization function to the lib function,
-#       e.g., cudaDeviceSynchronize() for CUDA
 PROFILE = False
 NUM_PRERUN = 10
 NUM_ITERATIONS = 1000
@@ -51,8 +48,6 @@ def pool(x, k, padding, stride, dilation = 1):
         ans = pooling_layers[ndim](k, stride=stride, padding=padding)(x.to(torch.float32)).to(torch.float16)
     else:
         ans = pooling_layers[ndim](k, stride=stride, padding=padding)(x)
-    if PROFILE:
-        torch.cuda.synchronize()
     return ans
 
 
@@ -92,14 +87,7 @@ def test(
     x = torch.rand(x_shape, dtype=tensor_dtype).to(torch_device)
     y = torch.rand(inferShape(x_shape, k_shape, padding, strides), dtype=tensor_dtype).to(torch_device)
 
-    for i in range(NUM_PRERUN if PROFILE else 1):
-        ans = pool(x, k_shape, padding, strides)
-    if PROFILE:
-        start_time = time.time()
-        for i in range(NUM_ITERATIONS):
-            _ = pool(x, k_shape, padding, strides)
-        elapsed = (time.time() - start_time) / NUM_ITERATIONS
-        print(f"pytorch time: {elapsed :6f}")
+    ans = pool(x, k_shape, padding, strides)
 
     x_tensor = to_tensor(x, lib)
     y_tensor = to_tensor(y, lib)
@@ -129,18 +117,47 @@ def test(
     workspace = torch.zeros(int(workspaceSize.value), dtype=torch.uint8).to(torch_device)
     workspace_ptr = ctypes.cast(workspace.data_ptr(), ctypes.POINTER(ctypes.c_uint8))
 
-    for i in range(NUM_PRERUN if PROFILE else 1):
-        check_error(
-            lib.infiniopAvgPool(
-                descriptor,
-                workspace_ptr,
-                workspaceSize,
-                y_tensor.data,
-                x_tensor.data,
-                None,
-            )
+    check_error(
+        lib.infiniopAvgPool(
+            descriptor,
+            workspace_ptr,
+            workspaceSize,
+            y_tensor.data,
+            x_tensor.data,
+            None,
         )
+    )
+
+    if (tensor_dtype == torch.float16):
+        assert torch.allclose(y, ans, atol=0, rtol=1e-3)
+    else:
+        assert torch.allclose(y, ans, atol=1e-6, rtol=1e-5)
+
     if PROFILE:
+        # Profiling PyTorch implementation
+        for i in range(NUM_PRERUN):
+            _ = pool(x, k_shape, padding, strides)
+        synchronize_device(torch_device)
+        start_time = time.time()
+        for i in range(NUM_ITERATIONS):
+            _ = pool(x, k_shape, padding, strides)
+        synchronize_device(torch_device)
+        elapsed = (time.time() - start_time) / NUM_ITERATIONS
+        print(f" pytorch time: {elapsed * 1000 :6f} ms")
+
+        # Profiling C Operators implementation
+        for i in range(NUM_PRERUN):
+            check_error(
+                lib.infiniopAvgPool(
+                    descriptor,
+                    workspace_ptr,
+                    workspaceSize,
+                    y_tensor.data,
+                    x_tensor.data,
+                    None,
+                )
+            )
+        synchronize_device(torch_device)
         start_time = time.time()
         for i in range(NUM_ITERATIONS):
             check_error(
@@ -153,39 +170,39 @@ def test(
                     None,
                 )
             )
+        synchronize_device(torch_device)
         elapsed = (time.time() - start_time) / NUM_ITERATIONS
-        print(f"    lib time: {elapsed :6f}")
+        print(f"     lib time: {elapsed * 1000 :6f} ms")
 
-    assert torch.allclose(y, ans, atol=0, rtol=1e-3)
     check_error(lib.infiniopDestroyAvgPoolDescriptor(descriptor))
 
 
-def test_cpu(lib, test_cases):
+def test_cpu(lib, test_cases, tensor_dtypes):
     device = DeviceEnum.DEVICE_CPU
     handle = create_handle(lib, device)
     for x_shape, kernel_shape, padding, strides in test_cases:
-        test(lib, handle, "cpu", x_shape, kernel_shape, padding, strides, tensor_dtype=torch.float16)
-        test(lib, handle, "cpu", x_shape, kernel_shape, padding, strides, tensor_dtype=torch.float32)
+        for tensor_dtype in tensor_dtypes:
+            test(lib, handle, "cpu", x_shape, kernel_shape, padding, strides, tensor_dtype=tensor_dtype)
     destroy_handle(lib, handle)
 
 
-def test_cuda(lib, test_cases):
+def test_cuda(lib, test_cases, tensor_dtypes):
     device = DeviceEnum.DEVICE_CUDA
     handle = create_handle(lib, device)
     for x_shape, kernel_shape, padding, strides in test_cases:
-        test(lib, handle, "cuda", x_shape, kernel_shape, padding, strides, tensor_dtype=torch.float16)
-        test(lib, handle, "cuda", x_shape, kernel_shape, padding, strides, tensor_dtype=torch.float32)
+        for tensor_dtype in tensor_dtypes:
+            test(lib, handle, "cuda", x_shape, kernel_shape, padding, strides, tensor_dtype=tensor_dtype)
     destroy_handle(lib, handle)
 
 
-def test_bang(lib, test_cases):
+def test_bang(lib, test_cases, tensor_dtypes):
     import torch_mlu
 
     device = DeviceEnum.DEVICE_BANG
     handle = create_handle(lib, device)
     for x_shape, kernel_shape, padding, strides in test_cases:
-        test(lib, handle, "mlu", x_shape, kernel_shape, padding, strides, tensor_dtype=torch.float16)
-        test(lib, handle, "mlu", x_shape, kernel_shape, padding, strides, tensor_dtype=torch.float32)
+        for tensor_dtype in tensor_dtypes:
+            test(lib, handle, "mlu", x_shape, kernel_shape, padding, strides, tensor_dtype=tensor_dtype)
     destroy_handle(lib, handle)
 
 
@@ -195,6 +212,9 @@ if __name__ == "__main__":
         ((1, 1, 10), (3,), (1,), (1,)),
         ((32, 3, 224, 224), (3, 3), (1, 1), (2, 2)),
         ((1, 1, 16, 16, 16), (5, 5, 5), (2, 2, 2), (2, 2, 2)),
+    ]
+    tensor_dtypes = [
+        torch.float16, torch.float32,
     ]
     args = get_args()
     lib = open_lib()
@@ -228,12 +248,14 @@ if __name__ == "__main__":
         infiniopAvgPoolDescriptor_t,
     ]
 
+    if args.profile:
+        PROFILE = True
     if args.cpu:
-        test_cpu(lib, test_cases)
+        test_cpu(lib, test_cases, tensor_dtypes)
     if args.cuda:
-        test_cuda(lib, test_cases)
+        test_cuda(lib, test_cases, tensor_dtypes)
     if args.bang:
-        test_bang(lib, test_cases)
+        test_bang(lib, test_cases, tensor_dtypes)
     if not (args.cpu or args.cuda or args.bang):
-        test_cpu(lib, test_cases)
+        test_cpu(lib, test_cases, tensor_dtypes)
     print("\033[92mTest passed!\033[0m")

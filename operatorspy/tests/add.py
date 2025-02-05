@@ -2,6 +2,7 @@ from ctypes import POINTER, Structure, c_int32, c_void_p
 import ctypes
 import sys
 import os
+import time
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 from operatorspy import (
@@ -15,10 +16,13 @@ from operatorspy import (
     check_error,
 )
 
-from operatorspy.tests.test_utils import get_args
+from operatorspy.tests.test_utils import get_args, synchronize_device
 from enum import Enum, auto
 import torch
 
+PROFILE = False
+NUM_PRERUN = 10
+NUM_ITERATIONS = 1000
 
 class Inplace(Enum):
     OUT_OF_PLACE = auto()
@@ -83,36 +87,65 @@ def test(
     check_error(
         lib.infiniopAdd(descriptor, c_tensor.data, a_tensor.data, b_tensor.data, None)
     )
+
     assert torch.allclose(c, ans, atol=0, rtol=1e-3)
+
+    if PROFILE:
+        # Profiling PyTorch implementation
+        for i in range(NUM_PRERUN):
+            _ = add(a, b)
+        synchronize_device(torch_device)
+        start_time = time.time()
+        for i in range(NUM_ITERATIONS):
+            _ = add(a, b)
+        synchronize_device(torch_device)
+        elapsed = (time.time() - start_time) / NUM_ITERATIONS
+        print(f" pytorch time: {elapsed * 1000 :6f} ms")
+
+        # Profiling C Operators implementation
+        for i in range(NUM_PRERUN):
+            check_error(
+                lib.infiniopAdd(descriptor, c_tensor.data, a_tensor.data, b_tensor.data, None)
+            )
+        synchronize_device(torch_device)
+        start_time = time.time()
+        for i in range(NUM_ITERATIONS):
+            check_error(
+                lib.infiniopAdd(descriptor, c_tensor.data, a_tensor.data, b_tensor.data, None)
+            )
+        synchronize_device(torch_device)
+        elapsed = (time.time() - start_time) / NUM_ITERATIONS
+        print(f"     lib time: {elapsed * 1000 :6f} ms")
+
     check_error(lib.infiniopDestroyAddDescriptor(descriptor))
 
 
-def test_cpu(lib, test_cases):
+def test_cpu(lib, test_cases, tensor_dtypes):
     device = DeviceEnum.DEVICE_CPU
     handle = create_handle(lib, device)
     for c_shape, a_shape, b_shape, inplace in test_cases:
-        test(lib, handle, "cpu", c_shape, a_shape, b_shape, tensor_dtype=torch.float16, inplace=inplace)
-        test(lib, handle, "cpu", c_shape, a_shape, b_shape, tensor_dtype=torch.float32, inplace=inplace)
+        for tensor_dtype in tensor_dtypes:
+            test(lib, handle, "cpu", c_shape, a_shape, b_shape, tensor_dtype=tensor_dtype, inplace=inplace)
     destroy_handle(lib, handle)
 
 
-def test_cuda(lib, test_cases):
+def test_cuda(lib, test_cases, tensor_dtypes):
     device = DeviceEnum.DEVICE_CUDA
     handle = create_handle(lib, device)
     for c_shape, a_shape, b_shape, inplace in test_cases:
-        test(lib, handle, "cuda", c_shape, a_shape, b_shape, tensor_dtype=torch.float16, inplace=inplace)
-        test(lib, handle, "cuda", c_shape, a_shape, b_shape, tensor_dtype=torch.float32, inplace=inplace)
+        for tensor_dtype in tensor_dtypes:
+            test(lib, handle, "cuda", c_shape, a_shape, b_shape, tensor_dtype=tensor_dtype, inplace=inplace)
     destroy_handle(lib, handle)
 
 
-def test_bang(lib, test_cases):
+def test_bang(lib, test_cases, tensor_dtypes):
     import torch_mlu
 
     device = DeviceEnum.DEVICE_BANG
     handle = create_handle(lib, device)
     for c_shape, a_shape, b_shape, inplace in test_cases:
-        test(lib, handle, "mlu", c_shape, a_shape, b_shape, tensor_dtype=torch.float16, inplace=inplace)
-        test(lib, handle, "mlu", c_shape, a_shape, b_shape, tensor_dtype=torch.float32, inplace=inplace)
+        for tensor_dtype in tensor_dtypes:
+            test(lib, handle, "mlu", c_shape, a_shape, b_shape, tensor_dtype=tensor_dtype, inplace=inplace)
     destroy_handle(lib, handle)
 
 
@@ -126,13 +159,16 @@ if __name__ == "__main__":
         ((), (), (), Inplace.OUT_OF_PLACE),
         ((3, 3), (3, 3), (3, 3), Inplace.OUT_OF_PLACE),
         ((2, 20, 3), (2, 1, 3), (2, 20, 3), Inplace.OUT_OF_PLACE),
-        ((32, 20, 512), (32, 20, 512), (32, 20, 512), Inplace.INPLACE_A),
-        ((32, 20, 512), (32, 20, 512), (32, 20, 512), Inplace.INPLACE_B),
+        ((3, 20, 512), (3, 20, 512), (3, 20, 512), Inplace.INPLACE_A),
+        ((3, 20, 512), (3, 20, 512), (3, 20, 512), Inplace.INPLACE_B),
         ((32, 256, 112, 112), (32, 256, 112, 1), (32, 256, 112, 112), Inplace.OUT_OF_PLACE),
         ((32, 256, 112, 112), (32, 256, 112, 112), (32, 256, 112, 112), Inplace.OUT_OF_PLACE),
         ((2, 4, 3), (2, 1, 3), (4, 3), Inplace.OUT_OF_PLACE),
         ((2, 3, 4, 5), (2, 3, 4, 5), (5,), Inplace.OUT_OF_PLACE),
         ((3, 2, 4, 5), (4, 5), (3, 2, 1, 1), Inplace.OUT_OF_PLACE),
+    ]
+    tensor_dtypes = [
+        torch.float16, torch.float32,
     ]
     args = get_args()
     lib = open_lib()
@@ -157,12 +193,14 @@ if __name__ == "__main__":
         infiniopAddDescriptor_t,
     ]
 
+    if args.profile:
+        PROFILE = True
     if args.cpu:
-        test_cpu(lib, test_cases)
+        test_cpu(lib, test_cases, tensor_dtypes)
     if args.cuda:
-        test_cuda(lib, test_cases)
+        test_cuda(lib, test_cases, tensor_dtypes)
     if args.bang:
-        test_bang(lib, test_cases)
+        test_bang(lib, test_cases, tensor_dtypes)
     if not (args.cpu or args.cuda or args.bang):
-        test_cpu(lib, test_cases)
+        test_cpu(lib, test_cases, tensor_dtypes)
     print("\033[92mTest passed!\033[0m")

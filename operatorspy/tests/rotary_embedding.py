@@ -2,7 +2,7 @@ import ctypes
 from ctypes import c_float, POINTER, c_void_p, c_int32, c_uint64, Structure, byref
 import sys
 import os
-
+import time
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 from operatorspy import (
@@ -19,9 +19,12 @@ from operatorspy import (
     U64,
 )
 
-from operatorspy.tests.test_utils import get_args
+from operatorspy.tests.test_utils import get_args, synchronize_device
 import torch
 
+PROFILE = False
+NUM_PRERUN = 10
+NUM_ITERATIONS = 1000
 
 class RoPEDescriptor(Structure):
     _fields_ = [("device", c_int32)]
@@ -135,53 +138,116 @@ def test(lib, handle, torch_device, shape, strides=None, dtype=torch.float16):
     )
 
     assert torch.allclose(t, ans, atol=1e-4, rtol=1e-2)
+
+    if PROFILE:
+        # Profiling PyTorch implementation
+        posTmp_d = posTmp.to(torch_device)
+
+        for i in range(NUM_PRERUN):
+            if torch_device == 'mlu' or torch_device == 'npu':
+                _ = rotary_embedding(t, posTmp, theta, "cpu").to(torch_device)
+            else:
+                _ = rotary_embedding(t, posTmp_d, theta, torch_device)
+        synchronize_device(torch_device)
+
+        start_time = time.time()
+        for i in range(NUM_ITERATIONS):
+            if torch_device == 'mlu' or torch_device == 'npu':
+                _ = rotary_embedding(t, posTmp, theta, "cpu").to(torch_device)
+            else:
+                _ = rotary_embedding(t, posTmp_d, theta, torch_device)
+        synchronize_device(torch_device)
+        
+        elapsed = (time.time() - start_time) / NUM_ITERATIONS
+        print(f" pytorch time: {elapsed * 1000 :6f} ms")
+
+        # Profiling C Operators implementation
+        for i in range(NUM_PRERUN):
+            check_error(
+                lib.infiniopRoPE(
+                    descriptor,
+                    workspace.data_ptr() if workspace is not None else None,
+                    workspace_size.value,
+                    t_tensor.data,
+                    pos_tensor.data,
+                    sin_table_tensor.data,
+                    cos_table_tensor.data,
+                    None,
+                )
+            )
+        synchronize_device(torch_device)
+        start_time = time.time()
+        for i in range(NUM_ITERATIONS):
+            check_error(
+                lib.infiniopRoPE(
+                    descriptor,
+                    workspace.data_ptr() if workspace is not None else None,
+                    workspace_size.value,
+                    t_tensor.data,
+                    pos_tensor.data,
+                    sin_table_tensor.data,
+                    cos_table_tensor.data,
+                    None,
+                )
+            )
+        synchronize_device(torch_device)
+        elapsed = (time.time() - start_time) / NUM_ITERATIONS
+        print(f"     lib time: {elapsed * 1000 :6f} ms")
+
     check_error(lib.infiniopDestroyRoPEDescriptor(descriptor))
 
 
-def test_cpu(lib, test_cases):
+def test_cpu(lib, test_cases, tensor_dtypes):
     device = DeviceEnum.DEVICE_CPU
     handle = create_handle(lib, device)
-    for shape, strides, dtype in test_cases:
-        test(lib, handle, "cpu", shape, strides, dtype)
+    for shape, strides in test_cases:
+        for tensor_dtype in tensor_dtypes:
+            test(lib, handle, "cpu", shape, strides, tensor_dtype)
     destroy_handle(lib, handle)
 
 
-def test_cuda(lib, test_cases):
+def test_cuda(lib, test_cases, tensor_dtypes):
     device = DeviceEnum.DEVICE_CUDA
     handle = create_handle(lib, device)
-    for shape, strides, dtype in test_cases:
-        test(lib, handle, "cuda", shape, strides, dtype)
+    for shape, strides in test_cases:
+        for tensor_dtype in tensor_dtypes:
+            test(lib, handle, "cuda", shape, strides, tensor_dtype)
     destroy_handle(lib, handle)
 
 
-def test_bang(lib, test_cases):
+def test_bang(lib, test_cases, tensor_dtypes):
     import torch_mlu
     device = DeviceEnum.DEVICE_BANG
     handle = create_handle(lib, device)
-    for shape, strides, dtype in test_cases:
-        test(lib, handle, "mlu", shape, strides, dtype)
+    for shape, strides in test_cases:
+        for tensor_dtype in tensor_dtypes:
+            test(lib, handle, "mlu", shape, strides, tensor_dtype)
     destroy_handle(lib, handle)
 
 
-def test_ascend(lib, test_cases) :
+def test_ascend(lib, test_cases, tensor_dtypes) :
     import torch_npu
 
     device = DeviceEnum.DEVICE_ASCEND
     handle = create_handle(lib, device)
-    for shape, strides, dtype in test_cases:
-        test(lib, handle, "npu", shape, strides, dtype)
+    for shape, strides in test_cases:
+        for tensor_dtype in tensor_dtypes:
+            test(lib, handle, "npu", shape, strides, tensor_dtype)
     destroy_handle(lib, handle)
 
 if __name__ == "__main__":
     test_cases = [
-        ((1, 32, 128), None, torch.float16),
-        ((1, 32, 64), None, torch.float16),
+        ((1, 32, 128), None),
+        ((1, 32, 64), None),
         # 昇腾暂不满足这个用例，最后一维度 <=32 会有问题，可能与其核心
         # 接口 GatherMask 的内部实现相关，目前 48 64 128 都可以支持
-        ((4, 1, 32), None, torch.float16),
-        ((1, 32, 128), None, torch.float16),
+        ((4, 1, 32), None),
+        ((1, 32, 128), None),
         
-        ((3, 32, 128), (8000, 200, 1), torch.float16),
+        ((3, 32, 128), (8000, 200, 1)),
+    ]
+    tensor_dtypes = [
+        torch.float16, 
     ]
     args = get_args()
     lib = open_lib()
@@ -214,14 +280,17 @@ if __name__ == "__main__":
     lib.infiniopDestroyRoPEDescriptor.argtypes = [
         infiniopRoPEDescriptor_t,
     ]
+
+    if args.profile:
+        PROFILE = True
     if args.cpu:
-        test_cpu(lib, test_cases)
+        test_cpu(lib, test_cases, tensor_dtypes)
     if args.cuda:
-        test_cuda(lib, test_cases)
+        test_cuda(lib, test_cases, tensor_dtypes)
     if args.bang:
-        test_bang(lib, test_cases)
+        test_bang(lib, test_cases, tensor_dtypes)
     if args.ascend:
-        test_ascend(lib, test_cases)
+        test_ascend(lib, test_cases, tensor_dtypes)
     if not (args.cpu or args.cuda or args.bang or args.ascend):
-        test_cpu(lib, test_cases)
+        test_cpu(lib, test_cases, tensor_dtypes)
     print("\033[92mTest passed!\033[0m")

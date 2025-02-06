@@ -16,10 +16,15 @@ from operatorspy import (
     check_error,
 )
 
-from operatorspy.tests.test_utils import get_args
+from operatorspy.tests.test_utils import (
+    get_args, 
+    debug,
+    get_tolerance,
+)
 import torch
 from typing import Tuple
 
+DEBUG = False
 # constant for control whether profile the pytorch and lib functions
 # NOTE: need to manually add synchronization function to the lib function,
 #       e.g., cudaDeviceSynchronize() for CUDA
@@ -27,6 +32,11 @@ PROFILE = False
 NUM_PRERUN = 10
 NUM_ITERATIONS = 1000
 
+# the atol and rtol for each data type
+tolerance_map = {
+    torch.float16: {'atol': 0, 'rtol': 1e-3},
+    torch.float32: {'atol': 0, 'rtol': 1e-5}, 
+}
 
 class AvgPoolDescriptor(Structure):
     _fields_ = [("device", c_int32)]
@@ -156,7 +166,10 @@ def test(
         elapsed = (time.time() - start_time) / NUM_ITERATIONS
         print(f"    lib time: {elapsed :6f}")
 
-    assert torch.allclose(y, ans, atol=0, rtol=1e-3)
+    atol, rtol = get_tolerance(tolerance_map, tensor_dtype)
+    if DEBUG:
+        debug(y, ans, atol=atol, rtol=rtol)
+    assert torch.allclose(y, ans, atol=atol, rtol=rtol)
     check_error(lib.infiniopDestroyAvgPoolDescriptor(descriptor))
 
 
@@ -228,6 +241,8 @@ if __name__ == "__main__":
         infiniopAvgPoolDescriptor_t,
     ]
 
+    if args.debug:
+        DEBUG = True
     if args.cpu:
         test_cpu(lib, test_cases)
     if args.cuda:

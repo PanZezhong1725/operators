@@ -17,9 +17,13 @@ from operatorspy import (
     rearrange_tensor,
 )
 
-from operatorspy.tests.test_utils import get_args
+from operatorspy.tests.test_utils import (
+    get_args, 
+    debug,
+)
 import torch
 
+DEBUG = False
 
 class RerrangeDescriptor(Structure):
     _fields_ = [("device", c_int32)]
@@ -64,7 +68,10 @@ def test(
     check_error(
         lib.infiniopRearrange(descriptor, y_tensor.data, x_tensor.data, None)
     )
-    assert torch.allclose(x, y, atol=0, rtol=1e-3)
+
+    if DEBUG:
+        debug(x, y, atol=0, rtol=0)
+    assert torch.allclose(x, y, atol=0, rtol=0)
     check_error(lib.infiniopDestroyRearrangeDescriptor(descriptor))
 
 
@@ -137,6 +144,9 @@ if __name__ == "__main__":
     ]
     lib.infiniopDestroyRearrangeDescriptor.restype = c_int32
     lib.infiniopDestroyRearrangeDescriptor.argtypes = [infiniopRearrangeDescriptor_t]
+
+    if args.debug:
+        DEBUG = True
     if args.cpu:
         test_cpu(lib, test_cases)
     if args.cuda:

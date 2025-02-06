@@ -17,8 +17,19 @@ from operatorspy import (
     create_workspace,
 )
 
-from operatorspy.tests.test_utils import get_args
+from operatorspy.tests.test_utils import (
+    get_args, 
+    debug,
+    get_tolerance,
+)
 import torch
+
+DEBUG = False
+
+# the atol and rtol for each data type
+tolerance_map = {
+    torch.float16: {'atol': 0, 'rtol': 1e-3},
+}
 
 class RMSNormDescriptor(Structure):
     _fields_ = [("device", c_int32)]
@@ -83,7 +94,10 @@ def test(lib, handle, torch_device, y_shape, x_shape, w_shape, dtype=torch.float
         )
     )
 
-    assert torch.allclose(y.to(dtype), ans.to(dtype), atol=1e-3, rtol=1e-3)
+    atol, rtol = get_tolerance(tolerance_map, dtype)
+    if DEBUG:
+        debug(y.to(dtype), ans.to(dtype), atol=atol, rtol=rtol)
+    assert torch.allclose(y.to(dtype), ans.to(dtype), atol=atol, rtol=rtol)
     check_error(lib.infiniopDestroyRMSNormDescriptor(descriptor))
 
 def test_cpu(lib, test_cases):
@@ -156,6 +170,8 @@ if __name__ == "__main__":
         infiniopRMSNormDescriptor_t,
     ]
 
+    if args.debug:
+        DEBUG = True
     if args.cpu:
         test_cpu(lib, test_cases)
     if args.cuda:

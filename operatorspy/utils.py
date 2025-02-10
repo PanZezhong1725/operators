@@ -1,4 +1,5 @@
 import ctypes
+from .devices import DeviceEnum
 from .data_layout import *
 from .liboperators import infiniopTensorDescriptor_t, CTensor, infiniopHandle_t
 
@@ -108,3 +109,14 @@ def rearrange_tensor(tensor, new_strides):
     new_tensor.set_(new_tensor.untyped_storage(), offset, shape, tuple(new_strides))
 
     return new_tensor
+
+def device_enum_to_str(device: DeviceEnum):
+    if device == DeviceEnum.DEVICE_CPU:
+        return "cpu"
+    if device == DeviceEnum.DEVICE_CUDA:
+        return "cuda"
+    if device == DeviceEnum.DEVICE_BANG:
+        return "mlu"
+    if device == DeviceEnum.DEVICE_ASCEND:
+        return "npu"
+    return ""

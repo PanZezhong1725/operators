@@ -37,8 +37,8 @@ infiniopStatus_t ascendCreateRandomSampleDescriptor(AscendHandle_t handle,
 infiniopStatus_t ascendGetRandomSampleWorkspaceSize(RandomSampleAscendDescriptor_t desc,
                                                     uint64_t *size) {
     auto &pDesc = desc->pDesc;
-    *size = numElements(pDesc->shape.data(), pDesc->ndim) * aclDataTypeSize(pDesc->dataType) +
-            numElements(pDesc->shape.data(), pDesc->ndim) * sizeof(I64);
+    *size = numElements(pDesc->shape.data(), pDesc->ndim) * aclDataTypeSize(pDesc->dataType) * 2 +
+            numElements(pDesc->shape.data(), pDesc->ndim) * I64.size;
 
     return STATUS_SUCCESS;
 }
@@ -88,6 +88,8 @@ infiniopStatus_t ascendRandomSample(RandomSampleAscendDescriptor_t desc,
     workspaceTmp = (void *) ((uint8_t *) workspace +
                              numElements(topkValDesc->shape.data(), topkValDesc->ndim) * aclDataTypeSize(topkValDesc->dataType));
     auto topkIdxAddr = workspaceTmp;
+    workspaceTmp = (void *) ((uint8_t *) workspaceTmp +
+                             numElements(topkIdxDesc->shape.data(), topkIdxDesc->ndim) * aclDataTypeSize(topkIdxDesc->dataType));
     auto pAddr = (void *) probs;
 
     // Create aclTensor
@@ -97,7 +99,7 @@ infiniopStatus_t ascendRandomSample(RandomSampleAscendDescriptor_t desc,
     if (!doSample) {
         CHECK_STATUS(desc->resDesc->createTensor(result), STATUS_SUCCESS);
     }
-
+    printf("------\n");
     // Do Topk calculate
     uint64_t topkWorkspaceSize = 0;
     aclOpExecutor *topkExecutor = nullptr;
@@ -114,8 +116,9 @@ infiniopStatus_t ascendRandomSample(RandomSampleAscendDescriptor_t desc,
     CHECK_RET(ret == ACL_SUCCESS,
               LOG_PRINT("aclnnTopkGetWorkspaceSize failed ERROR: %d\n", ret);
               return STATUS_EXECUTION_FAILED);
-    void *topkWorkspace;
-    CHECK_STATUS(mallocWorkspace(&topkWorkspace, topkWorkspaceSize), STATUS_SUCCESS);
+    void *topkWorkspace = workspaceTmp;
+    workspaceTmp = (void *) ((uint8_t *) workspaceTmp + topkWorkspaceSize);
+    // CHECK_STATUS(mallocWorkspace(&topkWorkspace, topkWorkspaceSize), STATUS_SUCCESS);
     ret = aclnnTopk(topkWorkspace,
                     topkWorkspaceSize,
                     topkExecutor,
@@ -123,15 +126,18 @@ infiniopStatus_t ascendRandomSample(RandomSampleAscendDescriptor_t desc,
     CHECK_RET(ret == ACL_SUCCESS,
               LOG_PRINT("aclnnTopk failed ERROR: %d\n", ret);
               return STATUS_EXECUTION_FAILED);
-    CHECK_STATUS(freeWorkspace(topkWorkspace), STATUS_SUCCESS);
+    // CHECK_STATUS(freeWorkspace(topkWorkspace), STATUS_SUCCESS);
 
     if (doSample) {
+        void *sampleWorkspace = workspaceTmp;
+        printf("---------\n");
         // Do softmax and topp random sample
         CHECK_STATUS(random_sample_do(
                          pAddr,
                          result,
                          topkValAddr,
                          topkIdxAddr,
+                         sampleWorkspace,
                          topk,
                          static_cast<int>(pDesc->shape[0]),
                          topp,

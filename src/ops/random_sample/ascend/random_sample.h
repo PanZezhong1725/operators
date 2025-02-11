@@ -46,7 +46,8 @@ infiniopStatus_t ascendDestroyRandomSampleDescriptor(RandomSampleAscendDescripto
 
 extern "C" infiniopStatus_t
 random_sample_do(void *p, void *res, void *topkAddr, void *topkIdxAddr,
-                 int32_t topk, int32_t voc, float topp, float temper,
-                 float random, int dtype, void *stream);
+                 void *workspace, int32_t topk, int32_t voc,
+                 float topp, float temper, float random,
+                 int dtype, void *stream);
 
 #endif

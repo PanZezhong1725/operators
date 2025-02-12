@@ -3,6 +3,8 @@
 
 using namespace AscendC;
 
+const int32_t BLOCK_LEN = 256;
+
 template<typename T>
 class KernelRandomSample {
 public:
@@ -14,19 +16,21 @@ public:
         topk = topk_;
         voc = voc_;
         topp = topp_;
-        temperature = temper_;
+        invTemperature = 1.0f / temper_;
         random = random_;
-        blockSize = 256 * 2;
+        negMax = 0.f;
+        sum = 0.f;
 
         // CumSumInfo
-        if (sizeof(T) == sizeof(float)) {
-            topkAligned = (topk + 7) / 8 * 8;
-            vocAligned = (voc + 7) / 8 * 8;
-        } else {
-            topkAligned = (topk + 15) / 16 * 16;
-            vocAligned = (voc + 15) / 16 * 16;
-        }
+        topkAligned = topk * sizeof(T) % 32 == 0
+                          ? topk
+                          : (topk * sizeof(T) + 31) / 32 * 32 / sizeof(T);
+        vocAligned = voc * sizeof(T) % 32 == 0
+                         ? voc
+                         : (voc * sizeof(T) + 31) / 32 * 32 / sizeof(T);
         topkIdxAligned = (topk + 3) / 4 * 4;
+
+        bufferLen = topkAligned > BLOCK_LEN ? topkAligned : BLOCK_LEN;
 
         // Set Gm
         pGm.SetGlobalBuffer(reinterpret_cast<__gm__ T *>(p), voc);
@@ -35,14 +39,13 @@ public:
         resGm.SetGlobalBuffer(reinterpret_cast<__gm__ int64_t *>(res), 1);
 
         // Global input and output
-        pipe.InitBuffer(pQue, 1, vocAligned * sizeof(T));
         pipe.InitBuffer(topkQue, 1, topkAligned * sizeof(T));
         pipe.InitBuffer(topkIdxQue, 1, topkIdxAligned * sizeof(int64_t));
         pipe.InitBuffer(resQue, 1, 32);// 32 bytes for aligned
-
-        pipe.InitBuffer(softMaxBuf1, blockSize);
-        pipe.InitBuffer(softMaxBuf2, blockSize);
-        pipe.InitBuffer(softMaxBuf3, blockSize);
+        pipe.InitBuffer(inBuf, BLOCK_LEN * sizeof(T));
+        pipe.InitBuffer(tmpBuf1, bufferLen * sizeof(T));
+        pipe.InitBuffer(tmpBuf2, bufferLen * sizeof(T));
+        pipe.InitBuffer(tmpBuf3, bufferLen * sizeof(T));
         pipe.InitBuffer(softMaxOutBuf, topkAligned * sizeof(T));
 
         pipe.InitBuffer(inclusiveSumOutBuf, topkAligned * sizeof(T));
@@ -55,40 +58,12 @@ public:
 
 private:
     // Softmax
-    __aicore__ inline void SoftMax(LocalTensor<T> &valIn,
-                                   LocalTensor<T> &topkValIn,
+    __aicore__ inline void SoftMax(LocalTensor<T> &topkValIn,
                                    LocalTensor<T> &softMaxOut) {
-        int32_t repeatTimes = vocAligned * sizeof(T) / blockSize;
-        int32_t remainder = vocAligned * sizeof(T) % blockSize / sizeof(T);
-        int32_t tileLength = blockSize / sizeof(T);
-        float negMax = -static_cast<float>(topkValIn(0));
-        float invTemperature = 1.0f / temperature;
-        float sum = 0.f;
-        float sum_s = 0.f;
-        LocalTensor<T> tmpBuffer = softMaxBuf1.Get<T>();
-        LocalTensor<T> tmpBuffer2 = softMaxBuf2.Get<T>();
-        LocalTensor<T> tmpBuffer3 = softMaxBuf3.Get<T>();
-        for (int32_t i = 0; i < repeatTimes; i++) {
-            Adds(tmpBuffer, valIn[i * tileLength], static_cast<T>(negMax), tileLength);
-            Muls(tmpBuffer2, tmpBuffer, static_cast<T>(invTemperature), tileLength);
-            Exp(tmpBuffer3, tmpBuffer2, tileLength);
-            sum_s = 0.f;
-            for (int j = 0; j < tileLength; ++j) {
-                sum_s += static_cast<float>(tmpBuffer3(j));
-            }
-            sum += sum_s;
-        }
-        if (remainder != 0) {
-            Adds(tmpBuffer, valIn[repeatTimes * tileLength], static_cast<T>(negMax), remainder);
-            Muls(tmpBuffer2, tmpBuffer, static_cast<T>(invTemperature), remainder);
-            Exp(tmpBuffer3, tmpBuffer2, remainder);
-            sum_s = 0.f;
-            for (int i = 0; i < remainder; ++i) {
-                sum_s += static_cast<float>(tmpBuffer3(i));
-            }
-            sum += sum_s;
-        }
         float invSum = 1.0f / sum;
+        LocalTensor<T> tmpBuffer = tmpBuf1.Get<T>();
+        LocalTensor<T> tmpBuffer2 = tmpBuf2.Get<T>();
+        LocalTensor<T> tmpBuffer3 = tmpBuf3.Get<T>();
         Adds(tmpBuffer, topkValIn, static_cast<T>(negMax), topk);
         Muls(tmpBuffer2, tmpBuffer, static_cast<T>(invTemperature), topk);
         Exp(tmpBuffer3, tmpBuffer2, topk);
@@ -131,27 +106,58 @@ private:
     }
 
     __aicore__ inline void CopyIn() {
-        LocalTensor<T> pLocal = pQue.AllocTensor<T>();
         LocalTensor<T> topkValLocal = topkQue.AllocTensor<T>();
         LocalTensor<int64_t> topkIdxLocal = topkIdxQue.AllocTensor<int64_t>();
-
-        DataCopy(pLocal, pGm, vocAligned);
         DataCopy(topkValLocal, topkGm, topkAligned);
         DataCopy(topkIdxLocal, topkIdxGm, topkIdxAligned);
+        // Get Max val of input
+        negMax = -static_cast<float>(topkValLocal(0));
 
-        pQue.EnQue(pLocal);
+        // Copy in p and compute sum
+        int32_t repeatTimes = voc / BLOCK_LEN;
+        int32_t remainder = voc % BLOCK_LEN;
+        float sum_s = 0.f;
+        LocalTensor<T> inBuffer = inBuf.Get<T>();
+        LocalTensor<T> tmpBuffer = tmpBuf1.Get<T>();
+        LocalTensor<T> tmpBuffer2 = tmpBuf2.Get<T>();
+        LocalTensor<T> tmpBuffer3 = tmpBuf3.Get<T>();
+        for (int32_t i = 0; i < repeatTimes; i++) {
+            DataCopy(inBuffer, pGm[i * BLOCK_LEN], BLOCK_LEN);
+            Adds(tmpBuffer, inBuffer, static_cast<T>(negMax), BLOCK_LEN);
+            Muls(tmpBuffer2, tmpBuffer, static_cast<T>(invTemperature), BLOCK_LEN);
+            Exp(tmpBuffer3, tmpBuffer2, BLOCK_LEN);
+            sum_s = 0.f;
+            for (int j = 0; j < BLOCK_LEN; ++j) {
+                sum_s += static_cast<float>(tmpBuffer3(j));
+            }
+            sum += sum_s;
+        }
+        if (remainder != 0) {
+            int32_t remainderAligned = remainder * sizeof(T) % 32 == 0
+                                           ? remainder
+                                           : (remainder * sizeof(T) + 31) / 32 * 32 / sizeof(T);
+            DataCopy(inBuffer, pGm[repeatTimes * BLOCK_LEN], remainderAligned);
+            Adds(tmpBuffer, inBuffer, static_cast<T>(negMax), remainder);
+            Muls(tmpBuffer2, tmpBuffer, static_cast<T>(invTemperature), remainder);
+            Exp(tmpBuffer3, tmpBuffer2, remainder);
+            sum_s = 0.f;
+            for (int i = 0; i < remainder; ++i) {
+                sum_s += static_cast<float>(tmpBuffer3(i));
+            }
+            sum += sum_s;
+        }
+
         topkQue.EnQue(topkValLocal);
         topkIdxQue.EnQue(topkIdxLocal);
     }
 
     __aicore__ inline void Compute() {
         // Get input data
-        LocalTensor<T> pLocal = pQue.DeQue<T>();
         LocalTensor<T> topkValLocal = topkQue.DeQue<T>();
 
         // SoftMax
         LocalTensor<T> softMaxOutLocal = softMaxOutBuf.Get<T>();
-        SoftMax(pLocal, topkValLocal, softMaxOutLocal);
+        SoftMax(topkValLocal, softMaxOutLocal);
 
         // InclusiveSum
         LocalTensor<T> inclusiveOutLocal = inclusiveSumOutBuf.Get<T>();
@@ -162,7 +168,6 @@ private:
         LocalTensor<int64_t> resultLocal = resQue.AllocTensor<int64_t>();
         RandomSample(inclusiveOutLocal, topkIdxLocal, resultLocal);
 
-        pQue.FreeTensor(pLocal);
         topkQue.FreeTensor(topkValLocal);
         topkIdxQue.FreeTensor(topkIdxLocal);
         resQue.EnQue(resultLocal);
@@ -181,14 +186,14 @@ private:
 
     TPipe pipe;
 
-    TQue<QuePosition::VECIN, 1> pQue;
     TQue<QuePosition::VECIN, 1> topkQue;
     TQue<QuePosition::VECIN, 1> topkIdxQue;
     TQue<QuePosition::VECOUT, 1> resQue;
 
-    TBuf<TPosition::VECCALC> softMaxBuf1;
-    TBuf<TPosition::VECCALC> softMaxBuf2;
-    TBuf<TPosition::VECCALC> softMaxBuf3;
+    TBuf<TPosition::VECCALC> inBuf;
+    TBuf<TPosition::VECCALC> tmpBuf1;
+    TBuf<TPosition::VECCALC> tmpBuf2;
+    TBuf<TPosition::VECCALC> tmpBuf3;
     TBuf<TPosition::VECCALC> softMaxOutBuf;
 
     TBuf<TPosition::VECCALC> inclusiveSumOutBuf;
@@ -197,13 +202,15 @@ private:
     int32_t topk;
     int32_t voc;
     float topp;
-    float temperature;
+    float invTemperature;
     float random;
+    float negMax;
+    float sum;
 
     int32_t topkAligned;
     int32_t topkIdxAligned;
     int32_t vocAligned;
-    int32_t blockSize;
+    int32_t bufferLen;
 };
 
 extern "C" __global__ __aicore__ void
